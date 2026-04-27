@@ -128,6 +128,9 @@ export default function StudentRegistrationModal({ studentId, classId, classes, 
         date_of_birth: stu.date_of_birth || "",
         current_class_id: stu.current_class_id ? String(stu.current_class_id) : "",
         enrollment_date: stu.enrollment_date || "",
+        guardian_name: "",
+        guardian_phone: "",
+        guardian_email: "",
       });
       if (r.data.data) setReg(prev => ({ ...prev, ...nullToEmpty(r.data.data) }));
       if (m.data.data) setMed(prev => ({ ...prev, ...m.data.data }));
