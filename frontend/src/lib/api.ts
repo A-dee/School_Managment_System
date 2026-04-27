@@ -1,0 +1,95 @@
+import axios from "axios";
+import Cookies from "js-cookie";
+
+const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = `${BASE}/api/v1`;
+
+const api = axios.create({
+  baseURL: BASE,
+  headers: { "Content-Type": "application/json" },
+  withCredentials: true,
+});
+
+api.interceptors.request.use((config) => {
+  const token = Cookies.get("access_token");
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+api.interceptors.response.use(
+  (res) => res,
+  async (err) => {
+    if (err.response?.status === 401) {
+      const refresh = Cookies.get("refresh_token");
+      if (refresh) {
+        try {
+          const { data } = await axios.post(`${API_URL}/auth/refresh`, { refresh_token: refresh });
+          Cookies.set("access_token", data.data.access_token, { secure: true, sameSite: "strict" });
+          err.config.headers.Authorization = `Bearer ${data.data.access_token}`;
+          return api.request(err.config);
+        } catch {
+          Cookies.remove("access_token");
+          Cookies.remove("refresh_token");
+          window.location.href = "/login";
+        }
+      } else {
+        window.location.href = "/login";
+      }
+    }
+    return Promise.reject(err);
+  }
+);
+
+export default api;
+
+// Auth
+export const login = (email: string, password: string) =>
+  api.post("/api/v1/auth/login", { email, password });
+export const getMe = () => api.get("/api/v1/auth/me");
+
+// Students
+export const getStudents = (params?: object) => api.get("/api/v1/students/", { params });
+export const createStudent = (data: object) => api.post("/api/v1/students/", data);
+export const updateStudent = (id: number, data: object) => api.put(`/api/v1/students/${id}`, data);
+export const graduateStudent = (id: number) => api.post(`/api/v1/students/${id}/graduate`);
+export const withdrawStudent = (id: number) => api.post(`/api/v1/students/${id}/withdraw`);
+
+// Staff
+export const getStaff = (params?: object) => api.get("/api/v1/staff/", { params });
+export const createStaff = (data: object) => api.post("/api/v1/staff/", data);
+
+// Classes
+export const getClasses = (params?: object) => api.get("/api/v1/classes/", { params });
+export const createClass = (data: object) => api.post("/api/v1/classes/", data);
+
+// Finance
+export const getInvoices = (params?: object) => api.get("/api/v1/finance/invoices", { params });
+export const getPayments = (params?: object) => api.get("/api/v1/finance/payments", { params });
+export const recordPayment = (data: object) => api.post("/api/v1/finance/payments", data);
+export const getDebtors = (session_id: number, term_id: number) =>
+  api.get("/api/v1/finance/invoices/debtors", { params: { session_id, term_id } });
+export const getProfitLoss = (params?: object) =>
+  api.get("/api/v1/finance/reports/profit-loss", { params });
+
+// Results
+export const getResults = (class_id: number, term_id: number, session_id: number) =>
+  api.get(`/api/v1/results/class/${class_id}`, { params: { term_id, session_id } });
+
+// Attendance
+export const getStudentAttendance = (student_id: number) =>
+  api.get(`/api/v1/attendance/student/${student_id}`);
+
+// Notifications
+export const getNotifications = () => api.get("/api/v1/notifications");
+export const markNotificationRead = (id: number) => api.post(`/api/v1/notifications/${id}/read`);
+
+// Messages
+export const getInbox = (params?: object) => api.get("/api/v1/messages/inbox", { params });
+export const getSent = (params?: object) => api.get("/api/v1/messages/sent", { params });
+export const getMessage = (id: number) => api.get(`/api/v1/messages/${id}`);
+export const sendMessage = (data: object) => api.post("/api/v1/messages/", data);
+export const replyMessage = (id: number, data: object) => api.post(`/api/v1/messages/${id}/reply`, data);
+export const getUnreadCount = () => api.get("/api/v1/messages/unread/count");
+
+// Audit logs
+export const getAuditLogs = (params?: object) => api.get("/api/v1/audit-logs", { params });

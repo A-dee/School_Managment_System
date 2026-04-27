@@ -1,0 +1,222 @@
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from typing import Optional
+from sqlalchemy.orm import Session
+from app.database import get_db
+from app.models.message import Message
+from app.models.user import User, UserRole
+from app.utils.auth import get_current_user
+from app.utils.response import success_response, paginated_response
+from app.routes.notifications import send_notification
+
+router = APIRouter(prefix="/messages", tags=["Messaging"])
+
+
+class MessageCreate(BaseModel):
+    recipient_user_id: int
+    subject: str
+    body: str
+    parent_message_id: Optional[int] = None
+
+
+def _fmt(m: Message) -> dict:
+    return {
+        "id": m.id,
+        "sender_user_id": m.sender_user_id,
+        "sender_name": m.sender.staff.full_name if (m.sender and m.sender.staff) else
+                       m.sender.parent.full_name if (m.sender and m.sender.parent) else
+                       (m.sender.email if m.sender else "Unknown"),
+        "sender_email": m.sender.email if m.sender else None,
+        "recipient_user_id": m.recipient_user_id,
+        "recipient_name": m.recipient.staff.full_name if (m.recipient and m.recipient.staff) else
+                          m.recipient.parent.full_name if (m.recipient and m.recipient.parent) else
+                          (m.recipient.email if m.recipient else "Unknown"),
+        "recipient_email": m.recipient.email if m.recipient else None,
+        "subject": m.subject,
+        "body": m.body,
+        "is_read": m.is_read,
+        "parent_message_id": m.parent_message_id,
+        "created_at": str(m.created_at),
+    }
+
+
+def _get_allowed_recipient_ids(db: Session, current_user: User) -> set[int] | None:
+    """
+    Returns the set of user IDs the current user is allowed to message.
+    Returns None if there is no restriction (SUPER_ADMIN).
+    """
+    role = current_user.role
+
+    if role == UserRole.SUPER_ADMIN:
+        return None  # unrestricted
+
+    if role == UserRole.PRINCIPAL:
+        # Can message: all parents, all staff (teacher/admin/non-teaching), and super admin
+        allowed_roles = {
+            UserRole.PARENT, UserRole.TEACHER, UserRole.ADMIN,
+            UserRole.NON_TEACHING_STAFF, UserRole.SUPER_ADMIN,
+        }
+        ids = {u.id for u in db.query(User).filter(User.role.in_(allowed_roles), User.is_active == True).all()}
+        return ids
+
+    if role == UserRole.PARENT:
+        from app.models.parent import Parent, ParentStudent
+        from app.models.student import Student
+        from app.models.class_ import Class
+        from app.models.staff import Staff
+
+        parent = db.query(Parent).filter(Parent.user_id == current_user.id).first()
+        if not parent:
+            return set()
+
+        # Collect class teacher user_ids for all their children
+        teacher_user_ids: set[int] = set()
+        links = db.query(ParentStudent).filter(ParentStudent.parent_id == parent.id).all()
+        for link in links:
+            student = db.query(Student).filter(Student.id == link.student_id).first()
+            if student and student.current_class_id:
+                cls = db.query(Class).filter(Class.id == student.current_class_id).first()
+                if cls and cls.class_teacher_id:
+                    teacher = db.query(Staff).filter(Staff.id == cls.class_teacher_id).first()
+                    if teacher and teacher.user_id:
+                        teacher_user_ids.add(teacher.user_id)
+
+        # Add the principal(s)
+        principal_ids = {
+            u.id for u in db.query(User).filter(
+                User.role == UserRole.PRINCIPAL, User.is_active == True
+            ).all()
+        }
+        return teacher_user_ids | principal_ids
+
+    # TEACHER, ADMIN, NON_TEACHING_STAFF → can only message PRINCIPAL
+    if role in (UserRole.TEACHER, UserRole.ADMIN, UserRole.NON_TEACHING_STAFF):
+        principal_ids = {
+            u.id for u in db.query(User).filter(
+                User.role == UserRole.PRINCIPAL, User.is_active == True
+            ).all()
+        }
+        return principal_ids
+
+    return set()  # STUDENT and unknown roles cannot initiate messages
+
+
+@router.get("/contacts")
+def get_contacts(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Returns the list of users the current user is allowed to message."""
+    allowed_ids = _get_allowed_recipient_ids(db, current_user)
+
+    if allowed_ids is None:
+        # SUPER_ADMIN: return all active users except themselves
+        users = db.query(User).filter(User.is_active == True, User.id != current_user.id).all()
+    elif not allowed_ids:
+        return success_response([])
+    else:
+        allowed_ids.discard(current_user.id)
+        users = db.query(User).filter(User.id.in_(allowed_ids)).all()
+
+    contacts = []
+    for u in users:
+        name = u.email
+        if u.staff:
+            name = u.staff.full_name
+        elif u.parent:
+            name = u.parent.full_name
+        contacts.append({
+            "user_id": u.id,
+            "name": name,
+            "email": u.email,
+            "role": u.role.value,
+        })
+    contacts.sort(key=lambda c: c["name"])
+    return success_response(contacts)
+
+
+@router.post("/")
+def send_message(data: MessageCreate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    # Enforce messaging restrictions
+    allowed_ids = _get_allowed_recipient_ids(db, current_user)
+    if allowed_ids is not None and data.recipient_user_id not in allowed_ids:
+        raise HTTPException(status_code=403, detail="You are not allowed to message this person")
+
+    recipient = db.query(User).filter(User.id == data.recipient_user_id).first()
+    if not recipient:
+        raise HTTPException(status_code=404, detail="Recipient not found")
+
+    msg = Message(
+        sender_user_id=current_user.id,
+        recipient_user_id=data.recipient_user_id,
+        subject=data.subject,
+        body=data.body,
+        parent_message_id=data.parent_message_id,
+    )
+    db.add(msg)
+    db.flush()
+    send_notification(db, data.recipient_user_id, f"New message: {data.subject}", data.body[:100])
+    db.commit()
+    return success_response(_fmt(msg), "Message sent")
+
+
+@router.get("/inbox")
+def inbox(skip: int = 0, limit: int = 30, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    q = db.query(Message).filter(
+        Message.recipient_user_id == current_user.id,
+        Message.parent_message_id == None,
+    ).order_by(Message.created_at.desc())
+    total = q.count()
+    msgs = q.offset(skip).limit(limit).all()
+    return paginated_response([_fmt(m) for m in msgs], total, skip // limit + 1, limit)
+
+
+@router.get("/sent")
+def sent(skip: int = 0, limit: int = 30, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    q = db.query(Message).filter(
+        Message.sender_user_id == current_user.id,
+    ).order_by(Message.created_at.desc())
+    total = q.count()
+    msgs = q.offset(skip).limit(limit).all()
+    return paginated_response([_fmt(m) for m in msgs], total, skip // limit + 1, limit)
+
+
+@router.get("/unread/count")
+def unread_count(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    count = db.query(Message).filter(
+        Message.recipient_user_id == current_user.id,
+        Message.is_read == False,
+    ).count()
+    return success_response({"unread": count})
+
+
+@router.get("/{message_id}")
+def get_message(message_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    msg = db.query(Message).filter(Message.id == message_id).first()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if msg.recipient_user_id != current_user.id and msg.sender_user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if msg.recipient_user_id == current_user.id and not msg.is_read:
+        msg.is_read = True
+        db.commit()
+    replies = db.query(Message).filter(Message.parent_message_id == message_id).order_by(Message.created_at).all()
+    return success_response({**_fmt(msg), "replies": [_fmt(r) for r in replies]})
+
+
+@router.post("/{message_id}/reply")
+def reply(message_id: int, data: MessageCreate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    original = db.query(Message).filter(Message.id == message_id).first()
+    if not original:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if original.recipient_user_id != current_user.id and original.sender_user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    reply_msg = Message(
+        sender_user_id=current_user.id,
+        recipient_user_id=data.recipient_user_id,
+        subject=f"Re: {original.subject}",
+        body=data.body,
+        parent_message_id=message_id,
+    )
+    db.add(reply_msg)
+    db.flush()
+    send_notification(db, data.recipient_user_id, f"Reply: {original.subject}", data.body[:100])
+    db.commit()
+    return success_response(_fmt(reply_msg), "Reply sent")
