@@ -112,8 +112,10 @@ export default function LoginPage() {
                   transition: "border-color 0.15s",
                 }}
                 onFocus={e => e.target.style.borderColor = "#2563eb"}
-                onBlur={e => e.target.style.borderColor = errors.email ? "#ef4444" : "#e2e8f0"}
-                {...register("email", { required: "Email is required" })}
+                {...register("email", {
+                  required: "Email is required",
+                  onBlur: e => e.target.style.borderColor = errors.email ? "#ef4444" : "#e2e8f0",
+                })}
               />
               {errors.email && <p style={{ color: "#ef4444", fontSize: "0.75rem", marginTop: 4 }}>{errors.email.message}</p>}
             </div>
@@ -138,8 +140,10 @@ export default function LoginPage() {
                     transition: "border-color 0.15s",
                   }}
                   onFocus={e => e.target.style.borderColor = "#2563eb"}
-                  onBlur={e => e.target.style.borderColor = errors.password ? "#ef4444" : "#e2e8f0"}
-                  {...register("password", { required: "Password is required" })}
+                  {...register("password", {
+                    required: "Password is required",
+                    onBlur: e => e.target.style.borderColor = errors.password ? "#ef4444" : "#e2e8f0",
+                  })}
                 />
                 <button
                   type="button"
