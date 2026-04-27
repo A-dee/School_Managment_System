@@ -83,8 +83,10 @@ function YesNo({ label, value, onChange }: { label: string; value: YNValue; onCh
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ marginTop: 20, marginBottom: 10, paddingBottom: 6, borderBottom: "2px solid var(--accent)", display: "inline-block" }}>
-      <h3 style={{ fontSize: "0.875rem", fontWeight: 700, color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{children}</h3>
+    <div style={{ marginTop: 24, marginBottom: 12, display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ width: 4, height: 18, borderRadius: 2, background: "var(--accent)", flexShrink: 0 }} />
+      <h3 style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.07em" }}>{children}</h3>
+      <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
     </div>
   );
 }
@@ -373,17 +375,18 @@ export default function StudentRegistrationModal({ studentId, classId, classes, 
             </button>
           </div>
           {/* Tabs */}
-          <div style={{ display: "flex", gap: 0 }}>
+          <div style={{ display: "flex", gap: 0, overflowX: "auto", scrollbarWidth: "none" }}>
             {TABS.map((t, i) => {
               const Icon = t.icon;
               return (
                 <button key={i} onClick={() => setTab(i)} style={{
-                  display: "flex", alignItems: "center", gap: 6, padding: "10px 18px",
-                  background: "none", border: "none", cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 6, padding: "10px 16px",
+                  background: "none", border: "none", cursor: "pointer", flexShrink: 0,
                   borderBottom: tab === i ? "2px solid var(--accent)" : "2px solid transparent",
                   color: tab === i ? "var(--accent)" : "var(--text-secondary)",
-                  fontWeight: tab === i ? 600 : 400,
+                  fontWeight: tab === i ? 700 : 400,
                   fontSize: "0.8125rem", marginBottom: -1,
+                  transition: "color 0.15s",
                 }}>
                   <Icon size={14} /> {t.label}
                 </button>
