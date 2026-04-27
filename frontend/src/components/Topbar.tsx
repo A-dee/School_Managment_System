@@ -24,7 +24,6 @@ const routeLabels: Record<string, string> = {
   "/admin/dashboard":        "Dashboard",
   "/admin/students":         "Students",
   "/admin/invoices":         "Invoices",
-  "/principal/staff":        "Staff",
   "/admin/payments":         "Payments",
   "/admin/expenses":         "Expenses",
   "/admin/fees":             "School Fees",
