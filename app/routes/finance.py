@@ -230,7 +230,7 @@ def mark_paid(payroll_id: int, payment_date: date, db: Session = Depends(get_db)
 @router.get("/payroll")
 def list_payroll(
     staff_id: Optional[int] = None, month: Optional[int] = None, year: Optional[int] = None,
-    db: Session = Depends(get_db), current_user=Depends(is_vp_or_above)
+    db: Session = Depends(get_db), current_user=Depends(is_admin_or_above)
 ):
     q = db.query(Payroll)
     if staff_id:
