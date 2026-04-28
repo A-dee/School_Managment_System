@@ -203,11 +203,12 @@ export default function StudentRegistrationModal({ studentId, classId, classes, 
       const aboutPayload: any = boolToNull({ ...about });
       if (aboutPayload.form_filled_on === "") aboutPayload.form_filled_on = null;
 
-      await Promise.all([
+      const puts = [
         api.put(`/api/v1/students/${sid}/registration`, regPayload),
-        api.put(`/api/v1/students/${sid}/medical`, medPayload),
         api.put(`/api/v1/students/${sid}/about-me`, aboutPayload),
-      ]);
+      ];
+      if (!teacherMode) puts.push(api.put(`/api/v1/students/${sid}/medical`, medPayload));
+      await Promise.all(puts);
 
       toast.success(isEdit ? "Student updated successfully" : "Student registered successfully");
       onSuccess();
