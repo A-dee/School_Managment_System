@@ -29,10 +29,23 @@ def add_student(data: StudentCreate, db: Session = Depends(get_db), current_user
     import secrets
     from app.models.user import User, UserRole
     from app.models.parent import Parent, ParentStudent
+    from app.models.staff import Staff
+    from app.models.class_ import Class
     from app.utils.auth import hash_password
 
     if get_student_by_admission(db, data.admission_number):
         raise HTTPException(status_code=400, detail="Admission number already exists")
+
+    # Teachers can only enroll into their own class
+    if current_user.role == UserRole.TEACHER:
+        staff = db.query(Staff).filter(Staff.user_id == current_user.id).first()
+        if not staff:
+            raise HTTPException(status_code=403, detail="Teacher profile not found")
+        if not data.current_class_id:
+            raise HTTPException(status_code=400, detail="Teachers must assign a class when enrolling a student")
+        cls = db.query(Class).filter(Class.id == data.current_class_id, Class.class_teacher_id == staff.id).first()
+        if not cls:
+            raise HTTPException(status_code=403, detail="You can only enroll students into your own class")
 
     student = create_student(db, data)
 

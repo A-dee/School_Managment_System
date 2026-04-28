@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { Search, GraduationCap, Trash2, FileText } from "lucide-react";
 import StudentRegistrationModal from "@/components/StudentRegistrationModal";
+import { getRole } from "@/lib/auth";
 
 export default function StudentsPage() {
   const [students, setStudents] = useState<any[]>([]);
@@ -18,7 +19,10 @@ export default function StudentsPage() {
   const [classes, setClasses] = useState<any[]>([]);
   const [sessions, setSessions] = useState<any[]>([]);
   const [modal, setModal] = useState<{ open: boolean; studentId: number | null }>({ open: false, studentId: null });
+  const [myClassId, setMyClassId] = useState<number | null>(null);
   const limit = 20;
+  const role = getRole();
+  const isTeacher = role === "TEACHER";
 
   const load = async () => {
     setLoading(true);
@@ -37,7 +41,26 @@ export default function StudentsPage() {
 
   useEffect(() => { load(); }, [page, search, statusFilter]);
   useEffect(() => {
-    getClasses({ limit: 500 }).then(r => setClasses(r.data.data || [])).catch(() => {});
+    getClasses({ limit: 500 }).then(r => {
+      const allClasses = r.data.data || [];
+      setClasses(allClasses);
+      if (isTeacher) {
+        // find the class this teacher is assigned to via staff profile
+        api.get("/api/v1/auth/me").then(me => {
+          const userId = me.data.data?.id;
+          const myClass = allClasses.find((c: any) => c.class_teacher?.user_id === userId || c.class_teacher_id);
+          // fetch staff to match user_id → staff.id → class.class_teacher_id
+          api.get("/api/v1/staff/").then(staffRes => {
+            const staffList = staffRes.data.data || [];
+            const myStaff = staffList.find((s: any) => s.user_id === userId);
+            if (myStaff) {
+              const mc = allClasses.find((c: any) => c.class_teacher_id === myStaff.id);
+              if (mc) setMyClassId(mc.id);
+            }
+          }).catch(() => {});
+        }).catch(() => {});
+      }
+    }).catch(() => {});
     api.get("/api/v1/academic/sessions?limit=100").then(r => setSessions(r.data.data || [])).catch(() => {});
   }, []);
 
@@ -66,9 +89,11 @@ export default function StudentsPage() {
           <h1 className="t-page-title">Students</h1>
           <p className="t-page-subtitle">{total} total enrolled students</p>
         </div>
-        <button className="t-btn-primary" onClick={() => setModal({ open: true, studentId: null })}>
-          + Enrol Student
-        </button>
+        {(!isTeacher || myClassId) && (
+          <button className="t-btn-primary" onClick={() => setModal({ open: true, studentId: null })}>
+            + Enrol Student
+          </button>
+        )}
       </div>
 
       {/* Filters */}
@@ -171,7 +196,7 @@ export default function StudentsPage() {
       {modal.open && (
         <StudentRegistrationModal
           studentId={modal.studentId}
-          classes={classes}
+          classes={isTeacher && myClassId ? classes.filter((c: any) => c.id === myClassId) : classes}
           sessions={sessions}
           onClose={() => setModal({ open: false, studentId: null })}
           onSuccess={load}
