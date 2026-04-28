@@ -221,7 +221,7 @@ def _upsert(db, model_class, student_id: int, data):
 
 
 @router.get("/{student_id}/registration")
-def get_registration(student_id: int, db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above)):
+def get_registration(student_id: int, db: Session = Depends(get_db), current_user=Depends(is_principal_or_above)):
     r = db.query(StudentRegistration).filter(StudentRegistration.student_id == student_id).first()
     return success_response(StudentRegistrationData.model_validate(r).model_dump() if r else None)
 
@@ -235,13 +235,13 @@ def save_registration(student_id: int, data: StudentRegistrationData, db: Sessio
 
 
 @router.get("/{student_id}/medical")
-def get_medical(student_id: int, db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above)):
+def get_medical(student_id: int, db: Session = Depends(get_db), current_user=Depends(is_principal_or_above)):
     r = db.query(StudentMedical).filter(StudentMedical.student_id == student_id).first()
     return success_response(StudentMedicalData.model_validate(r).model_dump() if r else None)
 
 
 @router.put("/{student_id}/medical")
-def save_medical(student_id: int, data: StudentMedicalData, db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above)):
+def save_medical(student_id: int, data: StudentMedicalData, db: Session = Depends(get_db), current_user=Depends(is_principal_or_above)):
     if not get_student_by_id(db, student_id):
         raise HTTPException(status_code=404, detail="Student not found")
     _upsert(db, StudentMedical, student_id, data)
@@ -249,7 +249,7 @@ def save_medical(student_id: int, data: StudentMedicalData, db: Session = Depend
 
 
 @router.get("/{student_id}/about-me")
-def get_about_me(student_id: int, db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above)):
+def get_about_me(student_id: int, db: Session = Depends(get_db), current_user=Depends(is_principal_or_above)):
     r = db.query(StudentAboutMe).filter(StudentAboutMe.student_id == student_id).first()
     return success_response(StudentAboutMeData.model_validate(r).model_dump() if r else None)
 

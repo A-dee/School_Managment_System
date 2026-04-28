@@ -161,21 +161,23 @@ export default function StudentsPage() {
                 <td className="t-text-secondary" style={{ fontSize: "0.8125rem" }}>{s.guardian_name || "—"}</td>
                 <td><span className={s.status === "ACTIVE" ? "badge-green" : s.status === "GRADUATED" ? "badge-blue" : "badge-red"}>{s.status}</span></td>
                 <td>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <button
-                      onClick={() => setModal({ open: true, studentId: s.id })}
-                      style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, background: "var(--accent-light)", color: "var(--accent)", border: "none", cursor: "pointer", fontSize: "0.72rem", fontWeight: 600 }}
-                    >
-                      <FileText size={11} /> View
-                    </button>
-                    <button
-                      onClick={() => deleteStudent(s)}
-                      disabled={deleting === s.id}
-                      style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, background: "var(--badge-danger-bg)", color: "var(--badge-danger-text)", border: "none", cursor: "pointer", fontSize: "0.72rem", fontWeight: 600 }}
-                    >
-                      <Trash2 size={11} /> {deleting === s.id ? "..." : "Delete"}
-                    </button>
-                  </div>
+                  {!isTeacher && (
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button
+                        onClick={() => setModal({ open: true, studentId: s.id })}
+                        style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, background: "var(--accent-light)", color: "var(--accent)", border: "none", cursor: "pointer", fontSize: "0.72rem", fontWeight: 600 }}
+                      >
+                        <FileText size={11} /> View
+                      </button>
+                      <button
+                        onClick={() => deleteStudent(s)}
+                        disabled={deleting === s.id}
+                        style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, background: "var(--badge-danger-bg)", color: "var(--badge-danger-text)", border: "none", cursor: "pointer", fontSize: "0.72rem", fontWeight: 600 }}
+                      >
+                        <Trash2 size={11} /> {deleting === s.id ? "..." : "Delete"}
+                      </button>
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}
@@ -198,6 +200,7 @@ export default function StudentsPage() {
           studentId={modal.studentId}
           classes={isTeacher && myClassId ? classes.filter((c: any) => c.id === myClassId) : classes}
           sessions={sessions}
+          teacherMode={isTeacher}
           onClose={() => setModal({ open: false, studentId: null })}
           onSuccess={load}
         />

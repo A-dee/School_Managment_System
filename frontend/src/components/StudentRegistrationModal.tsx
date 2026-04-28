@@ -9,6 +9,7 @@ interface Props {
   classId?: number | null;
   classes: any[];
   sessions?: any[];
+  teacherMode?: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -91,7 +92,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function StudentRegistrationModal({ studentId, classId, classes, sessions = [], onClose, onSuccess }: Props) {
+export default function StudentRegistrationModal({ studentId, classId, classes, sessions = [], teacherMode = false, onClose, onSuccess }: Props) {
   const [tab, setTab] = useState(0);
   const [saving, setSaving] = useState(false);
   const [documents, setDocuments] = useState<any[]>([]);
@@ -277,12 +278,17 @@ export default function StudentRegistrationModal({ studentId, classId, classes, 
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   };
 
-  const TABS = [
+  const ALL_TABS = [
     { label: "Registration Form", icon: User },
     { label: "Medical Information", icon: HeartPulse },
     { label: "About Me", icon: Smile },
     { label: "Documents", icon: FolderOpen },
   ];
+  const TABS = teacherMode
+    ? ALL_TABS.filter(t => t.label === "Registration Form" || t.label === "About Me")
+    : ALL_TABS;
+  // Map visible tab index to actual tab index
+  const TAB_INDEX_MAP = teacherMode ? [0, 2] : [0, 1, 2, 3];
 
   /* ── Credentials overlay shown after successful student creation ── */
   if (credentials) {
@@ -378,13 +384,14 @@ export default function StudentRegistrationModal({ studentId, classId, classes, 
           <div style={{ display: "flex", gap: 0, overflowX: "auto", scrollbarWidth: "none" }}>
             {TABS.map((t, i) => {
               const Icon = t.icon;
+              const actualIndex = TAB_INDEX_MAP[i];
               return (
-                <button key={i} onClick={() => setTab(i)} style={{
+                <button key={i} onClick={() => setTab(actualIndex)} style={{
                   display: "flex", alignItems: "center", gap: 6, padding: "10px 16px",
                   background: "none", border: "none", cursor: "pointer", flexShrink: 0,
-                  borderBottom: tab === i ? "2px solid var(--accent)" : "2px solid transparent",
-                  color: tab === i ? "var(--accent)" : "var(--text-secondary)",
-                  fontWeight: tab === i ? 700 : 400,
+                  borderBottom: tab === actualIndex ? "2px solid var(--accent)" : "2px solid transparent",
+                  color: tab === actualIndex ? "var(--accent)" : "var(--text-secondary)",
+                  fontWeight: tab === actualIndex ? 700 : 400,
                   fontSize: "0.8125rem", marginBottom: -1,
                   transition: "color 0.15s",
                 }}>
