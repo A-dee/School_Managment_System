@@ -37,19 +37,21 @@ export default function ClassesPage() {
 
   const load = async () => {
     setLoading(true);
-    try {
-      const [clsRes, sesRes, staffRes, studRes] = await Promise.all([
-        getClasses({ limit: 200 }),
-        api.get("/api/v1/academic/sessions"),
-        getStaff({ limit: 200 }),
-        api.get("/api/v1/students?limit=500&status=ACTIVE"),
-      ]);
-      setClasses(clsRes.data.data || []);
-      setTotal(clsRes.data.pagination?.total || 0);
-      setSessions(sesRes.data.data || []);
-      setTeachers(staffRes.data.data || []);
-      setAllStudents(studRes.data.data || []);
-    } catch { toast.error("Failed to load"); }
+    const [clsRes, sesRes, staffRes, studRes] = await Promise.allSettled([
+      getClasses({ limit: 200 }),
+      api.get("/api/v1/academic/sessions"),
+      getStaff({ limit: 200 }),
+      api.get("/api/v1/students/?limit=500&status=ACTIVE"),
+    ]);
+    if (clsRes.status === "fulfilled") {
+      setClasses(clsRes.value.data.data || []);
+      setTotal(clsRes.value.data.pagination?.total || 0);
+    }
+    if (sesRes.status === "fulfilled") setSessions(sesRes.value.data.data || []);
+    if (staffRes.status === "fulfilled") setTeachers(staffRes.value.data.data || []);
+    if (studRes.status === "fulfilled") setAllStudents(studRes.value.data.data || []);
+    const anyFailed = [clsRes, sesRes, staffRes, studRes].some(r => r.status === "rejected");
+    if (anyFailed) toast.error("Some data failed to load — check your connection");
     setLoading(false);
   };
 
