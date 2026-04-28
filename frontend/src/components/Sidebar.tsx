@@ -55,7 +55,8 @@ const roleNavItems: Record<string, { label: string; href: string; icon: any; sec
   ],
   ADMIN: [
     { label: "Dashboard",        href: "/admin/dashboard",        icon: LayoutDashboard },
-    { label: "Students",         href: "/principal/students",     icon: GraduationCap,  section: "Academic" },
+    { label: "Sessions & Terms", href: "/principal/academic",     icon: Calendar,       section: "Academic" },
+    { label: "Students",         href: "/principal/students",     icon: GraduationCap },
     { label: "Staff",            href: "/principal/staff",        icon: Users },
     { label: "Classes",          href: "/principal/classes",      icon: School },
     { label: "Report Cards",     href: "/principal/report-cards", icon: BookMarked },
