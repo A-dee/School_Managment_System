@@ -39,14 +39,17 @@ def generate_invoices_for_term(db: Session, session_id: int, term_id: int, due_d
         ).first()
         if existing:
             continue
+        scholarship = getattr(student, 'scholarship_percentage', 0) or 0
+        discount = Decimal(str(fs.total_fee)) * Decimal(scholarship) / Decimal("100")
+        payable = Decimal(str(fs.total_fee)) - discount
         invoice = Invoice(
             student_id=student.id,
             class_id=student.current_class_id,
             session_id=session_id,
             term_id=term_id,
-            total_fee=fs.total_fee,
+            total_fee=payable,
             paid_amount=Decimal("0"),
-            balance=fs.total_fee,
+            balance=payable,
             status=InvoiceStatus.UNPAID,
             due_date=due_date,
         )

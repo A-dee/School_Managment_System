@@ -31,7 +31,8 @@ class Student(Base):
     enrollment_date = Column(Date, nullable=True)
     current_class_id = Column(Integer, ForeignKey("classes.id"), nullable=True)
     status = Column(Enum(StudentStatus), default=StudentStatus.ACTIVE)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # optional student login
+    scholarship_percentage = Column(Integer, default=0, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

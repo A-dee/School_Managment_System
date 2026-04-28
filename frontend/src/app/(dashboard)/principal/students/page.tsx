@@ -20,6 +20,9 @@ export default function StudentsPage() {
   const [sessions, setSessions] = useState<any[]>([]);
   const [modal, setModal] = useState<{ open: boolean; studentId: number | null }>({ open: false, studentId: null });
   const [myClassId, setMyClassId] = useState<number | null>(null);
+  const [scholarshipModal, setScholarshipModal] = useState<any | null>(null);
+  const [scholarshipPct, setScholarshipPct] = useState(0);
+  const [savingScholarship, setSavingScholarship] = useState(false);
   const limit = 20;
   const role = getRole();
   const isTeacher = role === "TEACHER";
@@ -69,6 +72,18 @@ export default function StudentsPage() {
     if (!id) return "—";
     const c = classes.find((c: any) => c.id === id);
     return c ? `${c.name} (${c.level})` : `Class #${id}`;
+  };
+
+  const saveScholarship = async () => {
+    if (!scholarshipModal) return;
+    setSavingScholarship(true);
+    try {
+      await api.patch(`/api/v1/students/${scholarshipModal.id}/scholarship?percentage=${scholarshipPct}`);
+      toast.success("Scholarship updated");
+      setScholarshipModal(null);
+      load();
+    } catch (e: any) { toast.error(e?.response?.data?.detail || "Failed"); }
+    setSavingScholarship(false);
   };
 
   const deleteStudent = async (s: any) => {
@@ -129,6 +144,7 @@ export default function StudentsPage() {
               <th>Class</th>
               <th>Guardian</th>
               <th>Status</th>
+              {!isTeacher && <th>Scholarship</th>}
               <th></th>
             </tr>
           </thead>
@@ -158,6 +174,16 @@ export default function StudentsPage() {
                 <td className="t-text-secondary" style={{ fontSize: "0.8125rem" }}>{getClassName(s.current_class_id)}</td>
                 <td className="t-text-secondary" style={{ fontSize: "0.8125rem" }}>{s.guardian_name || "—"}</td>
                 <td><span className={s.status === "ACTIVE" ? "badge-green" : s.status === "GRADUATED" ? "badge-blue" : "badge-red"}>{s.status}</span></td>
+                {!isTeacher && (
+                  <td>
+                    <button
+                      onClick={() => { setScholarshipModal(s); setScholarshipPct(s.scholarship_percentage || 0); }}
+                      style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid var(--border)", background: (s.scholarship_percentage || 0) > 0 ? "var(--badge-success-bg)" : "var(--accent-light)", color: (s.scholarship_percentage || 0) > 0 ? "var(--badge-success-text)" : "var(--accent)", fontSize: "0.72rem", fontWeight: 600, cursor: "pointer" }}
+                    >
+                      {(s.scholarship_percentage || 0) > 0 ? `${s.scholarship_percentage}% Off` : "Set"}
+                    </button>
+                  </td>
+                )}
                 <td>
                   {!isTeacher && (
                     <div style={{ display: "flex", gap: 6 }}>
@@ -192,6 +218,44 @@ export default function StudentsPage() {
           </div>
         )}
       </div>
+
+      {scholarshipModal && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: "var(--bg-card)", borderRadius: 14, width: "100%", maxWidth: 380, padding: 28, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+            <h2 style={{ fontWeight: 700, fontSize: "1rem", color: "var(--text-primary)", marginBottom: 4 }}>Scholarship Exemption</h2>
+            <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", marginBottom: 20 }}>
+              {scholarshipModal.first_name} {scholarshipModal.last_name} · {scholarshipModal.admission_number}
+            </p>
+            <p style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: 10 }}>Fee Exemption Percentage</p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginBottom: 24 }}>
+              {[0, 25, 50, 75, 100].map(pct => (
+                <button key={pct} onClick={() => setScholarshipPct(pct)} style={{
+                  padding: "10px 0", borderRadius: 8, border: "2px solid",
+                  borderColor: scholarshipPct === pct ? "var(--accent)" : "var(--border)",
+                  background: scholarshipPct === pct ? "var(--accent)" : "transparent",
+                  color: scholarshipPct === pct ? "var(--btn-primary-text)" : "var(--text-primary)",
+                  fontWeight: 700, fontSize: "0.875rem", cursor: "pointer",
+                }}>
+                  {pct === 0 ? "None" : `${pct}%`}
+                </button>
+              ))}
+            </div>
+            {scholarshipPct > 0 && (
+              <p style={{ fontSize: "0.78rem", color: "var(--success)", marginBottom: 16 }}>
+                Student will receive {scholarshipPct}% discount on all generated invoices.
+              </p>
+            )}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={saveScholarship} disabled={savingScholarship} style={{ flex: 1, padding: "10px 0", borderRadius: 8, background: "var(--accent)", color: "var(--btn-primary-text)", border: "none", fontWeight: 700, cursor: "pointer" }}>
+                {savingScholarship ? "Saving..." : "Save"}
+              </button>
+              <button onClick={() => setScholarshipModal(null)} style={{ flex: 1, padding: "10px 0", borderRadius: 8, background: "transparent", color: "var(--text-primary)", border: "1px solid var(--border)", fontWeight: 600, cursor: "pointer" }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {modal.open && (
         <StudentRegistrationModal

@@ -132,6 +132,24 @@ def get_student(student_id: int, db: Session = Depends(get_db), current_user=Dep
     return success_response(StudentOut.model_validate(student).model_dump())
 
 
+@router.patch("/{student_id}/scholarship")
+def set_scholarship(
+    student_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(is_principal_or_above),
+    percentage: int = 0,
+):
+    from pydantic import BaseModel
+    student = get_student_by_id(db, student_id)
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    if percentage not in (0, 25, 50, 75, 100):
+        raise HTTPException(status_code=400, detail="Percentage must be 0, 25, 50, 75, or 100")
+    student.scholarship_percentage = percentage
+    db.commit()
+    return success_response({"scholarship_percentage": percentage}, "Scholarship updated")
+
+
 @router.put("/{student_id}")
 def update_student_info(
     student_id: int, data: StudentUpdate,
