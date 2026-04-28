@@ -21,7 +21,7 @@ def is_super_admin(current_user: User = Depends(get_current_user)) -> User:
 
 
 def is_principal_or_above(current_user: User = Depends(get_current_user)) -> User:
-    if current_user.role not in (UserRole.SUPER_ADMIN, UserRole.PRINCIPAL):
+    if current_user.role not in (UserRole.SUPER_ADMIN, UserRole.PRINCIPAL, UserRole.ADMIN):
         raise HTTPException(status_code=403, detail="Principal or above access required")
     return current_user
 
