@@ -70,7 +70,8 @@ const roleNavItems: Record<string, { label: string; href: string; icon: any; sec
   ],
   TEACHER: [
     { label: "Dashboard",   href: "/teacher/dashboard",      icon: LayoutDashboard },
-    { label: "My Classes",  href: "/teacher/classes",        icon: School,        section: "Teaching" },
+    { label: "Students",    href: "/principal/students",     icon: GraduationCap,  section: "Academic" },
+    { label: "My Classes",  href: "/teacher/classes",        icon: School },
     { label: "Results",     href: "/teacher/results",        icon: ClipboardList },
     { label: "Report Cards",href: "/principal/report-cards", icon: BookMarked },
     { label: "Attendance",  href: "/teacher/attendance",     icon: UserCheck },
