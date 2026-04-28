@@ -14,7 +14,7 @@ router = APIRouter(prefix="/staff", tags=["Staff"])
 
 
 @router.post("/")
-def add_staff(data: StaffCreate, db: Session = Depends(get_db), current_user=Depends(is_principal_or_above)):
+def add_staff(data: StaffCreate, db: Session = Depends(get_db), current_user=Depends(is_admin_or_above)):
     from app.crud.user import get_user_by_email
     if get_user_by_email(db, data.user_email):
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -45,7 +45,7 @@ def get_staff(staff_id: int, db: Session = Depends(get_db), current_user=Depends
 @router.put("/{staff_id}")
 def update_staff_info(
     staff_id: int, data: StaffUpdate,
-    db: Session = Depends(get_db), current_user=Depends(is_principal_or_above)
+    db: Session = Depends(get_db), current_user=Depends(is_admin_or_above)
 ):
     staff = get_staff_by_id(db, staff_id)
     if not staff:
@@ -57,7 +57,7 @@ def update_staff_info(
 
 
 @router.delete("/{staff_id}")
-def remove_staff(staff_id: int, db: Session = Depends(get_db), current_user=Depends(is_principal_or_above)):
+def remove_staff(staff_id: int, db: Session = Depends(get_db), current_user=Depends(is_admin_or_above)):
     staff = get_staff_by_id(db, staff_id)
     if not staff:
         raise HTTPException(status_code=404, detail="Staff not found")
