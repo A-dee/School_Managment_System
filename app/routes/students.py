@@ -36,16 +36,16 @@ def add_student(data: StudentCreate, db: Session = Depends(get_db), current_user
     if get_student_by_admission(db, data.admission_number):
         raise HTTPException(status_code=400, detail="Admission number already exists")
 
-    # Teachers can only enroll into their own class
+    # Teachers can only enroll into their own class (if they have one assigned)
     if current_user.role == UserRole.TEACHER:
         staff = db.query(Staff).filter(Staff.user_id == current_user.id).first()
-        if not staff:
-            raise HTTPException(status_code=403, detail="Teacher profile not found")
-        if not data.current_class_id:
-            raise HTTPException(status_code=400, detail="Teachers must assign a class when enrolling a student")
-        cls = db.query(Class).filter(Class.id == data.current_class_id, Class.class_teacher_id == staff.id).first()
-        if not cls:
-            raise HTTPException(status_code=403, detail="You can only enroll students into your own class")
+        if staff and data.current_class_id:
+            cls = db.query(Class).filter(
+                Class.id == data.current_class_id,
+                Class.class_teacher_id == staff.id
+            ).first()
+            if not cls:
+                raise HTTPException(status_code=403, detail="You can only enroll students into your own class")
 
     student = create_student(db, data)
 
