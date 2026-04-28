@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.attendance import Attendance
+from app.models.class_ import Class
 from app.models.user import UserRole
 from app.schemas.attendance import AttendanceCreate, AttendanceOut, BulkAttendanceCreate
 from app.utils.rbac import is_principal_or_above, is_teacher_or_above
@@ -12,16 +13,27 @@ from app.crud.staff import get_staff_by_user_id
 router = APIRouter(prefix="/attendance", tags=["Attendance"])
 
 
+def _assert_class_access(db, current_user, class_id: int):
+    """Raises 403 if a TEACHER is not the class teacher of the given class."""
+    if current_user.role == UserRole.TEACHER:
+        staff = get_staff_by_user_id(db, current_user.id)
+        if not staff:
+            raise HTTPException(status_code=403, detail="No staff profile found")
+        cls = db.query(Class).filter(Class.id == class_id, Class.class_teacher_id == staff.id).first()
+        if not cls:
+            raise HTTPException(status_code=403, detail="You can only manage attendance for your own class")
+        return staff
+    return get_staff_by_user_id(db, current_user.id)
+
+
 @router.post("/")
 def mark_attendance(data: AttendanceCreate, db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above)):
-    staff = get_staff_by_user_id(db, current_user.id)
-    if not staff:
-        raise HTTPException(status_code=403, detail="No staff profile found")
+    staff = _assert_class_access(db, current_user, data.class_id)
     record = Attendance(
         date=data.date,
         student_id=data.student_id,
         class_id=data.class_id,
-        marked_by_teacher_id=staff.id,
+        marked_by_teacher_id=staff.id if staff else None,
         status=data.status,
     )
     db.add(record)
@@ -32,16 +44,14 @@ def mark_attendance(data: AttendanceCreate, db: Session = Depends(get_db), curre
 
 @router.post("/bulk")
 def bulk_mark(data: BulkAttendanceCreate, db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above)):
-    staff = get_staff_by_user_id(db, current_user.id)
-    if not staff:
-        raise HTTPException(status_code=403, detail="No staff profile found")
+    staff = _assert_class_access(db, current_user, data.class_id)
     records = []
     for item in data.records:
         record = Attendance(
             date=data.date,
             student_id=item["student_id"],
             class_id=data.class_id,
-            marked_by_teacher_id=staff.id,
+            marked_by_teacher_id=staff.id if staff else None,
             status=item["status"],
         )
         db.add(record)
@@ -55,9 +65,9 @@ def class_attendance(
     class_id: int, date: str = None,
     db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above)
 ):
+    _assert_class_access(db, current_user, class_id)
     q = db.query(Attendance).filter(Attendance.class_id == class_id)
     if date:
-        from datetime import date as date_type
         q = q.filter(Attendance.date == date)
     records = q.all()
     return success_response([AttendanceOut.model_validate(r).model_dump() for r in records])
