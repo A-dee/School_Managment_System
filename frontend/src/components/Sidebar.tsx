@@ -64,7 +64,6 @@ const roleNavItems: Record<string, { label: string; href: string; icon: any; sec
     { label: "Payments",         href: "/admin/payments",         icon: DollarSign },
     { label: "School Fees",      href: "/admin/fees",             icon: BookOpen },
     { label: "Expenses",         href: "/admin/expenses",         icon: ClipboardList },
-    { label: "Salary & Payroll", href: "/admin/payroll",          icon: Users },
     { label: "Messages",         href: "/messages",               icon: MessageSquare,  section: "Communication" },
     { label: "Profile",          href: "/profile",                icon: UserCircle },
   ],

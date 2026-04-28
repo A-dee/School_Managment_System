@@ -32,6 +32,13 @@ def is_admin_or_above(current_user: User = Depends(get_current_user)) -> User:
     return current_user
 
 
+def is_vp_or_above(current_user: User = Depends(get_current_user)) -> User:
+    """SUPER_ADMIN + PRINCIPAL (Vice Principal) only — excludes ADMIN (Principal)."""
+    if current_user.role not in (UserRole.SUPER_ADMIN, UserRole.PRINCIPAL):
+        raise HTTPException(status_code=403, detail="Vice Principal or above access required")
+    return current_user
+
+
 def is_teacher_or_above(current_user: User = Depends(get_current_user)) -> User:
     if current_user.role not in (UserRole.SUPER_ADMIN, UserRole.PRINCIPAL, UserRole.ADMIN, UserRole.TEACHER):
         raise HTTPException(status_code=403, detail="Teacher or above access required")

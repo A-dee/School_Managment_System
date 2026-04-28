@@ -20,7 +20,7 @@ from app.crud.finance import (
     create_expenditure, approve_expenditure, reject_expenditure,
     create_payroll, mark_payroll_paid, get_profit_loss
 )
-from app.utils.rbac import is_principal_or_above, is_admin_or_above
+from app.utils.rbac import is_principal_or_above, is_admin_or_above, is_vp_or_above
 from app.utils.auth import get_current_user
 from app.utils.response import success_response, paginated_response
 from app.utils.audit import log_action
@@ -230,7 +230,7 @@ def mark_paid(payroll_id: int, payment_date: date, db: Session = Depends(get_db)
 @router.get("/payroll")
 def list_payroll(
     staff_id: Optional[int] = None, month: Optional[int] = None, year: Optional[int] = None,
-    db: Session = Depends(get_db), current_user=Depends(is_admin_or_above)
+    db: Session = Depends(get_db), current_user=Depends(is_vp_or_above)
 ):
     q = db.query(Payroll)
     if staff_id:
@@ -463,7 +463,7 @@ def get_ledger(
 @router.get("/reports/profit-loss")
 def profit_loss_report(
     session_id: Optional[int] = None, term_id: Optional[int] = None, month: Optional[int] = None, year: Optional[int] = None,
-    db: Session = Depends(get_db), current_user=Depends(is_principal_or_above)
+    db: Session = Depends(get_db), current_user=Depends(is_vp_or_above)
 ):
     report = get_profit_loss(db, session_id=session_id, term_id=term_id, month=month, year=year)
     return success_response(report)

@@ -39,8 +39,11 @@ export default function ExpensesPage() {
   const [payLoading, setPayLoading] = useState(false);
   const [staffMap,   setStaffMap]   = useState<Record<number, string>>({});
 
+  const role = getRole() || "";
+  const isAdmin = role === "ADMIN";
+
   useEffect(() => {
-    setApprover(["PRINCIPAL", "SUPER_ADMIN", "ADMIN"].includes(getRole() || ""));
+    setApprover(["PRINCIPAL", "SUPER_ADMIN"].includes(role));
   }, []);
 
   const loadExpenses = async () => {
@@ -153,25 +156,27 @@ export default function ExpensesPage() {
         </div>
       </div>
 
-      {/* Summary cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))", gap: 12, marginBottom: 18 }}>
-        {[
-          { icon: <Receipt size={18} />,    label: "Expenses This Month", value: fmt(totalExpenses),  color: "#ef4444" },
-          { icon: <Users size={18} />,      label: "Salaries Paid",       value: fmt(totalSalaries),  color: "#6366f1" },
-          { icon: <DollarSign size={18} />, label: "Total Outgoings",     value: fmt(totalOutgoings), color: "#f59e0b" },
-          { icon: <XCircle size={18} />,    label: "Pending Approval",    value: pendingCount,        color: "#94a3b8" },
-        ].map(({ icon, label, value, color }) => (
-          <div key={label} style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 10, padding: "14px 16px" }}>
-            <div style={{ color, marginBottom: 6 }}>{icon}</div>
-            <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)" }}>{value}</div>
-            <div style={{ fontSize: "0.72rem", color: "var(--text-secondary)", marginTop: 2 }}>{label}</div>
-          </div>
-        ))}
-      </div>
+      {/* Summary cards — hidden for ADMIN (Principal) */}
+      {!isAdmin && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))", gap: 12, marginBottom: 18 }}>
+          {[
+            { icon: <Receipt size={18} />,    label: "Expenses This Month", value: fmt(totalExpenses),  color: "#ef4444" },
+            { icon: <Users size={18} />,      label: "Salaries Paid",       value: fmt(totalSalaries),  color: "#6366f1" },
+            { icon: <DollarSign size={18} />, label: "Total Outgoings",     value: fmt(totalOutgoings), color: "#f59e0b" },
+            { icon: <XCircle size={18} />,    label: "Pending Approval",    value: pendingCount,        color: "#94a3b8" },
+          ].map(({ icon, label, value, color }) => (
+            <div key={label} style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 10, padding: "14px 16px" }}>
+              <div style={{ color, marginBottom: 6 }}>{icon}</div>
+              <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)" }}>{value}</div>
+              <div style={{ fontSize: "0.72rem", color: "var(--text-secondary)", marginTop: 2 }}>{label}</div>
+            </div>
+          ))}
+        </div>
+      )}
 
-      {/* Tabs */}
+      {/* Tabs — ADMIN only sees the expenses tab + record button */}
       <div style={{ display: "flex", gap: 4, marginBottom: 16 }}>
-        {([["expenses", "General Expenses"], ["salaries", "Salary Payments"]] as [Tab, string][]).map(([key, label]) => (
+        {!isAdmin && ([["expenses", "General Expenses"], ["salaries", "Salary Payments"]] as [Tab, string][]).map(([key, label]) => (
           <button
             key={key} onClick={() => setTab(key)}
             style={{
@@ -185,10 +190,10 @@ export default function ExpensesPage() {
             {label}
           </button>
         ))}
-        {tab === "expenses" && (
+        {(tab === "expenses" || isAdmin) && (
           <button
             className="t-btn-primary"
-            style={{ marginLeft: "auto", fontSize: "0.8125rem" }}
+            style={{ marginLeft: isAdmin ? 0 : "auto", fontSize: "0.8125rem" }}
             onClick={() => setShowForm(v => !v)}
           >
             {showForm ? <><X size={14} style={{ display: "inline", marginRight: 4 }} />Cancel</> : "+ Record Expense"}
@@ -197,7 +202,7 @@ export default function ExpensesPage() {
       </div>
 
       {/* ======== GENERAL EXPENSES TAB ======== */}
-      {tab === "expenses" && (
+      {(tab === "expenses" || isAdmin) && (
         <>
           {showForm && (
             <div className="t-card" style={{ marginBottom: 16 }}>
@@ -233,7 +238,7 @@ export default function ExpensesPage() {
             </div>
           )}
 
-          <div className="t-card" style={{ overflow: "hidden" }}>
+          {!isAdmin && <div className="t-card" style={{ overflow: "hidden" }}>
             <div style={{ overflowX: "auto" }}>
               <table className="t-table">
                 <thead>
@@ -355,7 +360,7 @@ export default function ExpensesPage() {
                 )}
               </div>
             )}
-          </div>
+          </div>}
         </>
       )}
 
