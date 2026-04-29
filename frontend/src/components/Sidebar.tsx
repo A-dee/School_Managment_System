@@ -145,25 +145,24 @@ export default function Sidebar() {
       style={{ width: 234 }}
     >
       {/* ── Brand ── */}
-      <div style={{ padding: "18px 16px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)", flexShrink: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
-          <div style={{
-            width: 38, height: 38, borderRadius: 11,
-            background: "linear-gradient(135deg, var(--sidebar-brand) 0%, color-mix(in srgb, var(--sidebar-brand) 55%, transparent) 100%)",
-            color: "var(--bg-sidebar)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontWeight: 900, fontSize: "1rem",
-            boxShadow: "0 2px 12px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.06)",
-            flexShrink: 0,
-          }}>
-            S
-          </div>
+      <div style={{ padding: "14px 16px 12px", borderBottom: "1px solid rgba(255,255,255,0.06)", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/hope-hills-logo.png"
+            alt="Hope Hills Academy"
+            style={{
+              width: 40, height: 40, borderRadius: 10, objectFit: "contain",
+              background: "#fff", padding: 3, flexShrink: 0,
+              boxShadow: "0 2px 12px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.06)",
+            }}
+          />
           <div>
             <p style={{
-              color: "var(--sidebar-brand)", fontWeight: 700, fontSize: "0.9rem",
+              color: "var(--sidebar-brand)", fontWeight: 700, fontSize: "0.82rem",
               lineHeight: 1.2, letterSpacing: "-0.01em",
             }}>
-              School Portal
+              Hope Hills Academy
             </p>
             <p style={{ color: "var(--sidebar-muted)", fontSize: "0.68rem", marginTop: 1, letterSpacing: "0.02em" }}>
               {roleLabel[role] || role}

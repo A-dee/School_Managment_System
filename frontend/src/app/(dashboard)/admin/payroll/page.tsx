@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import api from "@/lib/api";
 import toast from "react-hot-toast";
+import { getRole } from "@/lib/auth";
 import {
   CheckCircle, ChevronLeft, ChevronRight,
   Users, DollarSign, Clock, AlertTriangle, Banknote,
@@ -20,10 +21,14 @@ type Row     = Staff & { payroll: Payroll | null };
 type Tab     = "salaries" | "advance" | "terminations";
 
 export default function PayrollPage() {
-  const now = new Date();
+  const now  = new Date();
+  const role = getRole();
+  const isAdmin = role === "ADMIN";
+
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year,  setYear]  = useState(now.getFullYear());
   const [tab,   setTab]   = useState<Tab>("salaries");
+  const [staffTypeFilter, setStaffTypeFilter] = useState(isAdmin ? "TEACHER" : "");
 
   /* ---- Salaries tab state ---- */
   const [rows,    setRows]    = useState<Row[]>([]);
@@ -173,8 +178,9 @@ export default function PayrollPage() {
   /* ================================================================ */
   /*  Summary stats (salaries tab)                                     */
   /* ================================================================ */
-  const paidRows    = rows.filter(r => r.payroll?.payment_status === "PAID");
-  const totalSalary = rows.reduce((s, r) => s + Number(r.salary_amount), 0);
+  const filteredRows = staffTypeFilter ? rows.filter(r => r.staff_type === staffTypeFilter) : rows;
+  const paidRows    = filteredRows.filter(r => r.payroll?.payment_status === "PAID");
+  const totalSalary = filteredRows.reduce((s, r) => s + Number(r.salary_amount), 0);
   const totalPaid   = paidRows.reduce((s, r) => s + Number(r.payroll!.net_salary), 0);
 
   /* ================================================================ */
@@ -231,12 +237,42 @@ export default function PayrollPage() {
       {/* ======================================================== */}
       {tab === "salaries" && (
         <>
+          {/* Staff type filter */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+            <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-secondary)" }}>Show:</span>
+            {[
+              { value: "",              label: "All Staff" },
+              { value: "TEACHER",       label: "Teachers" },
+              { value: "ADMIN",         label: "Admin" },
+              { value: "NON_TEACHING",  label: "Non-Teaching" },
+            ].map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => setStaffTypeFilter(opt.value)}
+                style={{
+                  padding: "5px 14px", borderRadius: 8, border: "1px solid",
+                  borderColor: staffTypeFilter === opt.value ? "var(--accent)" : "var(--border)",
+                  background: staffTypeFilter === opt.value ? "var(--accent)" : "transparent",
+                  color: staffTypeFilter === opt.value ? "var(--btn-primary-text)" : "var(--text-secondary)",
+                  fontSize: "0.775rem", fontWeight: 600, cursor: "pointer", transition: "all 0.12s",
+                }}
+              >
+                {opt.label}
+                {opt.value && (
+                  <span style={{ marginLeft: 5, opacity: 0.75 }}>
+                    ({(opt.value ? rows.filter(r => r.staff_type === opt.value) : rows).length})
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
           {/* Summary cards */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: 12, marginBottom: 18 }}>
             {[
-              { icon: <Users size={18} />,       label: "Active Staff",  value: rows.length,            color: "#6366f1" },
+              { icon: <Users size={18} />,       label: staffTypeFilter ? `${typeLabel[staffTypeFilter] ?? staffTypeFilter}s` : "Active Staff",  value: filteredRows.length,            color: "#6366f1" },
               { icon: <CheckCircle size={18} />,  label: "Paid",          value: paidRows.length,         color: "#22c55e" },
-              { icon: <Clock size={18} />,        label: "Unpaid",        value: rows.length - paidRows.length, color: "#f59e0b" },
+              { icon: <Clock size={18} />,        label: "Unpaid",        value: filteredRows.length - paidRows.length, color: "#f59e0b" },
               { icon: <DollarSign size={18} />,   label: "Disbursed",     value: fmt(totalPaid),          color: "#10b981" },
               { icon: <DollarSign size={18} />,   label: "Outstanding",   value: fmt(totalSalary - totalPaid), color: "#ef4444" },
             ].map(({ icon, label, value, color }) => (
@@ -261,9 +297,11 @@ export default function PayrollPage() {
                 <tbody>
                   {loading ? (
                     <tr><td colSpan={9} style={{ padding: "40px 0", textAlign: "center", color: "var(--text-secondary)" }}>Loading…</td></tr>
-                  ) : rows.length === 0 ? (
-                    <tr><td colSpan={9} style={{ padding: "40px 0", textAlign: "center", color: "var(--text-secondary)" }}>No active staff found</td></tr>
-                  ) : rows.map(row => {
+                  ) : filteredRows.length === 0 ? (
+                    <tr><td colSpan={9} style={{ padding: "40px 0", textAlign: "center", color: "var(--text-secondary)" }}>
+                      {staffTypeFilter ? `No active ${typeLabel[staffTypeFilter] ?? staffTypeFilter}s found` : "No active staff found"}
+                    </td></tr>
+                  ) : filteredRows.map(row => {
                     const p        = row.payroll;
                     const isPaid   = p?.payment_status === "PAID";
                     const isEdit   = editId === row.id;
@@ -335,13 +373,13 @@ export default function PayrollPage() {
               </table>
             </div>
 
-            {rows.length > 0 && (
+            {filteredRows.length > 0 && (
               <div style={{ display: "flex", gap: 24, padding: "11px 14px", borderTop: "2px solid var(--border)", background: "var(--accent-light)", flexWrap: "wrap" }}>
                 <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--text-primary)" }}>{MONTHS[month - 1]} {year}:</span>
                 <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Total payroll: <b style={{ color: "var(--text-primary)" }}>{fmt(totalSalary)}</b></span>
                 <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Paid out: <b style={{ color: "#16a34a" }}>{fmt(totalPaid)}</b></span>
                 <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Remaining: <b style={{ color: "#dc2626" }}>{fmt(totalSalary - totalPaid)}</b></span>
-                <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>{paidRows.length} of {rows.length} staff paid</span>
+                <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>{paidRows.length} of {filteredRows.length} {staffTypeFilter ? (typeLabel[staffTypeFilter] ?? staffTypeFilter) + "s" : "staff"} paid</span>
               </div>
             )}
           </div>

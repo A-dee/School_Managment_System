@@ -26,7 +26,7 @@ export default function ParentDashboard() {
   return (
     <DashboardLayout>
       <div className="mb-6">
-        <h1 className="t-page-title">Parent Portal</h1>
+        <h1 className="t-page-title">Hope Hills Academy — Parent Portal</h1>
         <p className="t-page-subtitle">Monitor your children's academic progress and fees</p>
       </div>
 
@@ -47,7 +47,7 @@ export default function ParentDashboard() {
           <div className="t-empty">
             <GraduationCap size={40} />
             <p className="text-sm">No children linked to your account yet.</p>
-            <p className="text-xs">Contact the school office to link your children.</p>
+            <p className="text-xs">Contact the school office at 08065598994 to link your children.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">

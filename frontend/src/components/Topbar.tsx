@@ -71,7 +71,7 @@ export default function Topbar() {
   const [role,   setRole]   = useState("");
   const [unread, setUnread] = useState(0);
   const [time,   setTime]   = useState("");
-  const label = routeLabels[pathname] || "Portal";
+  const label = routeLabels[pathname] || "Hope Hills Academy";
 
   useEffect(() => { setRole(getRole() || ""); }, []);
 

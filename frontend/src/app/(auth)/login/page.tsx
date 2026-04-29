@@ -57,18 +57,48 @@ export default function LoginPage() {
         <div style={{ position: "absolute", top: "40%", right: "10%", width: 120, height: 120, borderRadius: "50%", background: "rgba(255,255,255,0.04)" }} />
 
         <div style={{ position: "relative", textAlign: "center", maxWidth: 360 }}>
-          <div style={{ width: 80, height: 80, borderRadius: 24, background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.2)" }}>
-            <span style={{ fontSize: 36 }}>🏫</span>
+          <div style={{ width: 90, height: 90, borderRadius: 20, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", boxShadow: "0 8px 32px rgba(0,0,0,0.25)" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/hope-hills-logo.png" alt="Hope Hills Academy" style={{ width: 78, height: 78, objectFit: "contain" }} />
           </div>
-          <h1 style={{ fontSize: "1.75rem", fontWeight: 800, color: "#fff", marginBottom: 12, lineHeight: 1.2 }}>
-            School Management<br />System
+          <h1 style={{ fontSize: "1.75rem", fontWeight: 900, color: "#fff", marginBottom: 6, lineHeight: 1.2 }}>
+            Hope Hills Academy
           </h1>
-          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "0.9375rem", lineHeight: 1.6 }}>
-            A unified portal for principals, staff, parents, and students to manage all school operations.
+          <p style={{ color: "rgba(255,255,255,0.65)", fontSize: "0.875rem", marginBottom: 3, fontStyle: "italic" }}>
+            Excellence in Early Childhood Education
           </p>
-          <div style={{ display: "flex", gap: 16, justifyContent: "center", marginTop: 40 }}>
-            {["Students", "Staff", "Finance", "Results"].map((tag) => (
-              <div key={tag} style={{ background: "rgba(255,255,255,0.12)", borderRadius: 8, padding: "6px 14px", color: "rgba(255,255,255,0.85)", fontSize: "0.8rem", fontWeight: 600, border: "1px solid rgba(255,255,255,0.15)" }}>
+          <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "0.8125rem", lineHeight: 1.6, marginBottom: 28 }}>
+            Crèche · Nursery · Primary
+          </p>
+
+          {/* Contact info */}
+          <div style={{ textAlign: "left", background: "rgba(255,255,255,0.08)", borderRadius: 12, padding: "14px 16px", marginBottom: 28, border: "1px solid rgba(255,255,255,0.1)" }}>
+            <div style={{ color: "rgba(255,255,255,0.45)", fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Contact Us</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                <span style={{ fontSize: 13, flexShrink: 0, marginTop: 1 }}>📍</span>
+                <span style={{ color: "rgba(255,255,255,0.6)", fontSize: "0.75rem", lineHeight: 1.5 }}>
+                  Plot A/MF/5, Mpape 2 Layout, opposite Zenith Bank, Mpape 901101, FCT
+                </span>
+              </div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <span style={{ fontSize: 13, flexShrink: 0 }}>📞</span>
+                <span style={{ color: "rgba(255,255,255,0.7)", fontSize: "0.75rem" }}>08065598994 · 07052677702</span>
+              </div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <span style={{ fontSize: 13, flexShrink: 0 }}>✉</span>
+                <span style={{ color: "rgba(255,255,255,0.6)", fontSize: "0.7rem" }}>hopehillsacademy@gmail.com</span>
+              </div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <span style={{ fontSize: 13, flexShrink: 0 }}>✉</span>
+                <span style={{ color: "rgba(255,255,255,0.6)", fontSize: "0.7rem" }}>admission@hopehillsacademy.ng</span>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+            {["Crèche", "Nursery", "Primary"].map((tag) => (
+              <div key={tag} style={{ background: "rgba(255,255,255,0.12)", borderRadius: 8, padding: "5px 12px", color: "rgba(255,255,255,0.85)", fontSize: "0.78rem", fontWeight: 600, border: "1px solid rgba(255,255,255,0.15)" }}>
                 {tag}
               </div>
             ))}
@@ -80,10 +110,9 @@ export default function LoginPage() {
       <div style={{ width: "100%", maxWidth: 440, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 32px", background: "#ffffff" }}>
         {/* Mobile logo */}
         <div className="flex md:hidden items-center gap-3 mb-8">
-          <div style={{ width: 44, height: 44, borderRadius: 12, background: "#2563eb", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span style={{ fontSize: 22 }}>🏫</span>
-          </div>
-          <span style={{ fontWeight: 800, fontSize: "1.1rem", color: "#0f172a" }}>School Portal</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/hope-hills-logo.png" alt="Hope Hills Academy" style={{ width: 44, height: 44, borderRadius: 12, objectFit: "contain", background: "#fff", border: "1px solid #e5e7eb" }} />
+          <span style={{ fontWeight: 800, fontSize: "1.1rem", color: "#0f172a" }}>Hope Hills Academy</span>
         </div>
 
         <div style={{ width: "100%", maxWidth: 380 }}>

@@ -120,7 +120,7 @@ export default function SettingsPage() {
 
             <div>
               <label className="t-label">Email Address (school email)</label>
-              <input className="t-input" type="email" placeholder="school@gmail.com"
+              <input className="t-input" type="email" placeholder="hopehillsacademy@gmail.com"
                 value={config.smtp_user}
                 onChange={e => setConfig(c => ({ ...c, smtp_user: e.target.value }))} />
             </div>

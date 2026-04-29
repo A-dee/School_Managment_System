@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import api from "@/lib/api";
-import { Printer, Save, CheckCircle, Users, FileText } from "lucide-react";
+import { Printer, Save, CheckCircle, Users, FileText, Download } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
 const PERSONAL_QUALITIES = [
@@ -51,7 +51,57 @@ const btnS: React.CSSProperties = {
 };
 
 /* ------------------------------------------------------------------ */
-/*  PrintCard                                                           */
+/*  Letterhead HTML for print (string-based, injected into print win)   */
+/* ------------------------------------------------------------------ */
+function buildLetterheadHTML(logoUrl: string) {
+  return `
+    <div style="margin-bottom:12px;">
+      <!-- Top stripe -->
+      <div style="height:6px;background:linear-gradient(90deg,#e8314e,#f5a623,#27ae60,#2980b9);border-radius:3px 3px 0 0;margin-bottom:0;"></div>
+
+      <!-- Header body -->
+      <div style="display:flex;align-items:center;gap:16px;padding:10px 14px 8px;border:2px solid #e0e0e0;border-top:none;border-bottom:none;">
+        <!-- Logo -->
+        <img src="${logoUrl}" alt="Hope Hills Academy Logo"
+          style="width:80px;height:80px;object-fit:contain;flex-shrink:0;" />
+
+        <!-- School info centre -->
+        <div style="flex:1;text-align:center;">
+          <div style="font-size:22px;font-weight:900;color:#1a1a2e;letter-spacing:0.5px;line-height:1.1;">
+            HOPE HILLS ACADEMY
+          </div>
+          <div style="font-size:10px;color:#555;margin-top:3px;letter-spacing:0.5px;">
+            Crèche &bull; Nursery &bull; Primary
+          </div>
+          <div style="font-size:9.5px;color:#777;margin-top:4px;">
+            Excellence in Early Childhood Education
+          </div>
+          <div style="font-size:8.5px;color:#888;margin-top:3px;">
+            📍 Plot A/MF/5, Mpape 2 Layout, opposite Zenith Bank, Mpape, FCT &nbsp;&bull;&nbsp; 📞 08065598994 / 07052677702 &nbsp;&bull;&nbsp; ✉ hopehillsacademy@gmail.com
+          </div>
+        </div>
+
+        <!-- Right stamp space -->
+        <div style="width:80px;text-align:center;flex-shrink:0;">
+          <div style="width:74px;height:74px;border:2px dashed #ccc;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto;">
+            <span style="font-size:7.5px;color:#bbb;text-align:center;line-height:1.3;">SCHOOL<br>STAMP</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Title band -->
+      <div style="background:#1a1a2e;color:#fff;text-align:center;padding:5px 12px;font-size:12px;font-weight:700;letter-spacing:1.5px;border-bottom:3px solid #e8314e;">
+        CONTINUOUS ASSESSMENT REPORT CARD
+      </div>
+
+      <!-- Bottom stripe -->
+      <div style="height:4px;background:linear-gradient(90deg,#2980b9,#27ae60,#f5a623,#e8314e);margin-bottom:0;"></div>
+    </div>
+  `;
+}
+
+/* ------------------------------------------------------------------ */
+/*  PrintCard  (in-app preview)                                         */
 /* ------------------------------------------------------------------ */
 function PrintCard({
   student, className, sessionName, termName, results, subjectMap, meta,
@@ -61,14 +111,53 @@ function PrintCard({
 }) {
   return (
     <div style={{ fontFamily: "Arial, sans-serif", fontSize: 11, color: "#000" }}>
-      <div style={{ textAlign: "center", borderBottom: "2px solid #000", paddingBottom: 8, marginBottom: 8 }}>
-        <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: 0.5 }}>HOPE HILLS CRECHE &amp; NURSERY SCHOOL</div>
-        <div style={{ fontSize: 9, marginTop: 2 }}>Excellence in Early Childhood Education</div>
-        <div style={{ fontSize: 13, fontWeight: 700, marginTop: 6, textTransform: "uppercase", letterSpacing: 1 }}>
-          Continuous Assessment Score Sheet
+
+      {/* ── Letterhead ── */}
+      <div style={{ marginBottom: 12 }}>
+        {/* Top stripe */}
+        <div style={{ height: 6, background: "linear-gradient(90deg,#e8314e,#f5a623,#27ae60,#2980b9)", borderRadius: "3px 3px 0 0" }} />
+
+        {/* Header body */}
+        <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "10px 14px 8px", border: "2px solid #e0e0e0", borderTop: "none", borderBottom: "none" }}>
+          {/* Logo */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/hope-hills-logo.png" alt="Hope Hills Academy Logo"
+            style={{ width: 80, height: 80, objectFit: "contain", flexShrink: 0 }} />
+
+          {/* Centre info */}
+          <div style={{ flex: 1, textAlign: "center" }}>
+            <div style={{ fontSize: 22, fontWeight: 900, color: "#1a1a2e", letterSpacing: 0.5, lineHeight: 1.1 }}>
+              HOPE HILLS ACADEMY
+            </div>
+            <div style={{ fontSize: 10, color: "#555", marginTop: 3, letterSpacing: 0.5 }}>
+              Crèche &bull; Nursery &bull; Primary
+            </div>
+            <div style={{ fontSize: 9.5, color: "#777", marginTop: 4 }}>
+              Excellence in Early Childhood Education
+            </div>
+            <div style={{ fontSize: 8.5, color: "#888", marginTop: 3 }}>
+              📍 Plot A/MF/5, Mpape 2 Layout, opposite Zenith Bank, Mpape, FCT &nbsp;&bull;&nbsp; 📞 08065598994 / 07052677702 &nbsp;&bull;&nbsp; ✉ hopehillsacademy@gmail.com
+            </div>
+          </div>
+
+          {/* Stamp */}
+          <div style={{ width: 80, textAlign: "center", flexShrink: 0 }}>
+            <div style={{ width: 74, height: 74, border: "2px dashed #ccc", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto" }}>
+              <span style={{ fontSize: 7.5, color: "#bbb", textAlign: "center", lineHeight: 1.3 }}>SCHOOL<br />STAMP</span>
+            </div>
+          </div>
         </div>
+
+        {/* Title band */}
+        <div style={{ background: "#1a1a2e", color: "#fff", textAlign: "center", padding: "5px 12px", fontSize: 12, fontWeight: 700, letterSpacing: 1.5, borderBottom: "3px solid #e8314e" }}>
+          CONTINUOUS ASSESSMENT REPORT CARD
+        </div>
+
+        {/* Bottom stripe */}
+        <div style={{ height: 4, background: "linear-gradient(90deg,#2980b9,#27ae60,#f5a623,#e8314e)" }} />
       </div>
 
+      {/* ── Student info ── */}
       <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 8, border: "1px solid #000" }}>
         <tbody>
           <tr>
@@ -94,9 +183,10 @@ function PrintCard({
         </tbody>
       </table>
 
+      {/* ── Results ── */}
       <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 6 }}>
         <thead>
-          <tr style={{ background: "#222", color: "#fff" }}>
+          <tr style={{ background: "#1a1a2e", color: "#fff" }}>
             <th style={{ border: "1px solid #333", padding: "4px 6px", textAlign: "left" }}>SUBJECT</th>
             <th style={{ border: "1px solid #333", padding: "4px 6px", textAlign: "center", width: 55 }}>CA (40)</th>
             <th style={{ border: "1px solid #333", padding: "4px 6px", textAlign: "center", width: 55 }}>EXAM (60)</th>
@@ -119,7 +209,8 @@ function PrintCard({
               <td style={{ border: "1px solid #ccc", padding: "3px 6px", textAlign: "center", fontWeight: 600 }}>
                 {parseFloat(r.total_score).toFixed(1)}
               </td>
-              <td style={{ border: "1px solid #ccc", padding: "3px 6px", textAlign: "center", fontWeight: 700 }}>
+              <td style={{ border: "1px solid #ccc", padding: "3px 6px", textAlign: "center", fontWeight: 700,
+                color: r.grade === "A" ? "#16a34a" : r.grade === "F" ? "#dc2626" : "#000" }}>
                 {r.grade ?? "–"}
               </td>
             </tr>
@@ -138,10 +229,11 @@ function PrintCard({
         <b>KEY:</b>&nbsp; A = 70–100 &nbsp;|&nbsp; B = 60–69 &nbsp;|&nbsp; C = 50–59 &nbsp;|&nbsp; D = 40–49 &nbsp;|&nbsp; F = 0–39
       </div>
 
+      {/* ── Personal qualities + Attendance ── */}
       <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
         <table style={{ flex: 2, borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ background: "#222", color: "#fff" }}>
+            <tr style={{ background: "#1a1a2e", color: "#fff" }}>
               <th style={{ border: "1px solid #333", padding: "3px 6px", textAlign: "left" }}>PERSONAL QUALITIES</th>
               {["A", "B", "C", "D"].map(r => (
                 <th key={r} style={{ border: "1px solid #333", padding: "3px 6px", textAlign: "center", width: 22 }}>{r}</th>
@@ -155,7 +247,8 @@ function PrintCard({
                 <tr key={key} style={{ background: i % 2 === 0 ? "#f5f5f5" : "#fff" }}>
                   <td style={{ border: "1px solid #ccc", padding: "2px 6px" }}>{label}</td>
                   {["A", "B", "C", "D"].map(r => (
-                    <td key={r} style={{ border: "1px solid #ccc", padding: "2px 6px", textAlign: "center" }}>
+                    <td key={r} style={{ border: "1px solid #ccc", padding: "2px 6px", textAlign: "center",
+                      color: "#16a34a", fontWeight: 700 }}>
                       {rating === r ? "✓" : ""}
                     </td>
                   ))}
@@ -167,21 +260,28 @@ function PrintCard({
 
         <table style={{ flex: 1, borderCollapse: "collapse", alignSelf: "flex-start" }}>
           <thead>
-            <tr style={{ background: "#222", color: "#fff" }}>
+            <tr style={{ background: "#1a1a2e", color: "#fff" }}>
               <th colSpan={2} style={{ border: "1px solid #333", padding: "3px 6px", textAlign: "center" }}>ATTENDANCE</th>
             </tr>
           </thead>
           <tbody>
-            {([["Times Opened", meta.times_school_opened], ["Times Present", meta.times_present], ["Times Late", meta.times_late]] as [string, number | undefined][]).map(([lbl, val]) => (
+            {([
+              ["Times Opened",  meta.times_school_opened],
+              ["Times Present", meta.times_present],
+              ["Times Late",    meta.times_late],
+            ] as [string, number | undefined][]).map(([lbl, val]) => (
               <tr key={lbl}>
                 <td style={{ border: "1px solid #ccc", padding: "3px 6px" }}>{lbl}</td>
-                <td style={{ border: "1px solid #ccc", padding: "3px 6px", textAlign: "center", minWidth: 36 }}>{val ?? ""}</td>
+                <td style={{ border: "1px solid #ccc", padding: "3px 6px", textAlign: "center", minWidth: 36, fontWeight: 700 }}>
+                  {val ?? ""}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
 
+      {/* ── Comments ── */}
       <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 10 }}>
         <tbody>
           <tr>
@@ -197,6 +297,7 @@ function PrintCard({
         </tbody>
       </table>
 
+      {/* ── Signatures ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
         <div style={{ textAlign: "center" }}>
           <div style={{ borderTop: "1px solid #000", width: 140, paddingTop: 3, fontSize: 9 }}>Class Teacher&apos;s Signature</div>
@@ -210,6 +311,11 @@ function PrintCard({
         <div style={{ textAlign: "center" }}>
           <div style={{ borderTop: "1px solid #000", width: 140, paddingTop: 3, fontSize: 9 }}>Head Teacher&apos;s Signature</div>
         </div>
+      </div>
+
+      {/* ── Footer ── */}
+      <div style={{ marginTop: 14, borderTop: "1px solid #e0e0e0", paddingTop: 5, textAlign: "center", fontSize: 8, color: "#999" }}>
+        Hope Hills Academy · Plot A/MF/5, Mpape 2 Layout, opposite Zenith Bank, Mpape, 901101, FCT · Tel: 08065598994 / 07052677702
       </div>
     </div>
   );
@@ -400,21 +506,59 @@ export default function ReportCardsPage() {
 
   const handlePrint = () => {
     if (!selected || !printRef.current) return;
-    const content = printRef.current.innerHTML;
+    const content    = printRef.current.innerHTML;
+    const logoUrl    = `${window.location.origin}/hope-hills-logo.png`;
+    const letterhead = buildLetterheadHTML(logoUrl);
+
     const win = window.open("", "_blank", "width=860,height=1100");
     if (!win) return;
+
     win.document.write(`<!DOCTYPE html><html><head>
       <title>Report Card – ${selected.first_name} ${selected.last_name}</title>
-      <style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Arial,sans-serif;font-size:11px;padding:12mm;}table{width:100%;border-collapse:collapse;}@page{size:A4 portrait;margin:8mm;}</style>
-      </head><body>${content}</body></html>`);
+      <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #000; background: #fff; padding: 14mm 12mm; }
+        table { width: 100%; border-collapse: collapse; }
+        @page { size: A4 portrait; margin: 8mm; }
+        @media print {
+          body { padding: 0; }
+          .no-print { display: none !important; }
+        }
+        .print-btn {
+          position: fixed; top: 12px; right: 12px; display: flex; gap: 8px; z-index: 999;
+        }
+        .print-btn button {
+          padding: 8px 18px; border-radius: 8px; border: none; cursor: pointer;
+          font-size: 13px; font-weight: 700; font-family: Arial, sans-serif;
+        }
+        .btn-pdf  { background: #e8314e; color: #fff; }
+        .btn-close { background: #eee; color: #333; }
+      </style>
+      </head><body>
+        <div class="print-btn no-print">
+          <button class="btn-pdf" onclick="window.print()">⬇ Save as PDF / Print</button>
+          <button class="btn-close" onclick="window.close()">✕ Close</button>
+        </div>
+        ${letterhead}
+        ${content}
+      </body></html>`);
     win.document.close();
-    setTimeout(() => { win.focus(); win.print(); }, 400);
   };
 
   const subjectMap = Object.fromEntries(subjects.map(s => [s.id, s.name]));
   const selClass   = classes.find(c  => c.id === parseInt(classId));
   const selSession = sessions.find(s => s.id === parseInt(sessionId));
   const selTerm    = terms.find(t    => t.id === parseInt(termId));
+
+  const printCardProps = {
+    student:     selected!,
+    className:   selClass?.name ?? "",
+    sessionName: selSession?.name ?? "",
+    termName:    selTerm?.name ?? "",
+    results,
+    subjectMap,
+    meta,
+  };
 
   return (
     <DashboardLayout>
@@ -552,7 +696,7 @@ export default function ReportCardsPage() {
                       onClick={handlePrint}
                       style={{ ...btnS, padding: "5px 14px", display: "flex", alignItems: "center", gap: 6 }}
                     >
-                      <Printer size={13} />Print
+                      <Download size={13} />PDF
                     </button>
                   </div>
                 </div>
@@ -562,16 +706,8 @@ export default function ReportCardsPage() {
                   {tab === "edit" ? (
                     <EditPanel meta={meta} setMeta={setMeta} />
                   ) : (
-                    <div ref={printRef} style={{ background: "#fff", borderRadius: 6, padding: 16, border: "1px solid #ddd" }}>
-                      <PrintCard
-                        student={selected}
-                        className={selClass?.name ?? ""}
-                        sessionName={selSession?.name ?? ""}
-                        termName={selTerm?.name ?? ""}
-                        results={results}
-                        subjectMap={subjectMap}
-                        meta={meta}
-                      />
+                    <div ref={printRef} style={{ background: "#fff", borderRadius: 6, padding: 20, border: "1px solid #ddd" }}>
+                      <PrintCard {...printCardProps} />
                     </div>
                   )}
                 </div>
@@ -584,15 +720,7 @@ export default function ReportCardsPage() {
       {/* Hidden print ref when edit tab is active */}
       {selected && tab === "edit" && (
         <div style={{ display: "none" }} ref={printRef}>
-          <PrintCard
-            student={selected}
-            className={selClass?.name ?? ""}
-            sessionName={selSession?.name ?? ""}
-            termName={selTerm?.name ?? ""}
-            results={results}
-            subjectMap={subjectMap}
-            meta={meta}
-          />
+          <PrintCard {...printCardProps} />
         </div>
       )}
     </DashboardLayout>
