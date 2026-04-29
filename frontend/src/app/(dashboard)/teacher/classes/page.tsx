@@ -11,6 +11,7 @@ export default function TeacherClassesPage() {
   const [subjects, setSubjects] = useState<any[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
   const [students, setStudents] = useState<Record<number, any[]>>({});
+  const [displayClassIds, setDisplayClassIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
   const [registeringFor, setRegisteringFor] = useState<number | null>(null);
   const [expandedClass, setExpandedClass] = useState<number | null>(null);
@@ -18,21 +19,32 @@ export default function TeacherClassesPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const [aRes, sRes, cRes] = await Promise.all([
+      const [aRes, sRes, cRes, meRes] = await Promise.all([
         api.get("/api/v1/subjects/assignments"),
         api.get("/api/v1/subjects/"),
         api.get("/api/v1/classes/?limit=200"),
+        api.get("/api/v1/staff/me").catch(() => ({ data: { data: null } })),
       ]);
       const asgn: any[] = aRes.data.data || [];
       const subj: any[] = sRes.data.data || [];
       const cls: any[] = cRes.data.data || [];
+      const myStaff: any = meRes.data.data;
+
       setAssignments(asgn);
       setSubjects(subj);
       setClasses(cls);
 
-      const classIds = [...new Set(asgn.map((a: any) => a.class_id))] as number[];
+      /* union of: classes from subject assignments + class where I'm the class teacher */
+      const classIdSet = new Set<number>(asgn.map((a: any) => a.class_id));
+      if (myStaff) {
+        const homeClass = cls.find((c: any) => c.class_teacher_id === myStaff.id);
+        if (homeClass) classIdSet.add(homeClass.id);
+      }
+      const allClassIds = [...classIdSet];
+      setDisplayClassIds(allClassIds);
+
       const studentMap: Record<number, any[]> = {};
-      await Promise.all(classIds.map(async (cid: number) => {
+      await Promise.all(allClassIds.map(async (cid: number) => {
         const r = await api.get(`/api/v1/students/?class_id=${cid}&limit=200`);
         studentMap[cid] = r.data.data || [];
       }));
@@ -47,50 +59,34 @@ export default function TeacherClassesPage() {
 
   const getClass = (id: number) => classes.find((c: any) => c.id === id);
   const getSubject = (id: number) => subjects.find((s: any) => s.id === id);
-
-  const classGroups: Record<number, any[]> = {};
-  for (const a of assignments) {
-    if (!classGroups[a.class_id]) classGroups[a.class_id] = [];
-    classGroups[a.class_id].push(a);
-  }
+  const classAssignments = (classId: number) => assignments.filter((a: any) => a.class_id === classId);
 
   const reloadClassStudents = async (classId: number) => {
     const r = await api.get(`/api/v1/students/?class_id=${classId}&limit=200`);
     setStudents(p => ({ ...p, [classId]: r.data.data || [] }));
   };
 
-  const toggleRegister = (classId: number) => {
-    setRegisteringFor(registeringFor === classId ? null : classId);
-  };
-
-  const toggleExpand = (classId: number) => {
-    setExpandedClass(expandedClass === classId ? null : classId);
-  };
-
-  const classIds = Object.keys(classGroups);
-
   return (
     <DashboardLayout>
       <div className="t-page-header">
         <div>
           <h1 className="t-page-title">My Classes</h1>
-          <p className="t-page-subtitle">{classIds.length} assigned class{classIds.length !== 1 ? "es" : ""}</p>
+          <p className="t-page-subtitle">{displayClassIds.length} assigned class{displayClassIds.length !== 1 ? "es" : ""}</p>
         </div>
       </div>
 
       {loading ? (
         <div className="flex justify-center py-16"><div className="t-spinner" /></div>
-      ) : classIds.length === 0 ? (
+      ) : displayClassIds.length === 0 ? (
         <div className="t-card text-center py-12">
           <div className="text-3xl mb-3">🏫</div>
           <p className="t-text-secondary">No classes assigned yet.</p>
-          <p className="t-text-secondary" style={{ fontSize: "0.8125rem", marginTop: 4 }}>Ask the principal to assign you to classes and subjects.</p>
+          <p className="t-text-secondary" style={{ fontSize: "0.8125rem", marginTop: 4 }}>Ask the principal to assign you as class teacher.</p>
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {classIds.map((classIdStr) => {
-            const classId = Number(classIdStr);
-            const classAssignments = classGroups[classId];
+          {displayClassIds.map((classId) => {
+            const asgns = classAssignments(classId);
             const cls = getClass(classId);
             const classStudents = students[classId] || [];
             const isExpanded = expandedClass === classId;
@@ -106,7 +102,11 @@ export default function TeacherClassesPage() {
                       Level: {cls?.level || "—"} &nbsp;·&nbsp; {classStudents.length} student{classStudents.length !== 1 ? "s" : ""}
                     </p>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
-                      {classAssignments.map((a: any) => (
+                      {asgns.length === 0 ? (
+                        <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)", fontStyle: "italic" }}>
+                          No subjects registered yet — go to Results → My Subjects to add them.
+                        </span>
+                      ) : asgns.map((a: any) => (
                         <span key={a.id} style={{ background: "var(--accent-light)", color: "var(--accent)", fontSize: "0.72rem", fontWeight: 600, padding: "3px 9px", borderRadius: 5, display: "inline-flex", alignItems: "center", gap: 4 }}>
                           <BookOpen size={10} />
                           {getSubject(a.subject_id)?.name || `Subject #${a.subject_id}`}
@@ -116,7 +116,7 @@ export default function TeacherClassesPage() {
                   </div>
                   <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
                     <button
-                      onClick={() => toggleExpand(classId)}
+                      onClick={() => setExpandedClass(expandedClass === classId ? null : classId)}
                       className="t-btn-secondary"
                       style={{ fontSize: "0.75rem", padding: "5px 12px", display: "flex", alignItems: "center", gap: 5 }}
                     >
@@ -133,7 +133,6 @@ export default function TeacherClassesPage() {
                     </button>
                   </div>
                 </div>
-
 
                 {isExpanded && (
                   <div style={{ marginTop: 16 }}>

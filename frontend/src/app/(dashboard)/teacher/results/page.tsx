@@ -45,33 +45,27 @@ export default function TeacherResultsPage() {
   /* ── boot ── */
   useEffect(() => {
     Promise.allSettled([
-      api.get("/api/v1/auth/me"),
       api.get("/api/v1/subjects/assignments"),
       api.get("/api/v1/subjects/"),
       api.get("/api/v1/academic/sessions"),
       api.get("/api/v1/academic/terms"),
-    ]).then(([me, asgn, subj, sess, trms]) => {
-      const userId = me.status === "fulfilled" ? me.value.data.data?.id : null;
-
+    ]).then(([asgn, subj, sess, trms]) => {
       if (asgn.status === "fulfilled") setAssignments(asgn.value.data.data || []);
       if (subj.status === "fulfilled") setAllSubjects(subj.value.data.data || []);
       if (sess.status === "fulfilled") setSessions(sess.value.data.data || []);
       if (trms.status === "fulfilled") setTerms(trms.value.data.data || []);
 
-      /* find teacher's class */
-      if (userId) {
-        api.get("/api/v1/staff/").then(r => {
-          const staffList: any[] = r.data.data || [];
-          const myS = staffList.find((s: any) => s.user_id === userId);
-          if (myS) {
-            setMyStaff(myS);
-            api.get("/api/v1/classes?limit=200").then(cr => {
-              const cls = (cr.data.data || []).find((c: any) => c.class_teacher_id === myS.id);
-              if (cls) setMyClass(cls);
-            }).catch(() => {});
-          }
-        }).catch(() => {});
-      }
+      /* find teacher's own staff profile and class */
+      api.get("/api/v1/staff/me").then(r => {
+        const myS = r.data.data;
+        if (myS) {
+          setMyStaff(myS);
+          api.get("/api/v1/classes?limit=200").then(cr => {
+            const cls = (cr.data.data || []).find((c: any) => c.class_teacher_id === myS.id);
+            if (cls) setMyClass(cls);
+          }).catch(() => {});
+        }
+      }).catch(() => {});
     });
   }, []);
 

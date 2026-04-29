@@ -2,15 +2,23 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models.staff import StaffType
+from app.models.staff import Staff, StaffType
 from app.schemas.staff import StaffCreate, StaffOut, StaffUpdate
-from app.crud.staff import create_staff, get_staff_by_id, get_all_staff, update_staff, delete_staff
-from app.utils.rbac import is_principal_or_above, is_admin_or_above
+from app.crud.staff import create_staff, get_staff_by_id, get_all_staff, update_staff, delete_staff, get_staff_by_user_id
+from app.utils.rbac import is_principal_or_above, is_admin_or_above, is_teacher_or_above
 from app.utils.response import success_response, paginated_response
 from app.utils.audit import log_action
 from app.utils.email import send_login_credentials
 
 router = APIRouter(prefix="/staff", tags=["Staff"])
+
+
+@router.get("/me")
+def get_my_staff_profile(db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above)):
+    staff = get_staff_by_user_id(db, current_user.id)
+    if not staff:
+        raise HTTPException(status_code=404, detail="Staff profile not found")
+    return success_response(StaffOut.model_validate(staff).model_dump())
 
 
 @router.post("/")
