@@ -75,6 +75,7 @@ const roleNavItems: Record<string, { label: string; href: string; icon: any; sec
     { label: "Dashboard",   href: "/teacher/dashboard",      icon: LayoutDashboard },
     { label: "Students",    href: "/principal/students",     icon: GraduationCap,  section: "Academic" },
     { label: "My Classes",  href: "/teacher/classes",        icon: School },
+    { label: "Subjects",    href: "/teacher/subjects",       icon: BookOpen },
     { label: "Results",     href: "/teacher/results",        icon: ClipboardList },
     { label: "Report Cards",href: "/principal/report-cards", icon: BookMarked },
     { label: "Attendance",  href: "/teacher/attendance",     icon: UserCheck },

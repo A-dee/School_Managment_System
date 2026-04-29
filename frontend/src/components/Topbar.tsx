@@ -31,6 +31,7 @@ const routeLabels: Record<string, string> = {
   "/admin/payroll":          "Salary & Payroll",
   "/teacher/dashboard":      "Dashboard",
   "/teacher/classes":        "My Classes",
+  "/teacher/subjects":       "Subjects",
   "/teacher/results":        "Results",
   "/teacher/attendance":     "Attendance",
   "/teacher/discipline":     "Discipline",
