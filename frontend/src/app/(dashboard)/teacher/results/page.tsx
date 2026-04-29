@@ -211,11 +211,11 @@ export default function TeacherResultsPage() {
       {/* Grade key banner */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
         {[
-          { g: "A", range: "70–100", ...gradeLabel(75) },
-          { g: "B", range: "60–69",  ...gradeLabel(65) },
-          { g: "C", range: "50–59",  ...gradeLabel(55) },
-          { g: "D", range: "40–49",  ...gradeLabel(45) },
-          { g: "F", range: "0–39",   ...gradeLabel(30) },
+          { g: "A", range: "70–100", color: "#16a34a", bg: "rgba(34,197,94,0.12)" },
+          { g: "B", range: "60–69",  color: "#2563eb", bg: "rgba(37,99,235,0.1)"  },
+          { g: "C", range: "50–59",  color: "#d97706", bg: "rgba(245,158,11,0.1)" },
+          { g: "D", range: "40–49",  color: "#ea580c", bg: "rgba(234,88,12,0.1)"  },
+          { g: "F", range: "0–39",   color: "#dc2626", bg: "rgba(220,38,38,0.1)"  },
         ].map(({ g, range, color, bg }) => (
           <div key={g} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 8, background: bg, border: `1px solid ${color}30` }}>
             <span style={{ fontWeight: 800, fontSize: "0.875rem", color }}>{g}</span>
