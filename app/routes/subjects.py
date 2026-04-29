@@ -62,7 +62,18 @@ def reject_subject(subject_id: int, db: Session = Depends(get_db), current_user=
 
 
 @router.post("/assignments")
-def assign_teacher(data: TeacherSubjectClassCreate, db: Session = Depends(get_db), current_user=Depends(is_principal_or_above)):
+def assign_teacher(data: TeacherSubjectClassCreate, db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above)):
+    # Teachers can only register themselves to their own class's subjects
+    if current_user.role == UserRole.TEACHER:
+        from app.models.class_ import Class
+        staff = get_staff_by_user_id(db, current_user.id)
+        if not staff:
+            raise HTTPException(status_code=403, detail="Staff profile not found")
+        if data.teacher_id != staff.id:
+            raise HTTPException(status_code=403, detail="You can only register yourself as teacher")
+        cls = db.query(Class).filter(Class.id == data.class_id, Class.class_teacher_id == staff.id).first()
+        if not cls:
+            raise HTTPException(status_code=403, detail="You can only register subjects for your own class")
     existing = db.query(TeacherSubjectClass).filter(
         TeacherSubjectClass.teacher_id == data.teacher_id,
         TeacherSubjectClass.subject_id == data.subject_id,
@@ -74,7 +85,7 @@ def assign_teacher(data: TeacherSubjectClassCreate, db: Session = Depends(get_db
     db.add(assignment)
     db.commit()
     db.refresh(assignment)
-    return success_response(TeacherSubjectClassOut.model_validate(assignment).model_dump(), "Teacher assigned")
+    return success_response(TeacherSubjectClassOut.model_validate(assignment).model_dump(), "Subject registered")
 
 
 @router.get("/assignments")
@@ -88,10 +99,14 @@ def list_assignments(db: Session = Depends(get_db), current_user=Depends(is_teac
 
 
 @router.delete("/assignments/{assignment_id}")
-def remove_assignment(assignment_id: int, db: Session = Depends(get_db), current_user=Depends(is_principal_or_above)):
+def remove_assignment(assignment_id: int, db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above)):
     assignment = db.query(TeacherSubjectClass).filter(TeacherSubjectClass.id == assignment_id).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
+    if current_user.role == UserRole.TEACHER:
+        staff = get_staff_by_user_id(db, current_user.id)
+        if not staff or assignment.teacher_id != staff.id:
+            raise HTTPException(status_code=403, detail="You can only remove your own subject assignments")
     db.delete(assignment)
     db.commit()
     return success_response(None, "Assignment removed")
