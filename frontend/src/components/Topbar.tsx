@@ -19,6 +19,7 @@ const routeLabels: Record<string, string> = {
   "/principal/settings":     "Settings",
   "/principal/academic":     "Sessions & Terms",
   "/principal/incomplete":   "Incomplete Profiles",
+  "/principal/parents":      "Parents",
   "/principal/analytics":    "Performance Analytics",
   "/principal/report-cards": "Report Cards",
   "/admin/dashboard":        "Dashboard",

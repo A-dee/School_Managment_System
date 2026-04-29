@@ -43,8 +43,27 @@ def create_parent(data: ParentCreate, db: Session = Depends(get_db), current_use
 
 @router.get("/")
 def list_parents(db: Session = Depends(get_db), current_user=Depends(is_admin_or_above)):
+    from app.models.student import Student
     parents = db.query(Parent).all()
-    return success_response([ParentOut.model_validate(p).model_dump() for p in parents])
+    result = []
+    for p in parents:
+        links = db.query(ParentStudent).filter(ParentStudent.parent_id == p.id).all()
+        children = []
+        for lnk in links:
+            s = db.query(Student).filter(Student.id == lnk.student_id).first()
+            if s:
+                children.append({
+                    "id": s.id,
+                    "first_name": s.first_name,
+                    "last_name": s.last_name,
+                    "admission_number": s.admission_number,
+                    "current_class_id": s.current_class_id,
+                    "status": s.status.value if hasattr(s.status, "value") else s.status,
+                })
+        d = ParentOut.model_validate(p).model_dump()
+        d["children"] = children
+        result.append(d)
+    return success_response(result)
 
 
 @router.get("/me/children")
