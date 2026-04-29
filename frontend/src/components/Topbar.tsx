@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, Search } from "lucide-react";
+import { Bell, Menu } from "lucide-react";
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import { getRole } from "@/lib/auth";
@@ -69,7 +69,7 @@ const roleAccent: Record<string, string> = {
   NON_TEACHING_STAFF: "#64748b",
 };
 
-export default function Topbar() {
+export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
   const pathname = usePathname();
   const [role,   setRole]   = useState("");
   const [unread, setUnread] = useState(0);
@@ -114,8 +114,22 @@ export default function Topbar() {
         gap: 12,
       }}
     >
-      {/* Left – page title */}
+      {/* Left – hamburger (mobile) + page title */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+        {/* Hamburger — mobile only */}
+        <button
+          className="mobile-menu-btn"
+          onClick={onMenuClick}
+          style={{
+            display: "none", alignItems: "center", justifyContent: "center",
+            width: 36, height: 36, borderRadius: 9, flexShrink: 0,
+            background: "color-mix(in srgb, var(--accent) 9%, transparent)",
+            border: "1px solid color-mix(in srgb, var(--accent) 16%, transparent)",
+            color: "var(--accent)", cursor: "pointer",
+          }}
+        >
+          <Menu size={18} />
+        </button>
         <div>
           <h2
             className="t-text-primary"

@@ -9,7 +9,7 @@ import {
   CreditCard, BarChart3, ClipboardList, Bell,
   LogOut, School, UserCheck, FileText, DollarSign,
   MessageSquare, Settings, ChevronRight, Calendar,
-  UserCircle, AlertCircle, TrendingUp, BookMarked,
+  UserCircle, AlertCircle, TrendingUp, BookMarked, X,
 } from "lucide-react";
 
 const roleNavItems: Record<string, { label: string; href: string; icon: any; section?: string }[]> = {
@@ -126,7 +126,7 @@ const roleLabel: Record<string, string> = {
   NON_TEACHING_STAFF: "Staff",
 };
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) {
   const pathname        = usePathname();
   const router          = useRouter();
   const { theme, setTheme } = useTheme();
@@ -147,12 +147,20 @@ export default function Sidebar() {
 
   return (
     <aside
-      className="t-sidebar flex flex-col h-screen sticky top-0 shrink-0"
+      className={`t-sidebar flex flex-col h-screen shrink-0 t-sidebar-wrapper${isOpen ? " open" : ""}`}
       style={{ width: 234 }}
     >
       {/* ── Brand ── */}
       <div style={{ padding: "14px 16px 12px", borderBottom: "1px solid rgba(255,255,255,0.06)", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {/* Mobile close button */}
+          <button
+            className="mobile-close-btn"
+            onClick={onClose}
+            style={{ display: "none", position: "absolute", top: 12, right: 12, background: "rgba(255,255,255,0.1)", border: "none", borderRadius: 8, padding: 6, cursor: "pointer", color: "var(--sidebar-text)" }}
+          >
+            <X size={16} />
+          </button>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/hope-hills-logo.png"
@@ -197,7 +205,7 @@ export default function Sidebar() {
                   <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.07)" }} />
                 </div>
               )}
-              <Link href={href} className={`t-sidebar-item ${active ? "active" : ""}`}>
+              <Link href={href} className={`t-sidebar-item ${active ? "active" : ""}`} onClick={onClose}>
                 <span style={{
                   width: 28, height: 28, borderRadius: 8,
                   display: "flex", alignItems: "center", justifyContent: "center",
