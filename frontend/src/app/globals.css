@@ -49,8 +49,8 @@
   --shadow-sm:          0 1px 3px rgba(15,23,42,0.08), 0 1px 2px rgba(15,23,42,0.04);
   --shadow-md:          0 4px 16px rgba(15,23,42,0.1),  0 2px 4px rgba(15,23,42,0.06);
   --shadow-lg:          0 12px 28px rgba(15,23,42,0.12), 0 4px 8px rgba(15,23,42,0.06);
-  --topbar-bg:          rgba(255,255,255,0.88);
-  --topbar-border:      rgba(226,232,240,0.8);
+  --topbar-bg:          rgba(255,255,255,0.72);
+  --topbar-border:      rgba(226,232,240,0.6);
 }
 
 /* ── OBSIDIAN (BLACK & GOLD) ────────────────────── */
@@ -96,8 +96,8 @@
   --shadow-sm:          0 1px 3px rgba(0,0,0,0.5);
   --shadow-md:          0 4px 16px rgba(0,0,0,0.6),  0 0 0 1px rgba(245,158,11,0.04);
   --shadow-lg:          0 12px 28px rgba(0,0,0,0.7), 0 0 0 1px rgba(245,158,11,0.05);
-  --topbar-bg:          rgba(13,13,15,0.88);
-  --topbar-border:      rgba(30,30,34,0.9);
+  --topbar-bg:          rgba(13,13,15,0.70);
+  --topbar-border:      rgba(30,30,34,0.7);
 }
 
 /* ── NEBULA (PURPLE & GOLD) ─────────────────────── */
@@ -143,8 +143,8 @@
   --shadow-sm:          0 1px 3px rgba(0,0,0,0.6);
   --shadow-md:          0 4px 16px rgba(0,0,0,0.7),  0 0 0 1px rgba(168,85,247,0.06);
   --shadow-lg:          0 12px 28px rgba(0,0,0,0.8), 0 0 0 1px rgba(168,85,247,0.08);
-  --topbar-bg:          rgba(9,4,28,0.88);
-  --topbar-border:      rgba(26,13,58,0.9);
+  --topbar-bg:          rgba(9,4,28,0.70);
+  --topbar-border:      rgba(26,13,58,0.7);
 }
 
 /* ── ABYSS (OCEAN / CYAN) ───────────────────────── */
@@ -190,8 +190,8 @@
   --shadow-sm:          0 1px 3px rgba(0,0,0,0.55);
   --shadow-md:          0 4px 16px rgba(0,0,0,0.65), 0 0 0 1px rgba(6,182,212,0.05);
   --shadow-lg:          0 12px 28px rgba(0,0,0,0.75), 0 0 0 1px rgba(6,182,212,0.07);
-  --topbar-bg:          rgba(3,10,22,0.88);
-  --topbar-border:      rgba(8,30,46,0.9);
+  --topbar-bg:          rgba(3,10,22,0.70);
+  --topbar-border:      rgba(8,30,46,0.7);
 }
 
 /* ── CRIMSON (NOIR + RED) ───────────────────────── */
@@ -237,8 +237,8 @@
   --shadow-sm:          0 1px 3px rgba(0,0,0,0.55);
   --shadow-md:          0 4px 16px rgba(0,0,0,0.65), 0 0 0 1px rgba(239,68,68,0.05);
   --shadow-lg:          0 12px 28px rgba(0,0,0,0.75), 0 0 0 1px rgba(239,68,68,0.07);
-  --topbar-bg:          rgba(14,5,7,0.88);
-  --topbar-border:      rgba(34,10,13,0.9);
+  --topbar-bg:          rgba(14,5,7,0.70);
+  --topbar-border:      rgba(34,10,13,0.7);
 }
 
 /* ═══════════════════════════════════════════════════
@@ -264,9 +264,13 @@ body {
   background-color: var(--bg-page);
   color: var(--text-primary);
   min-height: 100vh;
+  /* Vibrant blobs that show beautifully through glass cards */
   background-image:
-    radial-gradient(ellipse at 20% 0%, color-mix(in srgb, var(--accent) 5%, transparent) 0%, transparent 60%),
-    radial-gradient(ellipse at 80% 100%, color-mix(in srgb, var(--accent) 3%, transparent) 0%, transparent 50%);
+    radial-gradient(ellipse at 15%  8%,  color-mix(in srgb, var(--accent) 22%, transparent) 0%, transparent 42%),
+    radial-gradient(ellipse at 85% 90%,  color-mix(in srgb, var(--accent) 16%, transparent) 0%, transparent 40%),
+    radial-gradient(ellipse at 55% 45%,  color-mix(in srgb, var(--accent)  8%, transparent) 0%, transparent 55%),
+    radial-gradient(ellipse at 10% 80%,  color-mix(in srgb, var(--accent) 10%, transparent) 0%, transparent 35%),
+    radial-gradient(ellipse at 90% 15%,  color-mix(in srgb, var(--accent) 12%, transparent) 0%, transparent 38%);
 }
 
 /* ═══════════════════════════════════════════════════
@@ -274,47 +278,56 @@ body {
 ═══════════════════════════════════════════════════ */
 @layer components {
 
-  /* ── Cards ───────────────────────────────────── */
+  /* ── Cards — glassmorphism ───────────────────── */
   .t-card {
-    background-color: var(--bg-card);
-    border: 1px solid var(--border);
+    background: color-mix(in srgb, var(--bg-card) 72%, transparent);
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    border: 1px solid color-mix(in srgb, var(--border-strong) 55%, transparent);
     border-radius: 14px;
     padding: 1.25rem 1.5rem;
-    box-shadow: var(--shadow-sm);
-    transition: background-color 0.2s, border-color 0.2s, box-shadow 0.25s, transform 0.2s;
+    box-shadow: var(--shadow-sm),
+                inset 0 1px 0 color-mix(in srgb, white 6%, transparent);
+    transition: background 0.2s, border-color 0.2s, box-shadow 0.25s, transform 0.2s;
     position: relative;
   }
   .t-card-hover:hover {
+    background: color-mix(in srgb, var(--bg-card) 82%, transparent);
     box-shadow: var(--shadow-md), 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
-    border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+    border-color: color-mix(in srgb, var(--accent) 30%, transparent);
     transform: translateY(-2px);
   }
   .t-card-interactive {
     cursor: pointer;
   }
   .t-card-interactive:hover {
+    background: color-mix(in srgb, var(--bg-card) 85%, transparent);
     box-shadow: var(--shadow-md), 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
-    border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+    border-color: color-mix(in srgb, var(--accent) 35%, transparent);
     transform: translateY(-2px);
   }
 
-  /* Glassmorphism card */
+  /* Stronger glass for modals / elevated surfaces */
   .t-glass {
-    background: color-mix(in srgb, var(--bg-card) 60%, transparent);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid color-mix(in srgb, var(--border-strong) 50%, transparent);
+    background: color-mix(in srgb, var(--bg-card) 55%, transparent);
+    backdrop-filter: blur(28px) saturate(200%);
+    -webkit-backdrop-filter: blur(28px) saturate(200%);
+    border: 1px solid color-mix(in srgb, var(--border-strong) 45%, transparent);
     border-radius: 14px;
     padding: 1.25rem 1.5rem;
+    box-shadow: var(--shadow-md), inset 0 1px 0 color-mix(in srgb, white 8%, transparent);
   }
 
   /* ── Sidebar ─────────────────────────────────── */
   .t-sidebar {
     background: linear-gradient(
       160deg,
-      var(--bg-sidebar) 0%,
-      color-mix(in srgb, var(--bg-sidebar) 78%, black) 100%
+      color-mix(in srgb, var(--bg-sidebar) 92%, transparent) 0%,
+      color-mix(in srgb, var(--bg-sidebar) 70%, black) 100%
     );
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    border-right: 1px solid color-mix(in srgb, var(--sidebar-text) 8%, transparent);
     color: var(--sidebar-text);
   }
   .t-sidebar-item {

@@ -3,8 +3,9 @@ import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { getProfitLoss } from "@/lib/api";
 import api from "@/lib/api";
+import toast from "react-hot-toast";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { TrendingUp, TrendingDown, DollarSign, Users, Receipt, BarChart2, AlertTriangle, Clock } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, Users, Receipt, BarChart2, AlertTriangle, Clock, CheckCircle, XCircle, X } from "lucide-react";
 
 const fmt = (n: number) =>
   `₦${n.toLocaleString("en-NG", { minimumFractionDigits: 0 })}`;
@@ -34,6 +35,13 @@ export default function FinancePage() {
   // ledger
   const [ledger,     setLedger]     = useState<any[]>([]);
   const [ledgerLoad, setLedgerLoad] = useState(false);
+
+  // declaration confirm/reject
+  const [confirmModal, setConfirmModal] = useState<any | null>(null);
+  const [confirmedAmt, setConfirmedAmt] = useState("");
+  const [rejectModal,  setRejectModal]  = useState<any | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [processing,   setProcessing]   = useState(false);
 
   // bootstrap
   useEffect(() => {
@@ -73,6 +81,32 @@ export default function FinancePage() {
       setStudents(map);
     } catch {}
     setDebtLoading(false);
+  };
+
+  const confirmDecl = async () => {
+    if (!confirmedAmt || Number(confirmedAmt) <= 0) { toast.error("Enter confirmed amount"); return; }
+    setProcessing(true);
+    try {
+      await api.put(`/api/v1/finance/payment-declarations/${confirmModal.id}/confirm`, { confirmed_amount: Number(confirmedAmt) });
+      toast.success("Payment confirmed — invoice updated");
+      setConfirmModal(null);
+      setDeclLoad(true);
+      api.get("/api/v1/finance/payment-declarations?limit=200").then(r => setDecls(r.data.data || [])).finally(() => setDeclLoad(false));
+    } catch (e: any) { toast.error(e?.response?.data?.detail || "Failed"); }
+    setProcessing(false);
+  };
+
+  const rejectDecl = async () => {
+    setProcessing(true);
+    try {
+      await api.put(`/api/v1/finance/payment-declarations/${rejectModal.id}/reject`, { rejection_reason: rejectReason || null });
+      toast.success("Declaration rejected");
+      setRejectModal(null);
+      setRejectReason("");
+      setDeclLoad(true);
+      api.get("/api/v1/finance/payment-declarations?limit=200").then(r => setDecls(r.data.data || [])).finally(() => setDeclLoad(false));
+    } catch (e: any) { toast.error(e?.response?.data?.detail || "Failed"); }
+    setProcessing(false);
   };
 
   const isProfit = profit && profit.profit >= 0;
@@ -334,7 +368,7 @@ export default function FinancePage() {
                 <th>Reference</th>
                 <th>Date</th>
                 <th>Status</th>
-                <th>Confirmed</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -354,9 +388,30 @@ export default function FinancePage() {
                     <span className={d.status === "CONFIRMED" ? "badge-green" : d.status === "REJECTED" ? "badge-red" : "badge-yellow"}>
                       {d.status}
                     </span>
+                    {d.status === "CONFIRMED" && d.confirmed_amount && (
+                      <div style={{ fontSize: "0.68rem", color: "#10b981", marginTop: 2 }}>✓ {fmt(d.confirmed_amount)}</div>
+                    )}
+                    {d.status === "REJECTED" && d.rejection_reason && (
+                      <div style={{ fontSize: "0.68rem", color: "#ef4444", marginTop: 2 }}>{d.rejection_reason}</div>
+                    )}
                   </td>
-                  <td style={{ color: d.confirmed_amount ? "#10b981" : "var(--text-secondary)" }}>
-                    {d.confirmed_amount ? fmt(d.confirmed_amount) : "—"}
+                  <td>
+                    {d.status === "PENDING" && (
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button
+                          onClick={() => { setConfirmModal(d); setConfirmedAmt(String(d.declared_amount)); }}
+                          style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: "0.72rem", fontWeight: 600, background: "rgba(16,185,129,0.12)", color: "#10b981" }}
+                        >
+                          <CheckCircle size={12} /> Confirm
+                        </button>
+                        <button
+                          onClick={() => { setRejectModal(d); setRejectReason(""); }}
+                          style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: "0.72rem", fontWeight: 600, background: "rgba(239,68,68,0.12)", color: "#ef4444" }}
+                        >
+                          <XCircle size={12} /> Reject
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -430,6 +485,61 @@ export default function FinancePage() {
             </table>
           </div>
         </>
+      )}
+      {/* ── Confirm Modal ── */}
+      {confirmModal && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.5)" }}
+          onClick={e => { if (e.target === e.currentTarget) setConfirmModal(null); }}>
+          <div className="t-card animate-fade-in" style={{ width: "100%", maxWidth: 440, margin: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h2 style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)" }}>Confirm Payment</h2>
+              <button onClick={() => setConfirmModal(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)" }}><X size={16} /></button>
+            </div>
+            <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginBottom: 16 }}>
+              Invoice #{confirmModal.invoice_id} — Parent declared {fmt(confirmModal.declared_amount)}
+              {confirmModal.reference ? ` · Ref: ${confirmModal.reference}` : ""}
+            </p>
+            <div>
+              <label className="t-label">Confirmed Amount (₦) *</label>
+              <input className="t-input" type="number" min="0.01" value={confirmedAmt} onChange={e => setConfirmedAmt(e.target.value)} />
+              <p style={{ fontSize: "0.7rem", color: "var(--text-secondary)", marginTop: 4 }}>Enter the exact amount you verified was received.</p>
+            </div>
+            <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+              <button onClick={confirmDecl} disabled={processing}
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 18px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 600, fontSize: "0.82rem", background: "#10b981", color: "#fff" }}>
+                <CheckCircle size={14} /> {processing ? "Confirming..." : "Confirm & Record Payment"}
+              </button>
+              <button className="t-btn-secondary" onClick={() => setConfirmModal(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Reject Modal ── */}
+      {rejectModal && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.5)" }}
+          onClick={e => { if (e.target === e.currentTarget) setRejectModal(null); }}>
+          <div className="t-card animate-fade-in" style={{ width: "100%", maxWidth: 440, margin: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h2 style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)" }}>Reject Declaration</h2>
+              <button onClick={() => setRejectModal(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)" }}><X size={16} /></button>
+            </div>
+            <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginBottom: 16 }}>
+              Invoice #{rejectModal.invoice_id} — {fmt(rejectModal.declared_amount)} declared
+            </p>
+            <div>
+              <label className="t-label">Reason for Rejection (optional)</label>
+              <input className="t-input" placeholder="e.g. Payment not found in our records" value={rejectReason} onChange={e => setRejectReason(e.target.value)} />
+            </div>
+            <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+              <button onClick={rejectDecl} disabled={processing}
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 18px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 600, fontSize: "0.82rem", background: "#ef4444", color: "#fff" }}>
+                <XCircle size={14} /> {processing ? "Rejecting..." : "Reject Declaration"}
+              </button>
+              <button className="t-btn-secondary" onClick={() => setRejectModal(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
       )}
     </DashboardLayout>
   );
