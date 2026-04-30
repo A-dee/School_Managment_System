@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { clearTokens, getRole } from "@/lib/auth";
 import { useTheme, Theme } from "@/contexts/ThemeContext";
 import {
@@ -136,8 +136,19 @@ export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose
 
   useEffect(() => { setRole(getRole() || "STUDENT"); }, []);
 
-  const navItems   = roleNavItems[role] || roleNavItems.STUDENT;
-  const activeTheme = themes.find(t => t.id === theme)!;
+  const navRef      = useRef<HTMLElement>(null);
+  const navItems    = roleNavItems[role] || roleNavItems.STUDENT;
+  const activeTheme = themes.find(t => t.id === theme)!
+
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+    const saved = sessionStorage.getItem("sidebar-scroll");
+    if (saved) el.scrollTop = parseInt(saved, 10);
+    const onScroll = () => sessionStorage.setItem("sidebar-scroll", String(el.scrollTop));
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);;
 
   const handleLogout = () => {
     clearTokens();
@@ -187,7 +198,7 @@ export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose
       </div>
 
       {/* ── Nav ── */}
-      <nav className="flex-1 overflow-y-auto" style={{ padding: "10px 10px", paddingBottom: 4 }}>
+      <nav ref={navRef} className="flex-1 overflow-y-auto" style={{ padding: "10px 10px", paddingBottom: 4 }}>
         {navItems.map(({ label, href, icon: Icon, section }) => {
           const active = pathname === href || pathname.startsWith(href + "/");
           const showSection = section && section !== lastSection;
