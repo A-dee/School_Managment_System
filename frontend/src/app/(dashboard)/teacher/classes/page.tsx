@@ -19,30 +19,40 @@ export default function TeacherClassesPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const [aRes, sRes, cRes, meRes] = await Promise.all([
+      /* Step 1: get my staff profile */
+      const meRes = await api.get("/api/v1/staff/me").catch(() => ({ data: { data: null } }));
+      const myStaff: any = meRes.data.data;
+
+      /* Step 2: load everything in parallel */
+      const requests: Promise<any>[] = [
         api.get("/api/v1/subjects/assignments"),
         api.get("/api/v1/subjects/"),
         api.get("/api/v1/classes/?limit=200"),
-        api.get("/api/v1/staff/me").catch(() => ({ data: { data: null } })),
-      ]);
-      const asgn: any[] = aRes.data.data || [];
-      const subj: any[] = sRes.data.data || [];
-      const cls: any[] = cRes.data.data || [];
-      const myStaff: any = meRes.data.data;
+      ];
+      /* Use server-side filter to find my home class(es) reliably */
+      if (myStaff) {
+        requests.push(api.get(`/api/v1/classes/?class_teacher_id=${myStaff.id}&limit=10`));
+      }
+
+      const [aRes, sRes, cRes, homeRes] = await Promise.all(requests);
+      const asgn: any[]      = aRes.data.data || [];
+      const subj: any[]      = sRes.data.data || [];
+      const cls: any[]       = cRes.data.data || [];
+      const homeClasses: any[] = homeRes?.data?.data || [];
 
       setAssignments(asgn);
       setSubjects(subj);
       setClasses(cls);
 
-      /* union of: classes from subject assignments + class where I'm the class teacher */
-      const classIdSet = new Set<number>(asgn.map((a: any) => a.class_id));
-      if (myStaff) {
-        const homeClass = cls.find((c: any) => c.class_teacher_id === myStaff.id);
-        if (homeClass) classIdSet.add(homeClass.id);
-      }
+      /* Union: classes from subject assignments + classes where I'm the class teacher */
+      const classIdSet = new Set<number>([
+        ...asgn.map((a: any) => a.class_id),
+        ...homeClasses.map((c: any) => c.id),
+      ]);
       const allClassIds = [...classIdSet];
       setDisplayClassIds(allClassIds);
 
+      /* Load students for each class */
       const studentMap: Record<number, any[]> = {};
       await Promise.all(allClassIds.map(async (cid: number) => {
         const r = await api.get(`/api/v1/students/?class_id=${cid}&limit=200`);

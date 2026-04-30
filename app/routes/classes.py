@@ -22,11 +22,14 @@ def create_class(data: ClassCreate, db: Session = Depends(get_db), current_user=
 @router.get("/")
 def list_classes(
     skip: int = 0, limit: int = 100, session_id: Optional[int] = None,
+    class_teacher_id: Optional[int] = None,
     db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above)
 ):
     q = db.query(Class)
     if session_id:
         q = q.filter(Class.session_id == session_id)
+    if class_teacher_id is not None:
+        q = q.filter(Class.class_teacher_id == class_teacher_id)
     total = q.count()
     classes = q.offset(skip).limit(limit).all()
     return paginated_response([ClassOut.model_validate(c).model_dump() for c in classes], total, 1, limit)

@@ -55,14 +55,14 @@ export default function TeacherResultsPage() {
       if (sess.status === "fulfilled") setSessions(sess.value.data.data || []);
       if (trms.status === "fulfilled") setTerms(trms.value.data.data || []);
 
-      /* find teacher's own staff profile and class */
+      /* find teacher's own staff profile and home class */
       api.get("/api/v1/staff/me").then(r => {
         const myS = r.data.data;
         if (myS) {
           setMyStaff(myS);
-          api.get("/api/v1/classes?limit=200").then(cr => {
-            const cls = (cr.data.data || []).find((c: any) => c.class_teacher_id === myS.id);
-            if (cls) setMyClass(cls);
+          api.get(`/api/v1/classes/?class_teacher_id=${myS.id}&limit=10`).then(cr => {
+            const cls = cr.data.data || [];
+            if (cls.length > 0) setMyClass(cls[0]);
           }).catch(() => {});
         }
       }).catch(() => {});
