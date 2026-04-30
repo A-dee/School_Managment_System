@@ -8,7 +8,7 @@ from app.crud.user import (
     create_user, get_user_by_id, get_all_users,
     update_user, activate_user, deactivate_user, get_user_by_email, reset_password
 )
-from app.utils.auth import get_current_user
+from app.utils.auth import get_current_user, verify_password
 from app.utils.rbac import is_principal_or_above, is_super_admin
 from app.utils.response import success_response, paginated_response
 from app.utils.audit import log_action
@@ -67,9 +67,13 @@ def admin_reset_password(
     user_id: int, data: AdminPasswordReset,
     db: Session = Depends(get_db), current_user=Depends(is_super_admin)
 ):
+    if not verify_password(data.admin_password, current_user.hashed_password):
+        raise HTTPException(status_code=403, detail="Incorrect admin password")
     user = get_user_by_id(db, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    if user.id == current_user.id:
+        raise HTTPException(status_code=400, detail="Use profile settings to change your own password")
     reset_password(db, user, data.new_password)
     log_action(db, "RESET_PASSWORD", "User", current_user.id, entity_id=user_id)
     db.commit()

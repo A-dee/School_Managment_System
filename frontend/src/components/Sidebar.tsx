@@ -9,7 +9,7 @@ import {
   CreditCard, BarChart3, ClipboardList, Bell,
   LogOut, School, UserCheck, FileText, DollarSign,
   MessageSquare, Settings, ChevronRight, Calendar,
-  UserCircle, AlertCircle, TrendingUp, BookMarked, X,
+  UserCircle, AlertCircle, TrendingUp, BookMarked, X, KeyRound,
 } from "lucide-react";
 
 const roleNavItems: Record<string, { label: string; href: string; icon: any; section?: string }[]> = {
@@ -52,6 +52,7 @@ const roleNavItems: Record<string, { label: string; href: string; icon: any; sec
     { label: "Expenses",             href: "/admin/expenses",         icon: ClipboardList },
     { label: "Reports",              href: "/principal/reports",      icon: BarChart3 },
     { label: "Audit Logs",           href: "/principal/audit",        icon: FileText },
+    { label: "User Accounts",        href: "/principal/users",        icon: KeyRound },
     { label: "Messages",             href: "/messages",               icon: MessageSquare,  section: "Communication" },
     { label: "Settings",             href: "/principal/settings",     icon: Settings },
     { label: "Profile",              href: "/profile",                icon: UserCircle },

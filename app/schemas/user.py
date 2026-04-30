@@ -42,4 +42,5 @@ class ForgotPassword(BaseModel):
 
 
 class AdminPasswordReset(BaseModel):
+    admin_password: str
     new_password: str
