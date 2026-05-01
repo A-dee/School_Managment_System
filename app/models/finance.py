@@ -1,6 +1,6 @@
 import enum
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Date, DateTime, Enum, Numeric, ForeignKey, JSON, Text
+from sqlalchemy import Column, Integer, String, Date, DateTime, Enum, Numeric, ForeignKey, JSON, Text, Boolean
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -145,3 +145,16 @@ class PaymentDeclaration(Base):
     invoice = relationship("Invoice")
     declarer = relationship("User", foreign_keys=[declared_by])
     confirmer = relationship("User", foreign_keys=[confirmed_by])
+
+
+class OptionalFee(Base):
+    __tablename__ = "optional_fees"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    category = Column(String, nullable=False)   # "After School" | "Clubs"
+    amount = Column(Numeric(12, 2), nullable=False)
+    billing_period = Column(String, nullable=False, default="termly")  # "monthly" | "termly"
+    description = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)

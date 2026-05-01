@@ -13,12 +13,14 @@ from app.schemas.finance import (
     PaymentDeclarationIn, PaymentDeclarationOut,
     PaymentDeclarationConfirm, PaymentDeclarationReject,
     DirectPaymentCreate,
+    OptionalFeeCreate, OptionalFeeUpdate, OptionalFeeOut,
 )
 from app.crud.finance import (
     create_fee_structure, generate_invoices_for_term, get_invoice,
     get_student_invoices, record_payment, get_debtors,
     create_expenditure, approve_expenditure, reject_expenditure,
-    create_payroll, mark_payroll_paid, get_profit_loss
+    create_payroll, mark_payroll_paid, get_profit_loss,
+    list_optional_fees, create_optional_fee, update_optional_fee, delete_optional_fee,
 )
 from app.utils.rbac import is_principal_or_above, is_admin_or_above, is_vp_or_above
 from app.utils.auth import get_current_user
@@ -467,3 +469,38 @@ def profit_loss_report(
 ):
     report = get_profit_loss(db, session_id=session_id, term_id=term_id, month=month, year=year)
     return success_response(report)
+
+
+# ── Optional Fees ──────────────────────────────────────────────────────────────
+
+@router.get("/optional-fees", response_model=None)
+def get_optional_fees(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    fees = list_optional_fees(db)
+    return success_response([OptionalFeeOut.model_validate(f) for f in fees])
+
+
+@router.post("/optional-fees", response_model=None)
+def add_optional_fee(data: OptionalFeeCreate, db: Session = Depends(get_db), current_user=Depends(is_admin_or_above)):
+    fee = create_optional_fee(db, data)
+    db.commit()
+    db.refresh(fee)
+    return success_response(OptionalFeeOut.model_validate(fee))
+
+
+@router.put("/optional-fees/{fee_id}", response_model=None)
+def edit_optional_fee(fee_id: int, data: OptionalFeeUpdate, db: Session = Depends(get_db), current_user=Depends(is_admin_or_above)):
+    fee = update_optional_fee(db, fee_id, data)
+    if not fee:
+        raise HTTPException(status_code=404, detail="Optional fee not found")
+    db.commit()
+    db.refresh(fee)
+    return success_response(OptionalFeeOut.model_validate(fee))
+
+
+@router.delete("/optional-fees/{fee_id}", response_model=None)
+def remove_optional_fee(fee_id: int, db: Session = Depends(get_db), current_user=Depends(is_admin_or_above)):
+    ok = delete_optional_fee(db, fee_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Optional fee not found")
+    db.commit()
+    return success_response({"message": "Deleted"})

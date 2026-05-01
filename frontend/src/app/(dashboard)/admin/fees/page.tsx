@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import api from "@/lib/api";
 import toast from "react-hot-toast";
-import { Search, CheckCircle, CreditCard, Users, DollarSign, AlertTriangle, Plus, Trash2, RefreshCw, CalendarCheck } from "lucide-react";
+import { Search, CheckCircle, CreditCard, Users, DollarSign, AlertTriangle, Plus, Trash2, RefreshCw, CalendarCheck, Pencil, X } from "lucide-react";
 
 const fmt = (n: number | string) => `₦${Number(n).toLocaleString("en-NG", { minimumFractionDigits: 0 })}`;
 
@@ -71,6 +71,23 @@ export default function FeesPage() {
   const [genTerms,  setGenTerms]  = useState<any[]>([]);
   const [allTerms,  setAllTerms]  = useState<any[]>([]);
 
+  /* --- edit state --- */
+  const [editingFs,   setEditingFs]   = useState<FeeStructure | null>(null);
+  const [editForm,    setEditForm]    = useState({ class_id: "", session_id: "", term_id: "" });
+  const [editItems,   setEditItems]   = useState([blankItem()]);
+  const [editTerms,   setEditTerms]   = useState<any[]>([]);
+  const [savingEdit,  setSavingEdit]  = useState(false);
+
+  /* --- optional fees state --- */
+  type OptFee = { id: number; name: string; category: string; amount: number; billing_period: string; description: string | null; is_active: boolean };
+  const [optFees,      setOptFees]      = useState<OptFee[]>([]);
+  const [optLoading,   setOptLoading]   = useState(false);
+  const [showOptForm,  setShowOptForm]  = useState(false);
+  const [optForm,      setOptForm]      = useState({ name: "", category: "Clubs", billing_period: "termly", amount: "", description: "" });
+  const [savingOpt,    setSavingOpt]    = useState(false);
+  const [editingOpt,   setEditingOpt]   = useState<OptFee | null>(null);
+  const [editOptForm,  setEditOptForm]  = useState({ name: "", category: "Clubs", billing_period: "termly", amount: "", description: "" });
+
   /* --- bootstrap: load sessions + classes, then all terms --- */
   useEffect(() => {
     Promise.all([
@@ -112,8 +129,54 @@ export default function FeesPage() {
   }, [genSessionId]);
 
   useEffect(() => {
-    if (outerTab === "schedule") loadFeeStructures();
+    setEditForm(p => ({ ...p, term_id: "" }));
+    if (!editForm.session_id) { setEditTerms([]); return; }
+    api.get(`/api/v1/academic/terms?session_id=${editForm.session_id}`)
+      .then(r => setEditTerms(r.data.data || [])).catch(() => {});
+  }, [editForm.session_id]);
+
+  useEffect(() => {
+    if (outerTab === "schedule") { loadFeeStructures(); loadOptFees(); }
   }, [outerTab]);
+
+  /* --- load optional fees --- */
+  const loadOptFees = async () => {
+    setOptLoading(true);
+    try { const r = await api.get("/api/v1/finance/optional-fees"); setOptFees(r.data.data || []); }
+    catch { toast.error("Failed to load optional fees"); }
+    setOptLoading(false);
+  };
+
+  const createOptFee = async () => {
+    if (!optForm.name.trim() || !optForm.amount || Number(optForm.amount) <= 0) { toast.error("Enter name and amount"); return; }
+    setSavingOpt(true);
+    try {
+      await api.post("/api/v1/finance/optional-fees", { name: optForm.name.trim(), category: optForm.category, amount: Number(optForm.amount), billing_period: optForm.billing_period, description: optForm.description || null });
+      toast.success("Optional fee added");
+      setShowOptForm(false);
+      setOptForm({ name: "", category: "Clubs", billing_period: "termly", amount: "", description: "" });
+      loadOptFees();
+    } catch (e: any) { toast.error(e?.response?.data?.detail || "Failed"); }
+    setSavingOpt(false);
+  };
+
+  const saveOptEdit = async () => {
+    if (!editOptForm.name.trim() || !editOptForm.amount || Number(editOptForm.amount) <= 0) { toast.error("Enter name and amount"); return; }
+    setSavingOpt(true);
+    try {
+      await api.put(`/api/v1/finance/optional-fees/${editingOpt!.id}`, { name: editOptForm.name.trim(), category: editOptForm.category, amount: Number(editOptForm.amount), billing_period: editOptForm.billing_period, description: editOptForm.description || null });
+      toast.success("Optional fee updated");
+      setEditingOpt(null);
+      loadOptFees();
+    } catch (e: any) { toast.error(e?.response?.data?.detail || "Failed"); }
+    setSavingOpt(false);
+  };
+
+  const deleteOptFee = async (id: number) => {
+    if (!confirm("Delete this optional fee?")) return;
+    try { await api.delete(`/api/v1/finance/optional-fees/${id}`); toast.success("Deleted"); setOptFees(p => p.filter(f => f.id !== id)); }
+    catch (e: any) { toast.error(e?.response?.data?.detail || "Failed"); }
+  };
 
   /* --- load fee structures --- */
   const loadFeeStructures = async () => {
@@ -161,6 +224,40 @@ export default function FeesPage() {
       toast.success("Fee schedule deleted");
       setFeeStructures(p => p.filter(f => f.id !== id));
     } catch (e: any) { toast.error(e?.response?.data?.detail || "Failed to delete"); }
+  };
+
+  /* --- open edit modal --- */
+  const openEdit = (fs: FeeStructure) => {
+    setEditForm({ class_id: String(fs.class_id), session_id: String(fs.session_id), term_id: String(fs.term_id) });
+    const parsed = Object.entries(fs.fee_breakdown).map(([name, amount]) => ({ name, amount: String(amount) }));
+    setEditItems(parsed.length > 0 ? parsed : [blankItem()]);
+    setEditingFs(fs);
+  };
+
+  /* --- save edit --- */
+  const saveEdit = async () => {
+    if (!editForm.class_id || !editForm.session_id || !editForm.term_id) {
+      toast.error("Select class, session and term"); return;
+    }
+    const validItems = editItems.filter(i => i.name.trim() && Number(i.amount) > 0);
+    if (validItems.length === 0) { toast.error("Add at least one fee item"); return; }
+    const breakdown: Record<string, number> = {};
+    validItems.forEach(i => { breakdown[i.name.trim()] = Number(i.amount); });
+    const total = validItems.reduce((s, i) => s + Number(i.amount), 0);
+    setSavingEdit(true);
+    try {
+      await api.put(`/api/v1/finance/fee-structures/${editingFs!.id}`, {
+        class_id:      Number(editForm.class_id),
+        session_id:    Number(editForm.session_id),
+        term_id:       Number(editForm.term_id),
+        fee_breakdown: breakdown,
+        total_fee:     total,
+      });
+      toast.success("Fee schedule updated");
+      setEditingFs(null);
+      loadFeeStructures();
+    } catch (e: any) { toast.error(e?.response?.data?.detail || "Failed to update fee schedule"); }
+    setSavingEdit(false);
   };
 
   /* --- generate invoices --- */
@@ -732,6 +829,96 @@ export default function FeesPage() {
             </div>
           </div>
 
+          {/* Optional Fees card */}
+          <div className="t-card">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <div>
+                <h3 style={{ fontWeight: 700, fontSize: "0.9rem", color: "var(--text-primary)", marginBottom: 2 }}>Optional Fees</h3>
+                <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>After school lessons and club activities — students opt in individually.</p>
+              </div>
+              <button onClick={() => setShowOptForm(v => !v)}
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 8, border: "none", background: "var(--accent)", color: "var(--btn-primary-text)", fontWeight: 600, fontSize: "0.8125rem", cursor: "pointer" }}>
+                <Plus size={13} /> {showOptForm ? "Cancel" : "Add Fee"}
+              </button>
+            </div>
+
+            {showOptForm && (
+              <div style={{ marginBottom: 16, padding: 14, background: "var(--accent-light)", borderRadius: 10, border: "1px solid var(--border)" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
+                  <div>
+                    <label style={lbl}>Name *</label>
+                    <input type="text" placeholder="e.g. Ballet" value={optForm.name} onChange={e => setOptForm(p => ({ ...p, name: e.target.value }))} style={inpStyle} />
+                  </div>
+                  <div>
+                    <label style={lbl}>Category *</label>
+                    <select value={optForm.category} onChange={e => setOptForm(p => ({ ...p, category: e.target.value }))} style={inpStyle}>
+                      <option value="After School">After School</option>
+                      <option value="Clubs">Clubs</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={lbl}>Billing</label>
+                    <select value={optForm.billing_period} onChange={e => setOptForm(p => ({ ...p, billing_period: e.target.value }))} style={inpStyle}>
+                      <option value="termly">Per Term</option>
+                      <option value="monthly">Per Month</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={lbl}>Amount (₦) *</label>
+                    <input type="number" min={0} placeholder="10000" value={optForm.amount} onChange={e => setOptForm(p => ({ ...p, amount: e.target.value }))} style={inpStyle} />
+                  </div>
+                  <div style={{ gridColumn: "2 / -1" }}>
+                    <label style={lbl}>Description (optional)</label>
+                    <input type="text" placeholder="Short note…" value={optForm.description} onChange={e => setOptForm(p => ({ ...p, description: e.target.value }))} style={inpStyle} />
+                  </div>
+                </div>
+                <button onClick={createOptFee} disabled={savingOpt}
+                  style={{ padding: "7px 18px", borderRadius: 8, border: "none", background: "var(--accent)", color: "var(--btn-primary-text)", fontWeight: 700, fontSize: "0.8125rem", cursor: "pointer", opacity: savingOpt ? 0.6 : 1 }}>
+                  {savingOpt ? "Saving…" : "Add Optional Fee"}
+                </button>
+              </div>
+            )}
+
+            {optLoading ? (
+              <p style={{ color: "var(--text-secondary)", fontSize: "0.8rem" }}>Loading…</p>
+            ) : optFees.length === 0 ? (
+              <p style={{ color: "var(--text-secondary)", fontSize: "0.8rem" }}>No optional fees defined yet.</p>
+            ) : (
+              (() => {
+                const grouped: Record<string, OptFee[]> = {};
+                optFees.forEach(f => { (grouped[f.category] = grouped[f.category] || []).push(f); });
+                return Object.entries(grouped).map(([cat, fees]) => (
+                  <div key={cat} style={{ marginBottom: 14 }}>
+                    <p style={{ fontSize: "0.72rem", fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>{cat}</p>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      {fees.map(f => (
+                        <div key={f.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", borderRadius: 8, border: "1px solid var(--border)", background: f.is_active ? "var(--bg-card)" : "var(--accent-light)", opacity: f.is_active ? 1 : 0.6 }}>
+                          <div>
+                            <span style={{ fontWeight: 600, fontSize: "0.82rem", color: "var(--text-primary)" }}>{f.name}</span>
+                            <span style={{ marginLeft: 8, fontWeight: 700, color: "var(--accent)", fontSize: "0.82rem" }}>{fmt(f.amount)}</span>
+                            <span style={{ marginLeft: 6, fontSize: "0.68rem", color: "var(--text-secondary)", background: "var(--accent-light)", padding: "1px 6px", borderRadius: 10 }}>
+                              {f.billing_period === "monthly" ? "/ month" : "/ term"}
+                            </span>
+                          </div>
+                          <div style={{ display: "flex", gap: 4, marginLeft: 4 }}>
+                            <button onClick={() => { setEditingOpt(f); setEditOptForm({ name: f.name, category: f.category, billing_period: f.billing_period, amount: String(f.amount), description: f.description || "" }); }}
+                              style={{ padding: "3px 8px", borderRadius: 5, border: "none", background: "var(--accent-light)", color: "var(--accent)", cursor: "pointer", fontSize: "0.7rem", fontWeight: 600 }}>
+                              <Pencil size={11} />
+                            </button>
+                            <button onClick={() => deleteOptFee(f.id)}
+                              style={{ padding: "3px 8px", borderRadius: 5, border: "none", background: "rgba(239,68,68,0.1)", color: "#ef4444", cursor: "pointer", fontSize: "0.7rem", fontWeight: 600 }}>
+                              <Trash2 size={11} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ));
+              })()
+            )}
+          </div>
+
           {/* Fee structures table */}
           <div className="t-card overflow-x-auto">
             <h3 style={{ fontWeight: 700, fontSize: "0.9rem", color: "var(--text-primary)", marginBottom: 14 }}>
@@ -770,16 +957,156 @@ export default function FeesPage() {
                       </td>
                       <td style={{ fontWeight: 700, color: "var(--accent)" }}>{fmt(Number(fs.total_fee))}</td>
                       <td>
-                        <button onClick={() => deleteFeeStructure(fs.id)}
-                          style={{ padding: "4px 8px", borderRadius: 6, border: "none", background: "rgba(239,68,68,0.1)", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: "0.72rem", fontWeight: 600 }}>
-                          <Trash2 size={12} /> Delete
-                        </button>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button onClick={() => openEdit(fs)}
+                            style={{ padding: "4px 10px", borderRadius: 6, border: "none", background: "var(--accent-light)", color: "var(--accent)", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: "0.72rem", fontWeight: 600 }}>
+                            <Pencil size={12} /> Edit
+                          </button>
+                          <button onClick={() => deleteFeeStructure(fs.id)}
+                            style={{ padding: "4px 8px", borderRadius: 6, border: "none", background: "rgba(239,68,68,0.1)", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: "0.72rem", fontWeight: 600 }}>
+                            <Trash2 size={12} /> Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             )}
+          </div>
+        </div>
+      )}
+      {/* ══════════════════ EDIT OPTIONAL FEE MODAL ══════════════════ */}
+      {editingOpt && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}>
+          <div className="t-card" style={{ width: "min(420px, 95vw)", borderRadius: 14, padding: "24px 26px", position: "relative" }}>
+            <button onClick={() => setEditingOpt(null)} style={{ position: "absolute", top: 14, right: 14, background: "transparent", border: "none", cursor: "pointer", color: "var(--text-secondary)", padding: 4 }}><X size={18} /></button>
+            <h3 style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)", marginBottom: 16 }}>Edit Optional Fee</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div>
+                <label style={lbl}>Name *</label>
+                <input type="text" value={editOptForm.name} onChange={e => setEditOptForm(p => ({ ...p, name: e.target.value }))} style={inpStyle} />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div>
+                  <label style={lbl}>Category *</label>
+                  <select value={editOptForm.category} onChange={e => setEditOptForm(p => ({ ...p, category: e.target.value }))} style={inpStyle}>
+                    <option value="After School">After School</option>
+                    <option value="Clubs">Clubs</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={lbl}>Billing</label>
+                  <select value={editOptForm.billing_period} onChange={e => setEditOptForm(p => ({ ...p, billing_period: e.target.value }))} style={inpStyle}>
+                    <option value="termly">Per Term</option>
+                    <option value="monthly">Per Month</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label style={lbl}>Amount (₦) *</label>
+                <input type="number" min={0} value={editOptForm.amount} onChange={e => setEditOptForm(p => ({ ...p, amount: e.target.value }))} style={inpStyle} />
+              </div>
+              <div>
+                <label style={lbl}>Description</label>
+                <input type="text" value={editOptForm.description} onChange={e => setEditOptForm(p => ({ ...p, description: e.target.value }))} style={inpStyle} />
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+              <button onClick={saveOptEdit} disabled={savingOpt}
+                style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "var(--accent)", color: "var(--btn-primary-text)", fontWeight: 700, fontSize: "0.8125rem", cursor: "pointer", opacity: savingOpt ? 0.6 : 1 }}>
+                {savingOpt ? "Saving…" : "Save Changes"}
+              </button>
+              <button onClick={() => setEditingOpt(null)}
+                style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", color: "var(--text-primary)", fontSize: "0.8125rem", cursor: "pointer" }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════ EDIT FEE SCHEDULE MODAL ══════════════════ */}
+      {editingFs && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}>
+          <div className="t-card" style={{ width: "min(560px, 95vw)", maxHeight: "90vh", overflowY: "auto", borderRadius: 14, padding: "24px 26px", position: "relative" }}>
+            <button onClick={() => setEditingFs(null)}
+              style={{ position: "absolute", top: 14, right: 14, background: "transparent", border: "none", cursor: "pointer", color: "var(--text-secondary)", padding: 4 }}>
+              <X size={18} />
+            </button>
+            <h3 style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)", marginBottom: 4 }}>Edit Fee Schedule</h3>
+            <p style={{ fontSize: "0.78rem", color: "var(--text-secondary)", marginBottom: 18 }}>
+              Update the fee breakdown for <b>{classMap[editingFs.class_id] ?? `Class #${editingFs.class_id}`}</b>. Each class can have different amounts for the same fee categories.
+            </p>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
+              <div>
+                <label className="t-label">Class *</label>
+                <select className="t-input" value={editForm.class_id} onChange={e => setEditForm(p => ({ ...p, class_id: e.target.value }))}>
+                  <option value="">Select class</option>
+                  {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="t-label">Session *</label>
+                <select className="t-input" value={editForm.session_id} onChange={e => setEditForm(p => ({ ...p, session_id: e.target.value, term_id: "" }))}>
+                  <option value="">Select session</option>
+                  {sessions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="t-label">Term *</label>
+                <select className="t-input" value={editForm.term_id} onChange={e => setEditForm(p => ({ ...p, term_id: e.target.value }))} disabled={!editForm.session_id}>
+                  <option value="">Select term</option>
+                  {editTerms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Fee items */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <label className="t-label" style={{ margin: 0 }}>Fee Breakdown *</label>
+                <button onClick={() => setEditItems(p => [...p, blankItem()])}
+                  style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--accent-light)", color: "var(--accent)", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer" }}>
+                  <Plus size={12} /> Add Item
+                </button>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {editItems.map((item, i) => (
+                  <div key={i} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <input type="text" placeholder="Fee name (e.g. Tuition)" value={item.name}
+                      onChange={e => setEditItems(p => p.map((x, j) => j === i ? { ...x, name: e.target.value } : x))}
+                      style={{ ...inpStyle, flex: 2 }} />
+                    <input type="number" min={0} placeholder="Amount (₦)" value={item.amount}
+                      onChange={e => setEditItems(p => p.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))}
+                      style={{ ...inpStyle, flex: 1 }} />
+                    {editItems.length > 1 && (
+                      <button onClick={() => setEditItems(p => p.filter((_, j) => j !== i))}
+                        style={{ padding: 6, borderRadius: 6, border: "none", background: "rgba(239,68,68,0.1)", color: "#ef4444", cursor: "pointer", flexShrink: 0 }}>
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {editItems.reduce((s, i) => s + (Number(i.amount) || 0), 0) > 0 && (
+                <p style={{ marginTop: 10, fontSize: "0.8rem", fontWeight: 700, color: "var(--text-primary)" }}>
+                  Total: <span style={{ color: "var(--accent)" }}>{fmt(editItems.reduce((s, i) => s + (Number(i.amount) || 0), 0))}</span>
+                </p>
+              )}
+            </div>
+
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={saveEdit} disabled={savingEdit}
+                style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "var(--accent)", color: "var(--btn-primary-text)", fontWeight: 700, fontSize: "0.8125rem", cursor: "pointer", opacity: savingEdit ? 0.6 : 1 }}>
+                {savingEdit ? "Saving…" : "Save Changes"}
+              </button>
+              <button onClick={() => setEditingFs(null)}
+                style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", color: "var(--text-primary)", fontSize: "0.8125rem", cursor: "pointer" }}>
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}

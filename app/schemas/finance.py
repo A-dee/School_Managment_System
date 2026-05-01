@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from app.models.finance import InvoiceStatus, ExpenseApprovalStatus, PayrollStatus, PaymentDeclarationStatus
 
 
+
 class FeeStructureCreate(BaseModel):
     class_id: int
     session_id: int
@@ -164,6 +165,37 @@ class PaymentDeclarationOut(BaseModel):
     confirmed_by: Optional[int]
     confirmed_at: Optional[datetime]
     rejection_reason: Optional[str]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class OptionalFeeCreate(BaseModel):
+    name: str
+    category: str
+    amount: Decimal
+    billing_period: str = "termly"
+    description: Optional[str] = None
+
+
+class OptionalFeeUpdate(BaseModel):
+    name: Optional[str] = None
+    category: Optional[str] = None
+    amount: Optional[Decimal] = None
+    billing_period: Optional[str] = None
+    description: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class OptionalFeeOut(BaseModel):
+    id: int
+    name: str
+    category: str
+    amount: Decimal
+    billing_period: str
+    description: Optional[str]
+    is_active: bool
     created_at: datetime
 
     class Config:

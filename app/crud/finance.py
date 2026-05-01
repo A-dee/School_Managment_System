@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from app.models.finance import FeeStructure, Invoice, Payment, Expenditure, Payroll, InvoiceStatus, ExpenseApprovalStatus, PayrollStatus
+from app.models.finance import FeeStructure, Invoice, Payment, Expenditure, Payroll, InvoiceStatus, ExpenseApprovalStatus, PayrollStatus, OptionalFee
 from app.models.student import Student, StudentStatus
 
 
@@ -197,3 +197,32 @@ def get_profit_loss(db: Session, session_id: Optional[int] = None, term_id: Opti
         "profit":                 profit,
         "profit_margin_percent":  round(margin, 2),
     }
+
+
+# ── Optional Fees ──────────────────────────────────────────────────────────────
+
+def list_optional_fees(db: Session):
+    return db.query(OptionalFee).order_by(OptionalFee.category, OptionalFee.name).all()
+
+def create_optional_fee(db: Session, data) -> OptionalFee:
+    fee = OptionalFee(**data.model_dump())
+    db.add(fee)
+    db.flush()
+    return fee
+
+def update_optional_fee(db: Session, fee_id: int, data) -> Optional[OptionalFee]:
+    fee = db.query(OptionalFee).filter(OptionalFee.id == fee_id).first()
+    if not fee:
+        return None
+    for k, v in data.model_dump(exclude_unset=True).items():
+        setattr(fee, k, v)
+    db.flush()
+    return fee
+
+def delete_optional_fee(db: Session, fee_id: int) -> bool:
+    fee = db.query(OptionalFee).filter(OptionalFee.id == fee_id).first()
+    if not fee:
+        return False
+    db.delete(fee)
+    db.flush()
+    return True
