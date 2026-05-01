@@ -68,16 +68,27 @@ export default function FeesPage() {
   const [genTermId,    setGenTermId]    = useState("");
   const [genDueDate,   setGenDueDate]   = useState("");
   const [generating,   setGenerating]   = useState(false);
-  const [genTerms, setGenTerms] = useState<any[]>([]);
+  const [genTerms,  setGenTerms]  = useState<any[]>([]);
+  const [allTerms,  setAllTerms]  = useState<any[]>([]);
 
-  /* --- bootstrap --- */
+  /* --- bootstrap: load sessions + classes, then all terms --- */
   useEffect(() => {
     Promise.all([
       api.get("/api/v1/academic/sessions"),
       api.get("/api/v1/classes/?limit=200"),
-    ]).then(([s, c]) => {
-      setSessions(s.data.data || []);
-      setClasses(c.data.data  || []);
+    ]).then(async ([s, c]) => {
+      const sessionList: any[] = s.data.data || [];
+      setSessions(sessionList);
+      setClasses(c.data.data || []);
+      /* Load terms for every session so names resolve in the schedule table */
+      if (sessionList.length > 0) {
+        const termResults = await Promise.all(
+          sessionList.map((sess: any) =>
+            api.get(`/api/v1/academic/terms?session_id=${sess.id}`).catch(() => ({ data: { data: [] } }))
+          )
+        );
+        setAllTerms(termResults.flatMap(r => r.data.data || []));
+      }
     }).catch(() => {});
   }, []);
 
@@ -94,7 +105,8 @@ export default function FeesPage() {
   }, [fsForm.session_id]);
 
   useEffect(() => {
-    if (!genSessionId) { setGenTerms([]); setGenTermId(""); return; }
+    setGenTermId("");
+    if (!genSessionId) { setGenTerms([]); return; }
     api.get(`/api/v1/academic/terms?session_id=${genSessionId}`)
       .then(r => setGenTerms(r.data.data || [])).catch(() => {});
   }, [genSessionId]);
@@ -280,9 +292,11 @@ export default function FeesPage() {
     return !q || s.first_name.toLowerCase().includes(q) || s.last_name.toLowerCase().includes(q) || s.admission_number.toLowerCase().includes(q);
   });
 
-  const classMap  = Object.fromEntries(classes.map(c => [c.id, c.name]));
-  const sessionMap= Object.fromEntries(sessions.map(s => [s.id, s.name]));
-  const termMap   = Object.fromEntries([...terms, ...fsTerms, ...genTerms].map(t => [t.id, t.name]));
+  const classMap   = Object.fromEntries(classes.map(c => [c.id, c.name]));
+  const sessionMap = Object.fromEntries(sessions.map(s => [s.id, s.name]));
+  const termMap    = Object.fromEntries(
+    [...allTerms, ...terms, ...fsTerms, ...genTerms].map(t => [t.id, t.name])
+  );
   const inv       = selected ? invoiceMap[selected.id] : null;
   const balance   = inv ? Number(inv.balance) : 0;
 

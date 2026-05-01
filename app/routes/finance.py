@@ -5,7 +5,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models.finance import FeeStructure, Invoice, Payment, Expenditure, Payroll, PaymentDeclaration, PaymentDeclarationStatus
+from app.models.finance import FeeStructure, Invoice, Payment, Expenditure, Payroll, PaymentDeclaration, PaymentDeclarationStatus, InvoiceStatus
 from app.schemas.finance import (
     FeeStructureCreate, FeeStructureOut, InvoiceOut,
     PaymentCreate, PaymentOut, ExpenditureCreate, ExpenditureOut,
