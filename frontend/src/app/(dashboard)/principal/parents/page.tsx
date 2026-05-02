@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import api from "@/lib/api";
 import toast from "react-hot-toast";
@@ -87,11 +87,13 @@ export default function ParentsPage() {
     setUnlinking(null);
   };
 
-  const filtered = parents.filter(p =>
-    p.full_name.toLowerCase().includes(search.toLowerCase()) ||
-    (p.email || "").toLowerCase().includes(search.toLowerCase()) ||
-    (p.phone || "").includes(search)
-  );
+  const filtered = useMemo(() =>
+    parents.filter(p =>
+      p.full_name.toLowerCase().includes(search.toLowerCase()) ||
+      (p.email || "").toLowerCase().includes(search.toLowerCase()) ||
+      (p.phone || "").includes(search)
+    ),
+  [parents, search]);
 
   return (
     <DashboardLayout>

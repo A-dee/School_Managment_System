@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { getStudents, getClasses } from "@/lib/api";
 import toast from "react-hot-toast";
@@ -12,6 +12,7 @@ export default function StudentsPage() {
   const [students, setStudents] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
@@ -27,7 +28,13 @@ export default function StudentsPage() {
   const role = getRole();
   const isTeacher = role === "TEACHER";
 
-  const load = async () => {
+  // Debounce: update search (triggers fetch) 300ms after user stops typing
+  useEffect(() => {
+    const t = setTimeout(() => { setSearch(searchInput); setPage(1); }, 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const params: any = { skip: (page - 1) * limit, limit };
@@ -40,9 +47,10 @@ export default function StudentsPage() {
       toast.error(err?.response?.data?.detail || "Failed to load students");
     }
     setLoading(false);
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, search, statusFilter]);
 
-  useEffect(() => { load(); }, [page, search, statusFilter]);
+  useEffect(() => { load(); }, [load]);
   useEffect(() => {
     getClasses({ limit: 500 }).then(r => {
       const allClasses = r.data.data || [];
@@ -117,8 +125,8 @@ export default function StudentsPage() {
             className="t-input"
             style={{ paddingLeft: 32 }}
             placeholder="Search name or admission no..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
           />
         </div>
         <select

@@ -199,6 +199,53 @@
   --topbar-border:      rgba(255,255,255,0.45);
 }
 
+/* ── NOVA (DARK AURORA) ─────────────────────────── */
+[data-theme="nova"] {
+  --bg-page:            #070412;
+  --bg-card:            rgba(255,255,255,0.07);
+  --bg-card-glass:      rgba(255,255,255,0.04);
+  --bg-sidebar:         rgba(3,1,12,0.85);
+  --bg-sidebar-hover:   rgba(255,255,255,0.08);
+  --bg-sidebar-active:  rgba(255,255,255,0.15);
+  --sidebar-text:       #dde9ff;
+  --sidebar-muted:      rgba(221,233,255,0.38);
+  --sidebar-brand:      #ffffff;
+  --text-primary:       #eeeaff;
+  --text-secondary:     rgba(200,190,255,0.55);
+  --border:             rgba(255,255,255,0.09);
+  --border-strong:      rgba(255,255,255,0.16);
+  --accent:             #818cf8;
+  --accent-hover:       #6366f1;
+  --accent-light:       rgba(129,140,248,0.12);
+  --accent-text:        #c7d2fe;
+  --success:            #34d399;
+  --success-bg:         rgba(52,211,153,0.08);
+  --danger:             #f87171;
+  --danger-bg:          rgba(248,113,113,0.08);
+  --warn:               #fbbf24;
+  --warn-bg:            rgba(251,191,36,0.08);
+  --info:               #60a5fa;
+  --info-bg:            rgba(96,165,250,0.08);
+  --badge-success-bg:   rgba(52,211,153,0.14);
+  --badge-success-text: #6ee7b7;
+  --badge-danger-bg:    rgba(248,113,113,0.14);
+  --badge-danger-text:  #fca5a5;
+  --badge-warn-bg:      rgba(251,191,36,0.14);
+  --badge-warn-text:    #fde68a;
+  --badge-info-bg:      rgba(129,140,248,0.14);
+  --badge-info-text:    #c7d2fe;
+  --input-bg:           rgba(255,255,255,0.06);
+  --input-border:       rgba(255,255,255,0.12);
+  --input-focus:        #818cf8;
+  --btn-primary-bg:     #6366f1;
+  --btn-primary-text:   #ffffff;
+  --btn-primary-hover:  #4f46e5;
+  --shadow-sm:          0 2px 10px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.04);
+  --shadow-md:          0 6px 28px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.05);
+  --shadow-lg:          0 18px 48px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.06);
+  --topbar-bg:          rgba(7,4,18,0.75);
+  --topbar-border:      rgba(255,255,255,0.08);
+}
 
 /* ═══════════════════════════════════════════════════
    BASE
@@ -261,6 +308,13 @@ body {
   --blob-d: rgba(167,139,250,0.48);
   --blob-e: rgba(52,211,153,0.42);
 }
+[data-theme="nova"] {
+  --blob-a: rgba(236,72,153,0.72);
+  --blob-b: rgba(99,102,241,0.65);
+  --blob-c: rgba(6,182,212,0.60);
+  --blob-d: rgba(167,139,250,0.68);
+  --blob-e: rgba(52,211,153,0.55);
+}
 
 /* ═══════════════════════════════════════════════════
    COMPONENT LAYER
@@ -288,6 +342,13 @@ body {
     box-shadow: 0 4px 24px rgba(99,102,241,0.10), inset 0 1px 0 rgba(255,255,255,0.55);
     backdrop-filter: blur(28px) saturate(200%);
     -webkit-backdrop-filter: blur(28px) saturate(200%);
+  }
+  [data-theme="nova"] .t-card {
+    background: rgba(255,255,255,0.06);
+    border-color: rgba(255,255,255,0.11);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.40), inset 0 1px 0 rgba(255,255,255,0.07);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
   }
   [data-theme="dark"] .t-card {
     background: var(--bg-card);
@@ -342,6 +403,12 @@ body {
     backdrop-filter: blur(32px) saturate(180%);
     -webkit-backdrop-filter: blur(32px) saturate(180%);
     border-right: 1px solid rgba(255,255,255,0.10);
+  }
+  [data-theme="nova"] .t-sidebar {
+    background: rgba(3,1,12,0.75);
+    backdrop-filter: blur(32px) saturate(160%);
+    -webkit-backdrop-filter: blur(32px) saturate(160%);
+    border-right: 1px solid rgba(255,255,255,0.07);
   }
   [data-theme="dark"] .t-sidebar,
   [data-theme="business"] .t-sidebar {
