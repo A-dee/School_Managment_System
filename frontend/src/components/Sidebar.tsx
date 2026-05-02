@@ -115,6 +115,7 @@ const themes: { id: Theme; label: string; color: string; bg: string }[] = [
   { id: "purple-gold", label: "Nebula",   color: "#a855f7", bg: "#160830" },
   { id: "ocean",       label: "Abyss",    color: "#06b6d4", bg: "#021420" },
   { id: "crimson",     label: "Crimson",  color: "#ef4444", bg: "#160305" },
+  { id: "glass",       label: "Aurora",   color: "#6366f1", bg: "rgba(188,212,238,0.8)" },
 ];
 
 const roleLabel: Record<string, string> = {

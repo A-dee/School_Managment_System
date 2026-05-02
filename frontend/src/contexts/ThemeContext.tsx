@@ -1,7 +1,7 @@
 "use client";
 import { createContext, useContext, useEffect, useState } from "react";
 
-export type Theme = "light" | "black-gold" | "purple-gold" | "ocean" | "crimson";
+export type Theme = "light" | "black-gold" | "purple-gold" | "ocean" | "crimson" | "glass";
 
 interface ThemeContextValue {
   theme: Theme;
