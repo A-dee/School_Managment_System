@@ -233,7 +233,7 @@ export default function ClassesPage() {
             return (
               <div key={c.id} className="t-card" style={{ padding: 0, overflow: "hidden" }}>
                 {/* Class header row */}
-                <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", flexWrap: "wrap" }}>
+                <div className="class-header-row" style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", flexWrap: "wrap" }}>
 
                   {/* Name + level */}
                   <div style={{ flex: "0 0 auto", minWidth: 110 }}>
@@ -247,7 +247,7 @@ export default function ClassesPage() {
                   </div>
 
                   {/* Teacher */}
-                  <div style={{ flex: 1, minWidth: 200 }}>
+                  <div className="class-teacher-cell" style={{ flex: 1, minWidth: 200 }}>
                     {assigning === c.id ? (
                       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                         <select
@@ -284,7 +284,7 @@ export default function ClassesPage() {
                   </div>
 
                   {/* Right side buttons */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
+                  <div className="class-header-actions" style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
                     <button
                       onClick={() => { setExpandedClass(isExpanded ? null : c.id); setStudentSearch(""); }}
                       style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 7, border: "1px solid var(--border)", background: isExpanded ? "var(--accent-light)" : "transparent", color: isExpanded ? "var(--accent)" : "var(--text-secondary)", cursor: "pointer", fontSize: "0.78rem", fontWeight: 600 }}
@@ -305,7 +305,7 @@ export default function ClassesPage() {
                 {isExpanded && (
                   <div style={{ borderTop: "1px solid var(--border)", padding: "16px 18px", background: "var(--bg-page)" }}
                     className="animate-fade-in">
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+                    <div className="classes-panel-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
 
                       {/* Left: students in this class */}
                       <div>

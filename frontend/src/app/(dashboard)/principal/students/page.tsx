@@ -227,7 +227,7 @@ export default function StudentsPage() {
               {scholarshipModal.first_name} {scholarshipModal.last_name} · {scholarshipModal.admission_number}
             </p>
             <p style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: 10 }}>Fee Exemption Percentage</p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginBottom: 24 }}>
+            <div className="scholarship-pct-grid" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginBottom: 24 }}>
               {[0, 25, 50, 75, 100].map(pct => (
                 <button key={pct} onClick={() => setScholarshipPct(pct)} style={{
                   padding: "10px 0", borderRadius: 8, border: "2px solid",

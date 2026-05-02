@@ -475,9 +475,9 @@ export default function FeesPage() {
             </div>
           )}
 
-          <div style={{ display: "flex", gap: 14, minHeight: 500 }}>
+          <div className="fees-split" style={{ display: "flex", gap: 14, minHeight: 500 }}>
             {/* Student list */}
-            <div style={{ width: 280, flexShrink: 0, display: "flex", flexDirection: "column", background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+            <div className="fees-student-list" style={{ width: 280, flexShrink: 0, display: "flex", flexDirection: "column", background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
               <div style={{ padding: "10px 12px", borderBottom: "1px solid var(--border)" }}>
                 <div style={{ position: "relative" }}>
                   <Search size={14} style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", color: "var(--text-secondary)" }} />
@@ -524,12 +524,12 @@ export default function FeesPage() {
 
             {/* Right panel */}
             {!selected ? (
-              <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 8, color: "var(--text-secondary)", background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10 }}>
+              <div className="fees-right-panel" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 8, color: "var(--text-secondary)", background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10 }}>
                 <Users size={42} style={{ opacity: 0.2 }} />
                 <p style={{ fontSize: "0.875rem" }}>Select a student to view and record fees</p>
               </div>
             ) : (
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 14 }}>
+              <div className="fees-right-panel" style={{ flex: 1, display: "flex", flexDirection: "column", gap: 14 }}>
                 {/* Student header */}
                 <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
                   <div>
@@ -590,7 +590,7 @@ export default function FeesPage() {
                 {inv && (
                   <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, padding: "16px 20px" }}>
                     <h3 style={{ fontWeight: 700, fontSize: "0.85rem", marginBottom: 14, color: "var(--text-primary)" }}>Fee Summary</h3>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
+                    <div className="invoice-summary-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
                       {[
                         { label: "Total Fee",   value: fmt(inv.total_fee),   color: "var(--text-primary)" },
                         { label: "Amount Paid", value: fmt(inv.paid_amount), color: "#22c55e" },

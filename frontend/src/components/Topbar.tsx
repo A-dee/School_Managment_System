@@ -148,7 +148,7 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
 
         {/* Clock */}
-        <div style={{
+        <div className="topbar-clock" style={{
           padding: "5px 12px", borderRadius: 8,
           background: "color-mix(in srgb, var(--accent) 8%, transparent)",
           border: "1px solid color-mix(in srgb, var(--accent) 16%, transparent)",
@@ -198,7 +198,7 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
         </Link>
 
         {/* Role pill */}
-        <div style={{
+        <div className="topbar-role-pill" style={{
           display: "flex", alignItems: "center", gap: 8,
           padding: "5px 12px 5px 5px", borderRadius: 10,
           background: "color-mix(in srgb, var(--accent) 9%, transparent)",
@@ -214,7 +214,7 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
           }}>
             {initials}
           </div>
-          <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)" }}>
+          <span className="topbar-role-label" style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)" }}>
             {roleLabel[role] || role}
           </span>
         </div>

@@ -794,3 +794,103 @@ body {
   .grid-cols-4,
   .lg\:grid-cols-4 { grid-template-columns: 1fr !important; }
 }
+
+/* ── Topbar: hide clock + role label text on small screens ── */
+@media (max-width: 640px) {
+  .topbar-clock       { display: none !important; }
+  .topbar-role-label  { display: none !important; }
+  .topbar-role-pill   { padding: 4px !important; }
+}
+
+/* ── Modals: always viewport-safe ── */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,0.55);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+}
+.modal-box-lg { width: 100%; max-width: min(860px, calc(100vw - 32px)); }
+.modal-box-md { width: 100%; max-width: min(560px, calc(100vw - 32px)); }
+.modal-box-sm { width: 100%; max-width: min(420px, calc(100vw - 32px)); }
+
+/* Registration modal inner layout: 3-col sections → 2-col → 1-col */
+.reg-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.reg-grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+@media (max-width: 700px) {
+  .reg-grid-3 { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 480px) {
+  .reg-grid-3,
+  .reg-grid-2 { grid-template-columns: 1fr; }
+}
+
+/* ── Classes page: expanded student panel stacks on mobile ── */
+@media (max-width: 640px) {
+  .classes-panel-grid  { grid-template-columns: 1fr !important; }
+  .class-teacher-cell  { min-width: 0 !important; width: 100%; }
+  .class-teacher-cell select { min-width: 0 !important; width: 100% !important; }
+  /* Class header: stack teacher row below name */
+  .class-header-row    { flex-direction: column !important; align-items: flex-start !important; gap: 10px !important; }
+  .class-header-actions { margin-left: 0 !important; width: 100%; justify-content: flex-start !important; }
+}
+
+/* ── Scholarship % buttons: 3-col on mobile ── */
+@media (max-width: 500px) {
+  .scholarship-pct-grid { grid-template-columns: repeat(3, 1fr) !important; }
+}
+
+/* ── YesNo form labels: auto-width on small screens ── */
+@media (max-width: 480px) {
+  .yn-label { min-width: auto !important; }
+}
+
+/* ── Stat card grids: responsive ── */
+.stat-grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+.stat-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+@media (max-width: 900px) {
+  .stat-grid-5 { grid-template-columns: repeat(3, 1fr); }
+  .stat-grid-4 { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+  .stat-grid-5 { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 400px) {
+  .stat-grid-5,
+  .stat-grid-4 { grid-template-columns: 1fr; }
+}
+
+/* ── Fee page: student list + detail panel stacks on mobile ── */
+@media (max-width: 767px) {
+  .fees-split       { flex-direction: column !important; min-height: auto !important; }
+  .fees-student-list { width: 100% !important; max-height: 240px; }
+  .fees-right-panel  { flex: none !important; width: 100%; }
+  /* Invoice summary: 3-col → 1-col */
+  .invoice-summary-grid { grid-template-columns: 1fr !important; }
+  /* Payment form grid: 2-col → 1-col */
+  .payment-form-grid    { grid-template-columns: 1fr !important; }
+}
+
+/* ── Outer tab bars: wrap and shrink ── */
+@media (max-width: 480px) {
+  .outer-tabs { width: 100% !important; justify-content: stretch; }
+  .outer-tabs button { flex: 1; text-align: center; padding: 7px 8px !important; font-size: 0.75rem !important; }
+}
+
+/* ── Filter rows: always wrap, full-width selects on mobile ── */
+@media (max-width: 640px) {
+  .filter-row { flex-wrap: wrap !important; }
+  .filter-row select,
+  .filter-row input  { min-width: 0 !important; flex: 1 1 140px; }
+}
+
+/* ── Tables: finger-friendly row height on touch ── */
+@media (max-width: 767px) {
+  .t-table td, .t-table th { padding: 10px 10px !important; }
+  .t-table { font-size: 0.78rem !important; }
+}
+
+/* ── Prevent any modal from overflowing viewport ── */
+[style*="position: fixed"][style*="z-index"] > div,
+[style*="position:fixed"][style*="z-index"] > div {
+  max-width: calc(100vw - 32px) !important;
+}

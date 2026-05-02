@@ -69,7 +69,7 @@ type YNValue = boolean | null;
 function YesNo({ label, value, onChange }: { label: string; value: YNValue; onChange: (v: boolean) => void }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      {label && <span className="t-text-secondary" style={{ fontSize: "0.8125rem", minWidth: 120 }}>{label}</span>}
+      {label && <span className="t-text-secondary yn-label" style={{ fontSize: "0.8125rem", minWidth: 120 }}>{label}</span>}
       <label style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
         <input type="radio" checked={value === true} onChange={() => onChange(true)} />
         <span style={{ fontSize: "0.8125rem" }}>Yes</span>
@@ -305,8 +305,8 @@ export default function StudentRegistrationModal({ studentId, classId, classes, 
     ) : null;
 
     return (
-      <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-        <div style={{ background: "var(--bg-card)", borderRadius: 14, width: "100%", maxWidth: 480, padding: 32, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+      <div className="modal-overlay">
+        <div className="modal-box-sm" style={{ background: "var(--bg-card)", borderRadius: 14, padding: 28, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
           <div style={{ textAlign: "center", marginBottom: 24 }}>
             <div style={{ width: 52, height: 52, borderRadius: "50%", background: "rgba(34,197,94,0.12)", border: "2px solid #22c55e", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
               <span style={{ fontSize: "1.5rem" }}>✓</span>
@@ -358,13 +358,9 @@ export default function StudentRegistrationModal({ studentId, classId, classes, 
   }
 
   return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 1000,
-      background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center",
-      padding: 16,
-    }}>
-      <div style={{
-        background: "var(--bg-card)", borderRadius: 14, width: "100%", maxWidth: 860,
+    <div className="modal-overlay">
+      <div className="modal-box-lg" style={{
+        background: "var(--bg-card)", borderRadius: 14,
         maxHeight: "92vh", display: "flex", flexDirection: "column",
         boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
       }}>
