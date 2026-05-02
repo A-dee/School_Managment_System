@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import api from "@/lib/api";
 import toast from "react-hot-toast";
@@ -88,7 +88,21 @@ export default function FeesPage() {
   const [editingOpt,   setEditingOpt]   = useState<OptFee | null>(null);
   const [editOptForm,  setEditOptForm]  = useState({ name: "", category: "Clubs", billing_period: "termly", amount: "", description: "" });
 
-  /* --- bootstrap: load sessions + classes, then all terms --- */
+  /* In-memory terms cache — pre-populated on bootstrap, served instantly on dropdown change */
+  const termsCache = useRef<Map<string, any[]>>(new Map());
+
+  const getTerms = useCallback(async (sid: string): Promise<any[]> => {
+    if (!sid) return [];
+    if (termsCache.current.has(sid)) return termsCache.current.get(sid)!;
+    try {
+      const r = await api.get(`/api/v1/academic/terms?session_id=${sid}`);
+      const data: any[] = r.data.data || [];
+      termsCache.current.set(sid, data);
+      return data;
+    } catch { return []; }
+  }, []);
+
+  /* --- bootstrap: load sessions + classes, pre-fill terms cache --- */
   useEffect(() => {
     Promise.all([
       api.get("/api/v1/academic/sessions"),
@@ -97,43 +111,25 @@ export default function FeesPage() {
       const sessionList: any[] = s.data.data || [];
       setSessions(sessionList);
       setClasses(c.data.data || []);
-      /* Load terms for every session so names resolve in the schedule table */
       if (sessionList.length > 0) {
         const termResults = await Promise.all(
           sessionList.map((sess: any) =>
             api.get(`/api/v1/academic/terms?session_id=${sess.id}`).catch(() => ({ data: { data: [] } }))
           )
         );
-        setAllTerms(termResults.flatMap(r => r.data.data || []));
+        const allT: any[] = termResults.flatMap(r => r.data.data || []);
+        setAllTerms(allT);
+        /* pre-populate cache so every subsequent dropdown change is instant */
+        const grouped = new Map<string, any[]>();
+        allT.forEach(t => {
+          const key = String(t.session_id);
+          if (!grouped.has(key)) grouped.set(key, []);
+          grouped.get(key)!.push(t);
+        });
+        termsCache.current = grouped;
       }
     }).catch(() => {});
   }, []);
-
-  useEffect(() => {
-    if (!sessionId) { setTerms([]); setTermId(""); return; }
-    api.get(`/api/v1/academic/terms?session_id=${sessionId}`)
-      .then(r => setTerms(r.data.data || [])).catch(() => {});
-  }, [sessionId]);
-
-  useEffect(() => {
-    if (!fsForm.session_id) { setFsTerms([]); setFsForm(p => ({ ...p, term_id: "" })); return; }
-    api.get(`/api/v1/academic/terms?session_id=${fsForm.session_id}`)
-      .then(r => setFsTerms(r.data.data || [])).catch(() => {});
-  }, [fsForm.session_id]);
-
-  useEffect(() => {
-    setGenTermId("");
-    if (!genSessionId) { setGenTerms([]); return; }
-    api.get(`/api/v1/academic/terms?session_id=${genSessionId}`)
-      .then(r => setGenTerms(r.data.data || [])).catch(() => {});
-  }, [genSessionId]);
-
-  useEffect(() => {
-    setEditForm(p => ({ ...p, term_id: "" }));
-    if (!editForm.session_id) { setEditTerms([]); return; }
-    api.get(`/api/v1/academic/terms?session_id=${editForm.session_id}`)
-      .then(r => setEditTerms(r.data.data || [])).catch(() => {});
-  }, [editForm.session_id]);
 
   useEffect(() => {
     if (outerTab === "schedule") { loadFeeStructures(); loadOptFees(); }
@@ -438,7 +434,7 @@ export default function FeesPage() {
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
               <div>
                 <p style={{ fontSize: "0.7rem", color: "var(--text-secondary)", marginBottom: 3 }}>Session</p>
-                <select value={sessionId} onChange={e => setSessionId(e.target.value)} style={selStyle}>
+                <select value={sessionId} onChange={e => { const id = e.target.value; setSessionId(id); setTermId(""); getTerms(id).then(setTerms); }} style={selStyle}>
                   <option value="">All sessions</option>
                   {sessions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
@@ -740,7 +736,7 @@ export default function FeesPage() {
                 </div>
                 <div>
                   <label className="t-label">Session *</label>
-                  <select className="t-input" value={fsForm.session_id} onChange={e => setFsForm(p => ({ ...p, session_id: e.target.value, term_id: "" }))}>
+                  <select className="t-input" value={fsForm.session_id} onChange={e => { const id = e.target.value; setFsForm(p => ({ ...p, session_id: id, term_id: "" })); getTerms(id).then(setFsTerms); }}>
                     <option value="">Select session</option>
                     {sessions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
@@ -806,7 +802,7 @@ export default function FeesPage() {
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
               <div>
                 <label style={lbl}>Session *</label>
-                <select value={genSessionId} onChange={e => setGenSessionId(e.target.value)} style={selStyle}>
+                <select value={genSessionId} onChange={e => { const id = e.target.value; setGenSessionId(id); setGenTermId(""); getTerms(id).then(setGenTerms); }} style={selStyle}>
                   <option value="">Select session</option>
                   {sessions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
@@ -1049,7 +1045,7 @@ export default function FeesPage() {
               </div>
               <div>
                 <label className="t-label">Session *</label>
-                <select className="t-input" value={editForm.session_id} onChange={e => setEditForm(p => ({ ...p, session_id: e.target.value, term_id: "" }))}>
+                <select className="t-input" value={editForm.session_id} onChange={e => { const id = e.target.value; setEditForm(p => ({ ...p, session_id: id, term_id: "" })); getTerms(id).then(setEditTerms); }}>
                   <option value="">Select session</option>
                   {sessions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>

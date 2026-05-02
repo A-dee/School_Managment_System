@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { getStudents, getClasses } from "@/lib/api";
+import { getStudents } from "@/lib/api";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
+import { useClasses, useSessions } from "@/lib/swr-hooks";
 import { Search, GraduationCap, Trash2, FileText } from "lucide-react";
 import StudentRegistrationModal from "@/components/StudentRegistrationModal";
 import { getRole } from "@/lib/auth";
@@ -17,8 +18,8 @@ export default function StudentsPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
   const [deleting, setDeleting] = useState<number | null>(null);
-  const [classes, setClasses] = useState<any[]>([]);
-  const [sessions, setSessions] = useState<any[]>([]);
+  const { classes } = useClasses();
+  const { sessions } = useSessions();
   const [modal, setModal] = useState<{ open: boolean; studentId: number | null }>({ open: false, studentId: null });
   const [myClassId, setMyClassId] = useState<number | null>(null);
   const [scholarshipModal, setScholarshipModal] = useState<any | null>(null);
@@ -51,29 +52,22 @@ export default function StudentsPage() {
   }, [page, search, statusFilter]);
 
   useEffect(() => { load(); }, [load]);
+
+  /* For teachers: resolve which class they own — run once classes are loaded */
   useEffect(() => {
-    getClasses({ limit: 500 }).then(r => {
-      const allClasses = r.data.data || [];
-      setClasses(allClasses);
-      if (isTeacher) {
-        // find the class this teacher is assigned to via staff profile
-        api.get("/api/v1/auth/me").then(me => {
-          const userId = me.data.data?.id;
-          const myClass = allClasses.find((c: any) => c.class_teacher?.user_id === userId || c.class_teacher_id);
-          // fetch staff to match user_id → staff.id → class.class_teacher_id
-          api.get("/api/v1/staff/").then(staffRes => {
-            const staffList = staffRes.data.data || [];
-            const myStaff = staffList.find((s: any) => s.user_id === userId);
-            if (myStaff) {
-              const mc = allClasses.find((c: any) => c.class_teacher_id === myStaff.id);
-              if (mc) setMyClassId(mc.id);
-            }
-          }).catch(() => {});
-        }).catch(() => {});
+    if (!isTeacher || classes.length === 0) return;
+    Promise.all([
+      api.get("/api/v1/auth/me"),
+      api.get("/api/v1/staff/"),
+    ]).then(([me, staffRes]) => {
+      const userId = me.data.data?.id;
+      const myStaff = (staffRes.data.data || []).find((s: any) => s.user_id === userId);
+      if (myStaff) {
+        const mc = classes.find((c: any) => c.class_teacher_id === myStaff.id);
+        if (mc) setMyClassId(mc.id);
       }
     }).catch(() => {});
-    api.get("/api/v1/academic/sessions?limit=100").then(r => setSessions(r.data.data || [])).catch(() => {});
-  }, []);
+  }, [isTeacher, classes]);
 
   const totalPages = Math.ceil(total / limit);
   const getClassName = (id: number | null) => {
