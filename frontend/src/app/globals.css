@@ -54,33 +54,33 @@
   --topbar-border:      rgba(226,232,240,0.6);
 }
 
-/* ── OBSIDIAN (BLACK & GOLD) ────────────────────── */
-[data-theme="black-gold"] {
-  --bg-page:            #050508;
-  --bg-card:            #131316;
-  --bg-card-glass:      rgba(19,19,22,0.55);
-  --bg-sidebar:         #0d0d0f;
-  --bg-sidebar-hover:   rgba(245,158,11,0.1);
-  --bg-sidebar-active:  rgba(245,158,11,0.18);
-  --sidebar-text:       #f59e0b;
-  --sidebar-muted:      rgba(245,158,11,0.42);
-  --sidebar-brand:      #f59e0b;
-  --text-primary:       #f5f5f0;
-  --text-secondary:     #6b6b6b;
-  --border:             #1e1e22;
-  --border-strong:      #2e2e34;
-  --accent:             #f59e0b;
-  --accent-hover:       #d97706;
-  --accent-light:       #180f00;
-  --accent-text:        #fbbf24;
-  --success:            #22c55e;
-  --success-bg:         #071a10;
-  --danger:             #f87171;
-  --danger-bg:          #160404;
-  --warn:               #fbbf24;
-  --warn-bg:            #140c00;
-  --info:               #60a5fa;
-  --info-bg:            #06101e;
+/* ── DARK ───────────────────────────────────────── */
+[data-theme="dark"] {
+  --bg-page:            #0d1117;
+  --bg-card:            #161b22;
+  --bg-card-glass:      rgba(22,27,34,0.90);
+  --bg-sidebar:         #090d14;
+  --bg-sidebar-hover:   rgba(99,102,241,0.10);
+  --bg-sidebar-active:  rgba(99,102,241,0.20);
+  --sidebar-text:       #c9d1d9;
+  --sidebar-muted:      rgba(201,209,217,0.42);
+  --sidebar-brand:      #e6edf3;
+  --text-primary:       #e6edf3;
+  --text-secondary:     #8b949e;
+  --border:             #21262d;
+  --border-strong:      #30363d;
+  --accent:             #6366f1;
+  --accent-hover:       #4f46e5;
+  --accent-light:       rgba(99,102,241,0.12);
+  --accent-text:        #a5b4fc;
+  --success:            #3fb950;
+  --success-bg:         #0d1f0e;
+  --danger:             #f85149;
+  --danger-bg:          #1c0a0a;
+  --warn:               #d29922;
+  --warn-bg:            #1a1200;
+  --info:               #58a6ff;
+  --info-bg:            #051020;
   --badge-success-bg:   #14532d;
   --badge-success-text: #86efac;
   --badge-danger-bg:    #450a0a;
@@ -89,113 +89,65 @@
   --badge-warn-text:    #fcd34d;
   --badge-info-bg:      #172554;
   --badge-info-text:    #93c5fd;
-  --input-bg:           #161618;
-  --input-border:       #2a2a30;
-  --input-focus:        #f59e0b;
-  --btn-primary-bg:     #f59e0b;
-  --btn-primary-text:   #0a0600;
-  --btn-primary-hover:  #d97706;
-  --shadow-sm:          0 1px 3px rgba(0,0,0,0.5);
-  --shadow-md:          0 4px 16px rgba(0,0,0,0.6),  0 0 0 1px rgba(245,158,11,0.04);
-  --shadow-lg:          0 12px 28px rgba(0,0,0,0.7), 0 0 0 1px rgba(245,158,11,0.05);
-  --topbar-bg:          rgba(13,13,15,0.70);
-  --topbar-border:      rgba(30,30,34,0.7);
+  --input-bg:           #0d1117;
+  --input-border:       #30363d;
+  --input-focus:        #6366f1;
+  --btn-primary-bg:     #6366f1;
+  --btn-primary-text:   #ffffff;
+  --btn-primary-hover:  #4f46e5;
+  --shadow-sm:          0 1px 3px rgba(0,0,0,0.45);
+  --shadow-md:          0 4px 16px rgba(0,0,0,0.55), 0 2px 4px rgba(0,0,0,0.30);
+  --shadow-lg:          0 12px 28px rgba(0,0,0,0.65), 0 4px 8px rgba(0,0,0,0.35);
+  --topbar-bg:          rgba(13,17,23,0.88);
+  --topbar-border:      rgba(33,38,45,0.80);
 }
 
-/* ── NEBULA (PURPLE & GOLD) ─────────────────────── */
-[data-theme="purple-gold"] {
-  --bg-page:            #040112;
-  --bg-card:            #100726;
-  --bg-card-glass:      rgba(16,7,38,0.55);
-  --bg-sidebar:         #090420;
-  --bg-sidebar-hover:   rgba(168,85,247,0.1);
-  --bg-sidebar-active:  rgba(168,85,247,0.2);
-  --sidebar-text:       #d8b4fe;
-  --sidebar-muted:      rgba(216,180,254,0.42);
-  --sidebar-brand:      #fbbf24;
-  --text-primary:       #ede9fe;
-  --text-secondary:     #6d5e8a;
-  --border:             #1a0d3a;
-  --border-strong:      #2a1658;
-  --accent:             #a855f7;
-  --accent-hover:       #9333ea;
-  --accent-light:       #160830;
-  --accent-text:        #d8b4fe;
-  --success:            #22c55e;
-  --success-bg:         #05200f;
-  --danger:             #f87171;
-  --danger-bg:          #160408;
-  --warn:               #fbbf24;
-  --warn-bg:            #140c00;
-  --info:               #818cf8;
-  --info-bg:            #0a0828;
-  --badge-success-bg:   #14532d;
-  --badge-success-text: #86efac;
-  --badge-danger-bg:    #450a0a;
-  --badge-danger-text:  #fca5a5;
-  --badge-warn-bg:      #451a03;
-  --badge-warn-text:    #fcd34d;
-  --badge-info-bg:      #1e1b4b;
-  --badge-info-text:    #c4b5fd;
-  --input-bg:           #100626;
-  --input-border:       #2a1658;
-  --input-focus:        #a855f7;
-  --btn-primary-bg:     #a855f7;
-  --btn-primary-text:   #faf5ff;
-  --btn-primary-hover:  #9333ea;
-  --shadow-sm:          0 1px 3px rgba(0,0,0,0.6);
-  --shadow-md:          0 4px 16px rgba(0,0,0,0.7),  0 0 0 1px rgba(168,85,247,0.06);
-  --shadow-lg:          0 12px 28px rgba(0,0,0,0.8), 0 0 0 1px rgba(168,85,247,0.08);
-  --topbar-bg:          rgba(9,4,28,0.70);
-  --topbar-border:      rgba(26,13,58,0.7);
-}
-
-/* ── ABYSS (OCEAN / CYAN) ───────────────────────── */
-[data-theme="ocean"] {
-  --bg-page:            #010810;
-  --bg-card:            #061422;
-  --bg-card-glass:      rgba(6,20,34,0.55);
-  --bg-sidebar:         #010a16;
-  --bg-sidebar-hover:   rgba(6,182,212,0.1);
-  --bg-sidebar-active:  rgba(6,182,212,0.2);
-  --sidebar-text:       #67e8f9;
-  --sidebar-muted:      rgba(103,232,249,0.42);
-  --sidebar-brand:      #22d3ee;
-  --text-primary:       #e0f8fd;
-  --text-secondary:     #3d6e7e;
-  --border:             #081e2e;
-  --border-strong:      #0c2c40;
-  --accent:             #06b6d4;
-  --accent-hover:       #0891b2;
-  --accent-light:       #021420;
-  --accent-text:        #67e8f9;
-  --success:            #34d399;
-  --success-bg:         #022318;
-  --danger:             #f87171;
-  --danger-bg:          #160408;
-  --warn:               #fbbf24;
-  --warn-bg:            #140c00;
-  --info:               #38bdf8;
-  --info-bg:            #030e1c;
-  --badge-success-bg:   #033828;
-  --badge-success-text: #6ee7b7;
-  --badge-danger-bg:    #2c0808;
-  --badge-danger-text:  #fca5a5;
-  --badge-warn-bg:      #2a1200;
-  --badge-warn-text:    #fde68a;
-  --badge-info-bg:      #021828;
-  --badge-info-text:    #7dd3fc;
-  --input-bg:           #050e18;
-  --input-border:       #0c2c40;
-  --input-focus:        #06b6d4;
-  --btn-primary-bg:     #06b6d4;
-  --btn-primary-text:   #001018;
-  --btn-primary-hover:  #0891b2;
-  --shadow-sm:          0 1px 3px rgba(0,0,0,0.55);
-  --shadow-md:          0 4px 16px rgba(0,0,0,0.65), 0 0 0 1px rgba(6,182,212,0.05);
-  --shadow-lg:          0 12px 28px rgba(0,0,0,0.75), 0 0 0 1px rgba(6,182,212,0.07);
-  --topbar-bg:          rgba(3,10,22,0.70);
-  --topbar-border:      rgba(8,30,46,0.7);
+/* ── BUSINESS (NAVY + STEEL BLUE) ───────────────── */
+[data-theme="business"] {
+  --bg-page:            #eef2f8;
+  --bg-card:            #ffffff;
+  --bg-card-glass:      rgba(255,255,255,0.80);
+  --bg-sidebar:         #0f2044;
+  --bg-sidebar-hover:   rgba(255,255,255,0.08);
+  --bg-sidebar-active:  rgba(255,255,255,0.16);
+  --sidebar-text:       #bfcfe8;
+  --sidebar-muted:      rgba(191,207,232,0.48);
+  --sidebar-brand:      #ffffff;
+  --text-primary:       #0f172a;
+  --text-secondary:     #475569;
+  --border:             #dde3ed;
+  --border-strong:      #c4cdd8;
+  --accent:             #0369a1;
+  --accent-hover:       #075985;
+  --accent-light:       #e0f2fe;
+  --accent-text:        #0369a1;
+  --success:            #15803d;
+  --success-bg:         #f0fdf4;
+  --danger:             #dc2626;
+  --danger-bg:          #fef2f2;
+  --warn:               #d97706;
+  --warn-bg:            #fffbeb;
+  --info:               #0369a1;
+  --info-bg:            #f0f9ff;
+  --badge-success-bg:   #dcfce7;
+  --badge-success-text: #15803d;
+  --badge-danger-bg:    #fee2e2;
+  --badge-danger-text:  #b91c1c;
+  --badge-warn-bg:      #fef3c7;
+  --badge-warn-text:    #b45309;
+  --badge-info-bg:      #dbeafe;
+  --badge-info-text:    #1d4ed8;
+  --input-bg:           #ffffff;
+  --input-border:       #cbd5e1;
+  --input-focus:        #0369a1;
+  --btn-primary-bg:     #0369a1;
+  --btn-primary-text:   #ffffff;
+  --btn-primary-hover:  #075985;
+  --shadow-sm:          0 1px 3px rgba(15,32,68,0.09), 0 1px 2px rgba(15,32,68,0.05);
+  --shadow-md:          0 4px 16px rgba(15,32,68,0.11), 0 2px 4px rgba(15,32,68,0.06);
+  --shadow-lg:          0 12px 28px rgba(15,32,68,0.14), 0 4px 8px rgba(15,32,68,0.07);
+  --topbar-bg:          rgba(255,255,255,0.85);
+  --topbar-border:      rgba(221,227,237,0.75);
 }
 
 /* ── AURORA GLASS ───────────────────────────────── */
@@ -247,53 +199,6 @@
   --topbar-border:      rgba(255,255,255,0.45);
 }
 
-/* ── CRIMSON (NOIR + RED) ───────────────────────── */
-[data-theme="crimson"] {
-  --bg-page:            #080204;
-  --bg-card:            #160609;
-  --bg-card-glass:      rgba(22,6,9,0.55);
-  --bg-sidebar:         #0a0305;
-  --bg-sidebar-hover:   rgba(239,68,68,0.1);
-  --bg-sidebar-active:  rgba(239,68,68,0.2);
-  --sidebar-text:       #fca5a5;
-  --sidebar-muted:      rgba(252,165,165,0.42);
-  --sidebar-brand:      #f87171;
-  --text-primary:       #fff0f0;
-  --text-secondary:     #6a3a40;
-  --border:             #220a0d;
-  --border-strong:      #381020;
-  --accent:             #ef4444;
-  --accent-hover:       #dc2626;
-  --accent-light:       #160305;
-  --accent-text:        #fca5a5;
-  --success:            #34d399;
-  --success-bg:         #022318;
-  --danger:             #fca5a5;
-  --danger-bg:          #1c0606;
-  --warn:               #fbbf24;
-  --warn-bg:            #140c00;
-  --info:               #60a5fa;
-  --info-bg:            #040c1c;
-  --badge-success-bg:   #033828;
-  --badge-success-text: #6ee7b7;
-  --badge-danger-bg:    #380808;
-  --badge-danger-text:  #fca5a5;
-  --badge-warn-bg:      #2a1200;
-  --badge-warn-text:    #fde68a;
-  --badge-info-bg:      #060c20;
-  --badge-info-text:    #93c5fd;
-  --input-bg:           #110406;
-  --input-border:       #381020;
-  --input-focus:        #ef4444;
-  --btn-primary-bg:     #ef4444;
-  --btn-primary-text:   #fff0f0;
-  --btn-primary-hover:  #dc2626;
-  --shadow-sm:          0 1px 3px rgba(0,0,0,0.55);
-  --shadow-md:          0 4px 16px rgba(0,0,0,0.65), 0 0 0 1px rgba(239,68,68,0.05);
-  --shadow-lg:          0 12px 28px rgba(0,0,0,0.75), 0 0 0 1px rgba(239,68,68,0.07);
-  --topbar-bg:          rgba(14,5,7,0.70);
-  --topbar-border:      rgba(34,10,13,0.7);
-}
 
 /* ═══════════════════════════════════════════════════
    BASE
@@ -335,33 +240,19 @@ body {
   --blob-d: rgba(6,182,212,0.18);
   --blob-e: rgba(236,72,153,0.16);
 }
-[data-theme="black-gold"] {
-  --blob-a: rgba(245,158,11,0.38);
-  --blob-b: rgba(217,119,6,0.28);
-  --blob-c: rgba(245,158,11,0.18);
-  --blob-d: rgba(180,83,9,0.22);
-  --blob-e: rgba(251,191,36,0.24);
+[data-theme="dark"] {
+  --blob-a: rgba(99,102,241,0.20);
+  --blob-b: rgba(139,92,246,0.14);
+  --blob-c: rgba(79,70,229,0.10);
+  --blob-d: rgba(6,182,212,0.12);
+  --blob-e: rgba(236,72,153,0.10);
 }
-[data-theme="purple-gold"] {
-  --blob-a: rgba(168,85,247,0.45);
-  --blob-b: rgba(251,191,36,0.30);
-  --blob-c: rgba(139,92,246,0.22);
-  --blob-d: rgba(236,72,153,0.28);
-  --blob-e: rgba(99,102,241,0.32);
-}
-[data-theme="ocean"] {
-  --blob-a: rgba(6,182,212,0.45);
-  --blob-b: rgba(56,189,248,0.32);
-  --blob-c: rgba(14,165,233,0.22);
-  --blob-d: rgba(52,211,153,0.28);
-  --blob-e: rgba(99,102,241,0.24);
-}
-[data-theme="crimson"] {
-  --blob-a: rgba(239,68,68,0.45);
-  --blob-b: rgba(220,38,38,0.30);
-  --blob-c: rgba(239,68,68,0.20);
-  --blob-d: rgba(190,18,60,0.28);
-  --blob-e: rgba(251,113,133,0.24);
+[data-theme="business"] {
+  --blob-a: rgba(3,105,161,0.18);
+  --blob-b: rgba(15,32,68,0.14);
+  --blob-c: rgba(14,165,233,0.10);
+  --blob-d: rgba(3,105,161,0.12);
+  --blob-e: rgba(56,189,248,0.10);
 }
 [data-theme="glass"] {
   --blob-a: rgba(236,72,153,0.55);
@@ -397,6 +288,19 @@ body {
     box-shadow: 0 4px 24px rgba(99,102,241,0.10), inset 0 1px 0 rgba(255,255,255,0.55);
     backdrop-filter: blur(28px) saturate(200%);
     -webkit-backdrop-filter: blur(28px) saturate(200%);
+  }
+  [data-theme="dark"] .t-card {
+    background: var(--bg-card);
+    border-color: var(--border);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  [data-theme="business"] .t-card {
+    background: var(--bg-card);
+    border-color: var(--border);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: var(--shadow-sm);
   }
   .t-card-hover:hover {
     box-shadow: var(--shadow-md);
@@ -438,6 +342,11 @@ body {
     backdrop-filter: blur(32px) saturate(180%);
     -webkit-backdrop-filter: blur(32px) saturate(180%);
     border-right: 1px solid rgba(255,255,255,0.10);
+  }
+  [data-theme="dark"] .t-sidebar,
+  [data-theme="business"] .t-sidebar {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
   .t-sidebar-item {
     color: var(--sidebar-muted);

@@ -110,12 +110,10 @@ const roleNavItems: Record<string, { label: string; href: string; icon: any; sec
 };
 
 const themes: { id: Theme; label: string; color: string; bg: string }[] = [
-  { id: "light",       label: "Indigo",   color: "#4f46e5", bg: "#eef2ff" },
-  { id: "black-gold",  label: "Obsidian", color: "#f59e0b", bg: "#1a0f00" },
-  { id: "purple-gold", label: "Nebula",   color: "#a855f7", bg: "#160830" },
-  { id: "ocean",       label: "Abyss",    color: "#06b6d4", bg: "#021420" },
-  { id: "crimson",     label: "Crimson",  color: "#ef4444", bg: "#160305" },
-  { id: "glass",       label: "Aurora",   color: "#6366f1", bg: "rgba(188,212,238,0.8)" },
+  { id: "light",    label: "Light",    color: "#4f46e5", bg: "#eef2ff" },
+  { id: "dark",     label: "Dark",     color: "#6366f1", bg: "#0d1117" },
+  { id: "glass",    label: "Aurora",   color: "#ec4899", bg: "rgba(188,212,238,0.8)" },
+  { id: "business", label: "Business", color: "#0369a1", bg: "#eef2f8" },
 ];
 
 const roleLabel: Record<string, string> = {
@@ -263,7 +261,7 @@ export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose
 
         {showThemes && (
           <div style={{
-            marginTop: 6, display: "grid", gridTemplateColumns: "1fr 1fr 1fr",
+            marginTop: 6, display: "grid", gridTemplateColumns: "1fr 1fr",
             gap: 5, animation: "fadeIn 0.15s ease both",
           }}>
             {themes.map((t) => (
