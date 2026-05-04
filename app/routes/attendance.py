@@ -1,3 +1,4 @@
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -98,4 +99,25 @@ def student_attendance(
     return success_response({
         "records": [AttendanceOut.model_validate(r).model_dump() for r in records],
         "summary": {"total": total, "present": present, "absent": absent, "late": late}
+    })
+
+
+@router.get("/summary")
+def attendance_summary(
+    db: Session = Depends(get_db),
+    current_user=Depends(is_principal_or_above),
+):
+    """School-wide attendance totals for the dashboard."""
+    records = db.query(Attendance).all()
+    total = len(records)
+    present = sum(1 for r in records if r.status.value == "PRESENT")
+    absent  = sum(1 for r in records if r.status.value == "ABSENT")
+    late    = sum(1 for r in records if r.status.value == "LATE")
+    rate    = round((present / total) * 100, 1) if total > 0 else 0
+    return success_response({
+        "total": total,
+        "present": present,
+        "absent": absent,
+        "late": late,
+        "attendance_rate": rate,
     })

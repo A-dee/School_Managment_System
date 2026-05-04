@@ -60,9 +60,38 @@ def update_class(
 
 @router.delete("/{class_id}")
 def delete_class(class_id: int, db: Session = Depends(get_db), current_user=Depends(is_admin_or_above)):
+    from app.models.student import Student
+    from app.models.attendance import Attendance
+    from app.models.result import Result
+    from app.models.finance import FeeStructure, Invoice, Payment, PaymentDeclaration
+    from app.models.subject import TeacherSubjectClass
+
     cls = db.query(Class).filter(Class.id == class_id).first()
     if not cls:
         raise HTTPException(status_code=404, detail="Class not found")
+
+    # Block delete if fee payments have already been recorded (financial records are irreplaceable)
+    invoice_ids = [row.id for row in db.query(Invoice).filter(Invoice.class_id == class_id).all()]
+    if invoice_ids and db.query(Payment).filter(Payment.invoice_id.in_(invoice_ids)).first():
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete: this class has recorded fee payments. Transfer students and archive fee data first.",
+        )
+
+    # Unassign students — they are preserved, just lose their class reference
+    db.query(Student).filter(Student.current_class_id == class_id).update(
+        {"current_class_id": None}, synchronize_session=False
+    )
+
+    # Remove structural / dependent records
+    db.query(TeacherSubjectClass).filter(TeacherSubjectClass.class_id == class_id).delete(synchronize_session=False)
+    db.query(Attendance).filter(Attendance.class_id == class_id).delete(synchronize_session=False)
+    db.query(Result).filter(Result.class_id == class_id).delete(synchronize_session=False)
+    if invoice_ids:
+        db.query(PaymentDeclaration).filter(PaymentDeclaration.invoice_id.in_(invoice_ids)).delete(synchronize_session=False)
+    db.query(Invoice).filter(Invoice.class_id == class_id).delete(synchronize_session=False)
+    db.query(FeeStructure).filter(FeeStructure.class_id == class_id).delete(synchronize_session=False)
+
     db.delete(cls)
     db.commit()
     return success_response(None, "Class deleted")

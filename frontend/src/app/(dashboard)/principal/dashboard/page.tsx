@@ -3,14 +3,17 @@ import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import StatCard from "@/components/StatCard";
 import { getStudents, getStaff, getClasses, getProfitLoss } from "@/lib/api";
+import api from "@/lib/api";
 import { GraduationCap, Users, School, TrendingUp } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LabelList } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
 const COLORS = ["#22c55e", "#ef4444", "#6366f1"];
+const ATT_COLORS = ["#22c55e", "#ef4444", "#f59e0b"];
 
 export default function PrincipalDashboard() {
   const [stats, setStats] = useState({ students: 0, staff: 0, classes: 0 });
   const [profit, setProfit] = useState<any>(null);
+  const [attendance, setAttendance] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -19,13 +22,15 @@ export default function PrincipalDashboard() {
       getStaff({ limit: 1 }),
       getClasses({ limit: 1 }),
       getProfitLoss(),
-    ]).then(([studRes, staffRes, classRes, profitRes]) => {
+      api.get("/api/v1/attendance/summary").catch(() => ({ data: { data: null } })),
+    ]).then(([studRes, staffRes, classRes, profitRes, attRes]) => {
       setStats({
         students: studRes.data.pagination?.total || 0,
         staff:    staffRes.data.pagination?.total || 0,
         classes:  classRes.data.pagination?.total || 0,
       });
       setProfit(profitRes.data.data);
+      setAttendance(attRes.data.data);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
@@ -124,6 +129,82 @@ export default function PrincipalDashboard() {
           </div>
         </div>
       )}
+
+      {/* Attendance Overview */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="t-card lg:col-span-1">
+          <div className="flex justify-between items-center mb-3">
+            <h2 className="font-semibold t-text-primary">Attendance Overview</h2>
+          </div>
+          {attendance && attendance.total > 0 ? (
+            <>
+              <div style={{ position: "relative" }}>
+                <ResponsiveContainer width="100%" height={180}>
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: "Present", value: attendance.present },
+                        { name: "Absent",  value: attendance.absent },
+                        { name: "Late",    value: attendance.late },
+                      ].filter(d => d.value > 0)}
+                      cx="50%" cy="50%"
+                      outerRadius={72} innerRadius={46}
+                      dataKey="value" paddingAngle={2}
+                    >
+                      {ATT_COLORS.map((color, i) => <Cell key={i} fill={color} />)}
+                    </Pie>
+                    <Tooltip
+                      formatter={(v: any, name: string) => [`${v} records`, name]}
+                      contentStyle={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text-primary)", fontSize: 13 }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", textAlign: "center", pointerEvents: "none" }}>
+                  <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "var(--text-primary)", lineHeight: 1 }}>{attendance.attendance_rate}%</div>
+                  <div style={{ fontSize: "0.65rem", color: "var(--text-secondary)", marginTop: 2 }}>Avg Attendance</div>
+                </div>
+              </div>
+              <div className="space-y-2 mt-2">
+                {[
+                  { label: "Present", val: attendance.present, pct: attendance.total > 0 ? Math.round((attendance.present / attendance.total) * 100) : 0, color: "#22c55e" },
+                  { label: "Absent",  val: attendance.absent,  pct: attendance.total > 0 ? Math.round((attendance.absent  / attendance.total) * 100) : 0, color: "#ef4444" },
+                  { label: "Late",    val: attendance.late,    pct: attendance.total > 0 ? Math.round((attendance.late    / attendance.total) * 100) : 0, color: "#f59e0b" },
+                ].map(({ label, val, pct, color }) => (
+                  <div key={label} className="flex justify-between items-center text-sm">
+                    <div className="flex items-center gap-2">
+                      <span style={{ width: 10, height: 10, borderRadius: "50%", background: color, display: "inline-block" }} />
+                      <span className="t-text-secondary">{label}</span>
+                    </div>
+                    <span className="font-semibold t-text-primary">{val.toLocaleString()} <span style={{ color, fontSize: "0.75rem" }}>({pct}%)</span></span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="t-empty" style={{ padding: "24px 0" }}>
+              <p style={{ fontSize: "0.85rem" }}>No attendance records yet.</p>
+            </div>
+          )}
+        </div>
+
+        <div className="t-card lg:col-span-2">
+          <h2 className="font-semibold t-text-primary mb-4">Quick Stats</h2>
+          <div className="grid grid-cols-2 gap-4">
+            {[
+              { label: "Students per Class", val: stats.classes > 0 ? Math.round(stats.students / stats.classes) : "—", sub: "avg class size" },
+              { label: "Staff to Student Ratio", val: stats.staff > 0 ? `1:${Math.round(stats.students / stats.staff)}` : "—", sub: "staff vs students" },
+              { label: "Total Records", val: attendance ? attendance.total.toLocaleString() : "—", sub: "attendance entries" },
+              { label: "Attendance Rate", val: attendance ? `${attendance.attendance_rate}%` : "—", sub: "present rate" },
+            ].map(({ label, val, sub }) => (
+              <div key={label} style={{ padding: "16px", borderRadius: 10, background: "var(--accent-light)", textAlign: "center" }}>
+                <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "var(--accent)" }}>{val}</div>
+                <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-primary)", marginTop: 2 }}>{label}</div>
+                <div style={{ fontSize: "0.68rem", color: "var(--text-secondary)" }}>{sub}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </DashboardLayout>
   );
 }

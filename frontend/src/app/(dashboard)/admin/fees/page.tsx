@@ -102,15 +102,19 @@ export default function FeesPage() {
     } catch { return []; }
   }, []);
 
-  /* --- bootstrap: load sessions + classes, pre-fill terms cache --- */
+  /* --- bootstrap: load sessions, classes, terms cache + fee structures --- */
   useEffect(() => {
     Promise.all([
       api.get("/api/v1/academic/sessions"),
       api.get("/api/v1/classes/?limit=200"),
-    ]).then(async ([s, c]) => {
+      api.get("/api/v1/finance/fee-structures").catch(() => ({ data: { data: [] } })),
+      api.get("/api/v1/finance/optional-fees").catch(() => ({ data: { data: [] } })),
+    ]).then(async ([s, c, fsRes, optRes]) => {
       const sessionList: any[] = s.data.data || [];
       setSessions(sessionList);
       setClasses(c.data.data || []);
+      setFeeStructures(fsRes.data.data || []);
+      setOptFees(optRes.data.data || []);
       if (sessionList.length > 0) {
         const termResults = await Promise.all(
           sessionList.map((sess: any) =>
@@ -132,6 +136,7 @@ export default function FeesPage() {
   }, []);
 
   useEffect(() => {
+    // Refresh on each visit to the schedule tab (bootstrap already pre-loads on first mount)
     if (outerTab === "schedule") { loadFeeStructures(); loadOptFees(); }
   }, [outerTab]);
 

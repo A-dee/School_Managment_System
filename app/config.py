@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE: int = 10485760
     ENVIRONMENT: str = "development"
 
+    # Email (Resend)
+    RESEND_API_KEY: str = "re_placeholder"
+    EMAIL_FROM: str = "Hope Hills Academy <noreply@hopehillsacademy.ng>"
+    FRONTEND_URL: str = "http://localhost:3000"
+
     class Config:
         env_file = ".env"
 
