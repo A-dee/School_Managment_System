@@ -126,10 +126,13 @@ export default function AnnouncementsPage() {
               <label className="t-label">Audience</label>
               <div style={{ display: "flex", gap: 8 }}>
                 {[
-                  { val: "ALL",              label: "Everyone" },
-                  { val: "STUDENT",          label: "Students only" },
-                  { val: "TEACHER",          label: "Staff only" },
-                  { val: "STUDENT,TEACHER",  label: "Students & Staff" },
+                  { val: "ALL",                      label: "Everyone" },
+                  { val: "STUDENT",                  label: "Students" },
+                  { val: "TEACHER",                  label: "Staff only" },
+                  { val: "PARENT",                   label: "Parents only" },
+                  { val: "STUDENT,PARENT",            label: "Students & Parents" },
+                  { val: "STUDENT,TEACHER",          label: "Students & Staff" },
+                  { val: "STUDENT,TEACHER,PARENT",   label: "All (excl. admin)" },
                 ].map(opt => (
                   <button key={opt.val} onClick={() => setForm(p => ({ ...p, target_roles: opt.val }))}
                     style={{ padding: "6px 14px", borderRadius: 7,

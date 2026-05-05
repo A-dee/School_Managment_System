@@ -32,7 +32,13 @@ def list_classes(
         q = q.filter(Class.class_teacher_id == class_teacher_id)
     total = q.count()
     classes = q.offset(skip).limit(limit).all()
-    return paginated_response([ClassOut.model_validate(c).model_dump() for c in classes], total, 1, limit)
+    from app.models.student import Student
+    result = []
+    for c in classes:
+        d = ClassOut.model_validate(c).model_dump()
+        d["student_count"] = db.query(Student).filter(Student.current_class_id == c.id).count()
+        result.append(d)
+    return paginated_response(result, total, 1, limit)
 
 
 @router.get("/{class_id}")

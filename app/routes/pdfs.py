@@ -18,6 +18,11 @@ def report_card_pdf(
     student_id: int, session_id: int, term_id: int,
     db: Session = Depends(get_db), current_user=Depends(get_current_user)
 ):
+    from app.models.academic import AcademicSession, Term
+    from app.models.subject import Subject
+    from app.models.attendance import Attendance, AttendanceStatus
+    from app.models.student import Student
+
     student = get_student_by_id(db, student_id)
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
@@ -29,9 +34,41 @@ def report_card_pdf(
         Result.status == ResultStatus.PUBLISHED,
     ).all()
 
-    from app.models.academic import AcademicSession, Term
     session = db.query(AcademicSession).filter(AcademicSession.id == session_id).first()
     term = db.query(Term).filter(Term.id == term_id).first()
+
+    # Resolve subject names
+    subject_map = {}
+    for r in results:
+        if r.subject_id not in subject_map:
+            subj = db.query(Subject).filter(Subject.id == r.subject_id).first()
+            subject_map[r.subject_id] = subj.name if subj else f"Subject {r.subject_id}"
+
+    results_data = [{
+        "subject_name": subject_map.get(r.subject_id, f"Subject {r.subject_id}"),
+        "ca_score": float(r.ca_score),
+        "exam_score": float(r.exam_score),
+        "total_score": float(r.total_score),
+        "grade": r.grade,
+        "remarks": r.remarks or "",
+    } for r in results]
+
+    # Attendance for this student in their class
+    att_records = db.query(Attendance).filter(
+        Attendance.student_id == student_id,
+        Attendance.class_id == student.current_class_id,
+    ).all() if student.current_class_id else []
+    attendance = {
+        "days_present": sum(1 for a in att_records if a.status == AttendanceStatus.PRESENT),
+        "days_absent": sum(1 for a in att_records if a.status == AttendanceStatus.ABSENT),
+        "days_late": sum(1 for a in att_records if a.status == AttendanceStatus.LATE),
+    }
+
+    # Class size
+    class_size = (
+        db.query(Student).filter(Student.current_class_id == student.current_class_id).count()
+        if student.current_class_id else None
+    )
 
     student_dict = {
         "first_name": student.first_name,
@@ -39,22 +76,17 @@ def report_card_pdf(
         "admission_number": student.admission_number,
         "class_name": student.current_class.name if student.current_class else "",
         "class_position": results[0].class_position if results else None,
+        "class_size": class_size,
     }
-    results_data = [{
-        "subject_name": f"Subject {r.subject_id}",
-        "ca_score": float(r.ca_score),
-        "exam_score": float(r.exam_score),
-        "total_score": float(r.total_score),
-        "grade": r.grade,
-        "remarks": r.remarks,
-    } for r in results]
 
     pdf_bytes = generate_report_card_pdf(
         student_dict, results_data,
-        session.name if session else "", term.name if term else ""
+        session.name if session else "", term.name if term else "",
+        attendance if att_records else None,
     )
+    fname = f"report_card_{student.last_name}_{student.first_name}_{term_id}.pdf".replace(" ", "_")
     return Response(content=pdf_bytes, media_type="application/pdf",
-                    headers={"Content-Disposition": f"attachment; filename=report_card_{student_id}.pdf"})
+                    headers={"Content-Disposition": f"attachment; filename={fname}"})
 
 
 @router.get("/receipt/{payment_id}")

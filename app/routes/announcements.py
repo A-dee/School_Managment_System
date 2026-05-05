@@ -13,13 +13,13 @@ from app.utils.response import success_response
 router = APIRouter(prefix="/announcements", tags=["Announcements"])
 
 _ROLE_ALIASES = {
-    UserRole.STUDENT:          "STUDENT",
-    UserRole.TEACHER:          "TEACHER",
+    UserRole.STUDENT:            "STUDENT",
+    UserRole.TEACHER:            "TEACHER",
     UserRole.NON_TEACHING_STAFF: "TEACHER",
-    UserRole.ADMIN:            "TEACHER",
-    UserRole.PRINCIPAL:        "TEACHER",
-    UserRole.SUPER_ADMIN:      "TEACHER",
-    UserRole.PARENT:           "STUDENT",
+    UserRole.ADMIN:              "TEACHER",
+    UserRole.PRINCIPAL:          "TEACHER",
+    UserRole.SUPER_ADMIN:        "TEACHER",
+    UserRole.PARENT:             "PARENT",
 }
 
 
@@ -79,7 +79,7 @@ def list_announcements(
             | Announcement.target_roles.contains(role_tag)
         )
         .order_by(Announcement.created_at.desc())
-        .limit(50)
+        .limit(100)
         .all()
     )
     return success_response([_serialize(a) for a in anns])
