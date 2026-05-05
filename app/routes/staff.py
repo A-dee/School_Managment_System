@@ -66,10 +66,51 @@ def update_staff_info(
 
 @router.delete("/{staff_id}")
 def remove_staff(staff_id: int, db: Session = Depends(get_db), current_user=Depends(is_admin_or_above)):
+    from app.models.class_ import Class
+    from app.models.attendance import Attendance
+    from app.models.result import Result
+    from app.models.subject import TeacherSubjectClass, Subject
+    from app.models.discipline import Discipline
+    from app.models.finance import Payroll, PayrollStatus
+    from app.models.user import User
+
     staff = get_staff_by_id(db, staff_id)
     if not staff:
         raise HTTPException(status_code=404, detail="Staff not found")
-    log_action(db, "DELETE_STAFF", "Staff", current_user.id, entity_id=staff_id, old_value={"name": staff.full_name})
-    delete_staff(db, staff)
+
+    # Block if paid payroll records exist (financial history is irreplaceable)
+    if db.query(Payroll).filter(
+        Payroll.staff_id == staff_id, Payroll.payment_status == PayrollStatus.PAID
+    ).first():
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete: staff has paid payroll records. Use deactivate instead.",
+        )
+
+    # Unassign from classes (nullable FK → SET NULL)
+    db.query(Class).filter(Class.class_teacher_id == staff_id).update(
+        {"class_teacher_id": None}, synchronize_session=False
+    )
+    # Clear subject creator reference (nullable FK → SET NULL)
+    db.query(Subject).filter(Subject.created_by_teacher_id == staff_id).update(
+        {"created_by_teacher_id": None}, synchronize_session=False
+    )
+    # Delete structural/dependent records
+    db.query(TeacherSubjectClass).filter(TeacherSubjectClass.teacher_id == staff_id).delete(synchronize_session=False)
+    db.query(Attendance).filter(Attendance.marked_by_teacher_id == staff_id).delete(synchronize_session=False)
+    db.query(Discipline).filter(Discipline.reported_by_teacher_id == staff_id).delete(synchronize_session=False)
+    db.query(Result).filter(Result.teacher_id == staff_id).delete(synchronize_session=False)
+    db.query(Payroll).filter(Payroll.staff_id == staff_id).delete(synchronize_session=False)
+
+    user_id = staff.user_id
+    name = staff.full_name
+    db.delete(staff)
+    db.flush()
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if user:
+        db.delete(user)
+
+    log_action(db, "DELETE_STAFF", "Staff", current_user.id, entity_id=staff_id, old_value={"name": name})
     db.commit()
     return success_response(None, "Staff deleted")

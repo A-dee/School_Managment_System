@@ -16,3 +16,5 @@ from app.models.email_config import EmailConfig
 from app.models.student_registration import StudentRegistration, StudentMedical, StudentAboutMe
 from app.models.report_card_meta import ReportCardMeta
 from app.models.student_document import StudentDocument
+from app.models.announcement import Announcement
+from app.models.finance import PaymentDeclaration, OptionalFee
