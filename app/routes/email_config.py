@@ -49,6 +49,17 @@ def set_email_config(data: EmailConfigCreate, db: Session = Depends(get_db), cur
     return success_response(EmailConfigOut.model_validate(config).model_dump(), "Email config saved")
 
 
+@router.get("/status")
+def get_email_status(db: Session = Depends(get_db), current_user=Depends(is_super_admin)):
+    from app.config import settings
+    if settings.RESEND_API_KEY and settings.RESEND_API_KEY != "re_placeholder":
+        return success_response({"provider": "resend", "from": settings.EMAIL_FROM})
+    config = db.query(EmailConfig).first()
+    if config and config.is_active:
+        return success_response({"provider": "smtp", "from": config.smtp_user})
+    return success_response({"provider": "none", "from": None})
+
+
 @router.get("/")
 def get_config(db: Session = Depends(get_db), current_user=Depends(is_super_admin)):
     config = db.query(EmailConfig).first()

@@ -4,7 +4,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import api from "@/lib/api";
 import toast from "react-hot-toast";
 import { getRole } from "@/lib/auth";
-import { Mail, Eye, EyeOff, Users, KeyRound } from "lucide-react";
+import { Mail, Eye, EyeOff, Users, KeyRound, CheckCircle, AlertCircle, XCircle } from "lucide-react";
 
 const roleColors: Record<string, string> = {
   SUPER_ADMIN: "badge-green", PRINCIPAL: "badge-yellow", ADMIN: "badge-blue",
@@ -59,8 +59,10 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [testEmail, setTestEmail] = useState("");
   const [testing, setTesting] = useState(false);
+  const [emailStatus, setEmailStatus] = useState<{ provider: string; from: string | null } | null>(null);
 
   useEffect(() => {
+    api.get("/api/v1/email-config/status").then(res => setEmailStatus(res.data.data)).catch(() => {});
     api.get("/api/v1/email-config/").then(res => {
       const d = res.data.data;
       setConfig(c => ({ ...c, smtp_host: d.smtp_host, smtp_port: d.smtp_port, smtp_user: d.smtp_user, from_name: d.from_name }));
@@ -98,11 +100,35 @@ export default function SettingsPage() {
       </div>
 
       <div className="max-w-lg">
+        {emailStatus && (
+          <div className={`flex items-center gap-3 px-4 py-3 rounded-lg mb-4 text-sm font-medium ${
+            emailStatus.provider === "resend"
+              ? "bg-green-50 text-green-800 border border-green-200"
+              : emailStatus.provider === "smtp"
+              ? "bg-blue-50 text-blue-800 border border-blue-200"
+              : "bg-red-50 text-red-800 border border-red-200"
+          }`}>
+            {emailStatus.provider === "resend" && <CheckCircle size={16} className="shrink-0" />}
+            {emailStatus.provider === "smtp" && <AlertCircle size={16} className="shrink-0" />}
+            {emailStatus.provider === "none" && <XCircle size={16} className="shrink-0" />}
+            <span>
+              {emailStatus.provider === "resend" && <>Email active via <strong>Resend API</strong> — sending from {emailStatus.from}</>}
+              {emailStatus.provider === "smtp" && <>Email active via <strong>SMTP</strong> — sending from {emailStatus.from}</>}
+              {emailStatus.provider === "none" && <>No email provider configured — emails will not be sent</>}
+            </span>
+          </div>
+        )}
+
         <div className="t-card">
-          <div className="flex items-center gap-2 mb-5">
+          <div className="flex items-center gap-2 mb-1">
             <Mail size={20} style={{ color: "var(--accent)" }} />
             <h2 className="font-semibold t-text-primary">Email (SMTP) Configuration</h2>
           </div>
+          {emailStatus?.provider === "resend" && (
+            <p className="text-xs mb-4" style={{ color: "var(--text-secondary)" }}>
+              Resend API is active and takes priority. These SMTP settings are used as a fallback if Resend is ever removed.
+            </p>
+          )}
 
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
