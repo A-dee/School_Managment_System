@@ -3,7 +3,7 @@ import { useEffect, useState, useMemo } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import api from "@/lib/api";
 import toast from "react-hot-toast";
-import { Send, Inbox, Mail, Reply, PenSquare, Search, X, ChevronRight } from "lucide-react";
+import { Send, Inbox, Mail, Reply, PenSquare, Search, X, Users, ChevronDown } from "lucide-react";
 
 interface Message {
   id: number;
@@ -25,6 +25,13 @@ interface Contact {
   name: string;
   email: string;
   role: string;
+}
+
+interface BroadcastGroup {
+  type: string;
+  value: string;
+  label: string;
+  count: number;
 }
 
 const roleLabel: Record<string, string> = {
@@ -78,10 +85,17 @@ export default function MessagesPage() {
   const [loading,  setLoading]  = useState(true);
   const [unread,   setUnread]   = useState(0);
 
+  // Individual compose
   const [contacts,        setContacts]        = useState<Contact[]>([]);
   const [contactSearch,   setContactSearch]   = useState("");
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [showDropdown,    setShowDropdown]    = useState(false);
+
+  // Broadcast compose
+  const [broadcastMode,   setBroadcastMode]   = useState(false);
+  const [broadcastGroups, setBroadcastGroups] = useState<BroadcastGroup[]>([]);
+  const [selectedGroup,   setSelectedGroup]   = useState<BroadcastGroup | null>(null);
+  const [showGroupDrop,   setShowGroupDrop]   = useState(false);
 
   const [subject,   setSubject]   = useState("");
   const [body,      setBody]      = useState("");
@@ -110,7 +124,17 @@ export default function MessagesPage() {
     api.get("/api/v1/messages/contacts")
       .then(r => setContacts(r.data.data || []))
       .catch(() => setContacts([]));
+    api.get("/api/v1/messages/broadcast-groups")
+      .then(r => setBroadcastGroups(r.data.data || []))
+      .catch(() => setBroadcastGroups([]));
   }, [tab]);
+
+  const resetCompose = () => {
+    setSubject(""); setBody("");
+    setSelectedContact(null); setContactSearch(""); setShowDropdown(false);
+    setSelectedGroup(null); setShowGroupDrop(false);
+    setBroadcastMode(false);
+  };
 
   const openMessage = async (msg: Message) => {
     try {
@@ -127,9 +151,28 @@ export default function MessagesPage() {
     try {
       await api.post("/api/v1/messages/", { recipient_user_id: selectedContact.user_id, subject, body });
       toast.success("Message sent");
-      setSubject(""); setBody(""); setSelectedContact(null); setContactSearch(""); setShowDropdown(false);
+      resetCompose();
       setTab("sent");
     } catch (e: any) { toast.error(e?.response?.data?.detail || "Failed to send"); }
+    setSending(false);
+  };
+
+  const sendBroadcast = async () => {
+    if (!selectedGroup) { toast.error("Select a group"); return; }
+    if (!subject.trim() || !body.trim()) { toast.error("Fill subject and message"); return; }
+    setSending(true);
+    try {
+      const res = await api.post("/api/v1/messages/broadcast", {
+        target_type: selectedGroup.type,
+        target_value: selectedGroup.value,
+        subject,
+        body,
+      });
+      const sentTo: number = res.data.data?.sent_to ?? 0;
+      toast.success(`Message sent to ${sentTo} recipient${sentTo !== 1 ? "s" : ""}`);
+      resetCompose();
+      setTab("sent");
+    } catch (e: any) { toast.error(e?.response?.data?.detail || "Failed to send broadcast"); }
     setSending(false);
   };
 
@@ -231,7 +274,6 @@ export default function MessagesPage() {
                     transition: "all 0.12s",
                   }}
                 >
-                  {/* Row 1: name + time */}
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3, minWidth: 0 }}>
                     {isUnread && (
                       <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent)", flexShrink: 0 }} />
@@ -243,11 +285,9 @@ export default function MessagesPage() {
                       {fmtTime(m.created_at)}
                     </span>
                   </div>
-                  {/* Row 2: subject */}
                   <p style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "0.78rem", fontWeight: isUnread ? 600 : 400, color: isUnread ? "var(--text-primary)" : "var(--text-secondary)", marginBottom: 2 }}>
                     {m.subject}
                   </p>
-                  {/* Row 3: body preview */}
                   <p style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "0.7rem", color: "var(--text-secondary)" }}>
                     {m.body}
                   </p>
@@ -262,73 +302,177 @@ export default function MessagesPage() {
 
           {/* COMPOSE */}
           {tab === "compose" ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 560 }}>
-              <h2 style={{ fontWeight: 700, fontSize: "1rem", color: "var(--text-primary)" }}>New Message</h2>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 580 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+                <h2 style={{ fontWeight: 700, fontSize: "1rem", color: "var(--text-primary)" }}>
+                  {broadcastMode ? "Broadcast Message" : "New Message"}
+                </h2>
 
-              {/* Recipient picker */}
-              <div>
-                <label className="t-label">To *</label>
-
-                {selectedContact ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 9, border: "1px solid var(--accent)", background: "var(--accent-light)" }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontWeight: 600, fontSize: "0.875rem", color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {selectedContact.name}
-                      </p>
-                      <p style={{ fontSize: "0.7rem", color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {selectedContact.email}
-                      </p>
-                    </div>
-                    <RoleBadge role={selectedContact.role} />
+                {/* Mode toggle — only shown if broadcast groups exist */}
+                {broadcastGroups.length > 0 && (
+                  <div style={{ display: "flex", borderRadius: 8, border: "1px solid var(--border)", overflow: "hidden", fontSize: "0.78rem", fontWeight: 600 }}>
                     <button
-                      onClick={() => { setSelectedContact(null); setContactSearch(""); setShowDropdown(false); }}
-                      style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)", flexShrink: 0, display: "flex", alignItems: "center" }}
+                      onClick={() => { setBroadcastMode(false); setSelectedGroup(null); }}
+                      style={{
+                        padding: "6px 14px", border: "none", cursor: "pointer",
+                        background: !broadcastMode ? "var(--accent)" : "transparent",
+                        color: !broadcastMode ? "var(--btn-primary-text)" : "var(--text-secondary)",
+                        display: "flex", alignItems: "center", gap: 5,
+                      }}
                     >
-                      <X size={15} />
+                      <Mail size={12} /> Individual
                     </button>
-                  </div>
-                ) : (
-                  <div style={{ position: "relative" }}>
-                    <div style={{ position: "relative" }}>
-                      <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-secondary)", pointerEvents: "none" }} />
-                      <input
-                        className="t-input"
-                        style={{ paddingLeft: 32 }}
-                        placeholder="Search by name or role…"
-                        value={contactSearch}
-                        onChange={e => { setContactSearch(e.target.value); setShowDropdown(true); }}
-                        onFocus={() => setShowDropdown(true)}
-                      />
-                    </div>
-
-                    {contacts.length === 0 ? (
-                      <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 6 }}>No contacts available for your role.</p>
-                    ) : showDropdown && filteredContacts.length > 0 && (
-                      <div style={{
-                        position: "absolute", zIndex: 50, width: "100%", maxHeight: 240, overflowY: "auto",
-                        background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 10,
-                        boxShadow: "0 8px 32px rgba(0,0,0,0.18)", marginTop: 4,
-                      }}>
-                        {filteredContacts.map(c => (
-                          <div
-                            key={c.user_id}
-                            onMouseDown={() => { setSelectedContact(c); setContactSearch(""); setShowDropdown(false); }}
-                            style={{ padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10 }}
-                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "var(--accent-light)"}
-                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = ""}
-                          >
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <p style={{ fontWeight: 600, fontSize: "0.8125rem", color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</p>
-                              <p style={{ fontSize: "0.7rem", color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.email}</p>
-                            </div>
-                            <RoleBadge role={c.role} />
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    <button
+                      onClick={() => { setBroadcastMode(true); setSelectedContact(null); setContactSearch(""); }}
+                      style={{
+                        padding: "6px 14px", border: "none", cursor: "pointer",
+                        background: broadcastMode ? "var(--accent)" : "transparent",
+                        color: broadcastMode ? "var(--btn-primary-text)" : "var(--text-secondary)",
+                        display: "flex", alignItems: "center", gap: 5,
+                      }}
+                    >
+                      <Users size={12} /> Broadcast
+                    </button>
                   </div>
                 )}
               </div>
+
+              {/* ── Recipient: individual ── */}
+              {!broadcastMode && (
+                <div>
+                  <label className="t-label">To *</label>
+                  {selectedContact ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 9, border: "1px solid var(--accent)", background: "var(--accent-light)" }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontWeight: 600, fontSize: "0.875rem", color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {selectedContact.name}
+                        </p>
+                        <p style={{ fontSize: "0.7rem", color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {selectedContact.email}
+                        </p>
+                      </div>
+                      <RoleBadge role={selectedContact.role} />
+                      <button
+                        onClick={() => { setSelectedContact(null); setContactSearch(""); setShowDropdown(false); }}
+                        style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)", flexShrink: 0, display: "flex", alignItems: "center" }}
+                      >
+                        <X size={15} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ position: "relative" }}>
+                      <div style={{ position: "relative" }}>
+                        <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-secondary)", pointerEvents: "none" }} />
+                        <input
+                          className="t-input"
+                          style={{ paddingLeft: 32 }}
+                          placeholder="Search by name or role…"
+                          value={contactSearch}
+                          onChange={e => { setContactSearch(e.target.value); setShowDropdown(true); }}
+                          onFocus={() => setShowDropdown(true)}
+                        />
+                      </div>
+                      {contacts.length === 0 ? (
+                        <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 6 }}>No contacts available for your role.</p>
+                      ) : showDropdown && filteredContacts.length > 0 && (
+                        <div style={{
+                          position: "absolute", zIndex: 50, width: "100%", maxHeight: 240, overflowY: "auto",
+                          background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 10,
+                          boxShadow: "0 8px 32px rgba(0,0,0,0.18)", marginTop: 4,
+                        }}>
+                          {filteredContacts.map(c => (
+                            <div
+                              key={c.user_id}
+                              onMouseDown={() => { setSelectedContact(c); setContactSearch(""); setShowDropdown(false); }}
+                              style={{ padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10 }}
+                              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "var(--accent-light)"}
+                              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = ""}
+                            >
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <p style={{ fontWeight: 600, fontSize: "0.8125rem", color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</p>
+                                <p style={{ fontSize: "0.7rem", color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.email}</p>
+                              </div>
+                              <RoleBadge role={c.role} />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Recipient: broadcast group ── */}
+              {broadcastMode && (
+                <div>
+                  <label className="t-label">Send To Group *</label>
+                  <div style={{ position: "relative" }}>
+                    <button
+                      onClick={() => setShowGroupDrop(v => !v)}
+                      style={{
+                        width: "100%", padding: "9px 12px", borderRadius: 9,
+                        border: `1px solid ${selectedGroup ? "var(--accent)" : "var(--border)"}`,
+                        background: selectedGroup ? "var(--accent-light)" : "var(--input-bg, var(--card-bg))",
+                        display: "flex", alignItems: "center", gap: 10, cursor: "pointer", textAlign: "left",
+                      }}
+                    >
+                      <Users size={14} style={{ color: "var(--accent)", flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        {selectedGroup ? (
+                          <>
+                            <span style={{ fontWeight: 600, fontSize: "0.875rem", color: "var(--text-primary)" }}>{selectedGroup.label}</span>
+                            <span style={{ marginLeft: 8, fontSize: "0.7rem", color: "var(--accent)", fontWeight: 700 }}>
+                              {selectedGroup.count} recipient{selectedGroup.count !== 1 ? "s" : ""}
+                            </span>
+                          </>
+                        ) : (
+                          <span style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>Select a group…</span>
+                        )}
+                      </div>
+                      <ChevronDown size={14} style={{ color: "var(--text-secondary)", flexShrink: 0, transform: showGroupDrop ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+                    </button>
+
+                    {showGroupDrop && (
+                      <div style={{
+                        position: "absolute", zIndex: 50, width: "100%", maxHeight: 260, overflowY: "auto",
+                        background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 10,
+                        boxShadow: "0 8px 32px rgba(0,0,0,0.18)", marginTop: 4,
+                      }}>
+                        {broadcastGroups.map((g, i) => {
+                          const isFirst = i === 0 || broadcastGroups[i - 1].type !== g.type;
+                          const sectionLabel = g.type === "role" ? "By Role" : "By Class";
+                          return (
+                            <div key={`${g.type}-${g.value}`}>
+                              {isFirst && (
+                                <div style={{ padding: "6px 14px 4px", fontSize: "0.65rem", fontWeight: 800, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid var(--border)" }}>
+                                  {sectionLabel}
+                                </div>
+                              )}
+                              <div
+                                onMouseDown={() => { setSelectedGroup(g); setShowGroupDrop(false); }}
+                                style={{ padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}
+                                onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "var(--accent-light)"}
+                                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = ""}
+                              >
+                                <span style={{ fontWeight: 600, fontSize: "0.8125rem", color: "var(--text-primary)" }}>{g.label}</span>
+                                <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "var(--accent)", flexShrink: 0, background: "var(--accent-light)", padding: "2px 8px", borderRadius: 20 }}>
+                                  {g.count}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {selectedGroup && (
+                    <p style={{ marginTop: 6, fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+                      This message will be sent individually to all <strong style={{ color: "var(--text-primary)" }}>{selectedGroup.count}</strong> {selectedGroup.label.toLowerCase()} — each recipient sees only their own copy.
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label className="t-label">Subject *</label>
@@ -343,10 +487,27 @@ export default function MessagesPage() {
                 />
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <button className="t-btn-primary" onClick={sendMessage} disabled={sending || !selectedContact} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <Send size={13} /> {sending ? "Sending…" : "Send Message"}
-                </button>
-                <button className="t-btn-secondary" onClick={() => { setTab("inbox"); setSelectedContact(null); setContactSearch(""); setSubject(""); setBody(""); }}>
+                {broadcastMode ? (
+                  <button
+                    className="t-btn-primary"
+                    onClick={sendBroadcast}
+                    disabled={sending || !selectedGroup}
+                    style={{ display: "flex", alignItems: "center", gap: 6 }}
+                  >
+                    <Users size={13} />
+                    {sending ? "Sending…" : selectedGroup ? `Send to ${selectedGroup.count} recipients` : "Send Broadcast"}
+                  </button>
+                ) : (
+                  <button
+                    className="t-btn-primary"
+                    onClick={sendMessage}
+                    disabled={sending || !selectedContact}
+                    style={{ display: "flex", alignItems: "center", gap: 6 }}
+                  >
+                    <Send size={13} /> {sending ? "Sending…" : "Send Message"}
+                  </button>
+                )}
+                <button className="t-btn-secondary" onClick={() => { resetCompose(); setTab("inbox"); }}>
                   Cancel
                 </button>
               </div>
@@ -355,7 +516,6 @@ export default function MessagesPage() {
           /* VIEW MESSAGE */
           ) : selected ? (
             <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
-              {/* Message header */}
               <div style={{ paddingBottom: 14, borderBottom: "1px solid var(--border)", marginBottom: 16 }}>
                 <h2 style={{ fontWeight: 700, fontSize: "1rem", color: "var(--text-primary)", marginBottom: 8 }}>
                   {selected.subject}
@@ -373,12 +533,10 @@ export default function MessagesPage() {
                 </div>
               </div>
 
-              {/* Body */}
               <div style={{ flex: 1, overflowY: "auto", color: "var(--text-primary)", whiteSpace: "pre-wrap", lineHeight: 1.75, fontSize: "0.9rem", marginBottom: 16 }}>
                 {selected.body}
               </div>
 
-              {/* Replies */}
               {selected.replies && selected.replies.length > 0 && (
                 <div style={{ marginBottom: 16 }}>
                   <p style={{ fontSize: "0.72rem", fontWeight: 700, color: "var(--text-secondary)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>
@@ -402,7 +560,6 @@ export default function MessagesPage() {
                 </div>
               )}
 
-              {/* Reply box */}
               <div style={{ borderTop: "1px solid var(--border)", paddingTop: 14 }}>
                 <textarea
                   className="t-input" style={{ minHeight: 80, resize: "none", marginBottom: 10 }}
