@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -15,10 +15,10 @@ router = APIRouter(prefix="/messages", tags=["Messaging"])
 
 
 class MessageCreate(BaseModel):
-    recipient_user_id: int
-    subject: str
-    body: str
-    parent_message_id: Optional[int] = None
+    recipient_user_id: int = Field(gt=0)
+    subject: str = Field(min_length=1, max_length=200)
+    body: str = Field(min_length=1, max_length=5000)
+    parent_message_id: Optional[int] = Field(None, gt=0)
 
 
 def _fmt(m: Message) -> dict:
@@ -227,11 +227,21 @@ def reply(message_id: int, data: MessageCreate, db: Session = Depends(get_db), c
 
 # ── Broadcast messaging ────────────────────────────────────────────────────────
 
+_BROADCAST_TYPES = {"role", "class", "class_parents"}
+
+
 class BroadcastCreate(BaseModel):
-    target_type: str   # "role" | "class" | "class_parents"
-    target_value: str  # role name or class_id
-    subject: str
-    body: str
+    target_type:  str = Field(min_length=1, max_length=20)
+    target_value: str = Field(min_length=1, max_length=100)
+    subject:      str = Field(min_length=1, max_length=200)
+    body:         str = Field(min_length=1, max_length=5000)
+
+    @field_validator("target_type")
+    @classmethod
+    def validate_target_type(cls, v: str) -> str:
+        if v not in _BROADCAST_TYPES:
+            raise ValueError(f"target_type must be one of: {', '.join(_BROADCAST_TYPES)}")
+        return v
 
 
 def _get_broadcast_recipients(db: Session, target_type: str, target_value: str, sender_id: int) -> list[User]:
