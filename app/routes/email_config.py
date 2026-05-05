@@ -59,7 +59,35 @@ def get_config(db: Session = Depends(get_db), current_user=Depends(is_super_admi
 
 @router.post("/test")
 def test_email(to_email: str, db: Session = Depends(get_db), current_user=Depends(is_super_admin)):
-    ok = send_email(db, to_email, "Test Email from SMS", "This is a test email from your School Management System.")
-    if not ok:
-        raise HTTPException(status_code=500, detail="Failed to send test email. Check your SMTP config.")
-    return success_response(None, f"Test email sent to {to_email}")
+    from app.utils.email import get_email_config
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+
+    config = get_email_config(db)
+    if not config:
+        raise HTTPException(status_code=400, detail="No email config saved. Fill in and save the SMTP form first.")
+
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = "Test Email from SMS"
+        msg["From"] = f"{config.from_name} <{config.smtp_user}>"
+        msg["To"] = to_email
+        msg.attach(MIMEText("This is a test email from your School Management System.", "plain"))
+
+        with smtplib.SMTP(config.smtp_host, config.smtp_port, timeout=10) as server:
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            server.login(config.smtp_user, config.smtp_password)
+            server.sendmail(config.smtp_user, to_email, msg.as_string())
+
+        return success_response(None, f"Test email sent to {to_email}")
+    except smtplib.SMTPAuthenticationError:
+        raise HTTPException(status_code=400, detail="Authentication failed — wrong email or app password. For Gmail use an App Password, not your regular password.")
+    except smtplib.SMTPConnectError:
+        raise HTTPException(status_code=400, detail=f"Cannot connect to {config.smtp_host}:{config.smtp_port} — check host/port or server firewall.")
+    except smtplib.SMTPRecipientsRefused:
+        raise HTTPException(status_code=400, detail=f"Recipient {to_email} was refused by the server.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"SMTP error: {str(e)}")
