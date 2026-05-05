@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from typing import Optional
 from sqlalchemy.orm import Session
@@ -6,7 +6,9 @@ from app.database import get_db
 from app.models.message import Message
 from app.models.user import User, UserRole
 from app.utils.auth import get_current_user
+from app.utils.rbac import is_principal_or_above
 from app.utils.response import success_response, paginated_response
+from app.utils.limiter import limiter
 from app.routes.notifications import send_notification
 
 router = APIRouter(prefix="/messages", tags=["Messaging"])
@@ -133,7 +135,8 @@ def get_contacts(db: Session = Depends(get_db), current_user=Depends(get_current
 
 
 @router.post("/")
-def send_message(data: MessageCreate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+@limiter.limit("20/minute")
+def send_message(request: Request, data: MessageCreate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     # Enforce messaging restrictions
     allowed_ids = _get_allowed_recipient_ids(db, current_user)
     if allowed_ids is not None and data.recipient_user_id not in allowed_ids:
@@ -220,3 +223,116 @@ def reply(message_id: int, data: MessageCreate, db: Session = Depends(get_db), c
     send_notification(db, data.recipient_user_id, f"Reply: {original.subject}", data.body[:100])
     db.commit()
     return success_response(_fmt(reply_msg), "Reply sent")
+
+
+# ── Broadcast messaging ────────────────────────────────────────────────────────
+
+class BroadcastCreate(BaseModel):
+    target_type: str   # "role" | "class" | "class_parents"
+    target_value: str  # role name or class_id
+    subject: str
+    body: str
+
+
+def _get_broadcast_recipients(db: Session, target_type: str, target_value: str, sender_id: int) -> list[User]:
+    from app.models.student import Student
+    from app.models.parent import Parent, ParentStudent
+    from app.models.class_ import Class
+
+    if target_type == "role":
+        try:
+            role = UserRole(target_value)
+        except ValueError:
+            return []
+        return db.query(User).filter(
+            User.role == role, User.is_active == True, User.id != sender_id
+        ).all()
+
+    if target_type == "class":
+        # All students in the class who have user accounts
+        students = db.query(Student).filter(Student.current_class_id == int(target_value)).all()
+        user_ids = {s.user_id for s in students if getattr(s, "user_id", None)}
+        if not user_ids:
+            return []
+        return db.query(User).filter(User.id.in_(user_ids), User.id != sender_id).all()
+
+    if target_type == "class_parents":
+        # Parents of all students in the class
+        students = db.query(Student).filter(Student.current_class_id == int(target_value)).all()
+        parent_ids: set[int] = set()
+        for s in students:
+            links = db.query(ParentStudent).filter(ParentStudent.student_id == s.id).all()
+            for lnk in links:
+                parent = db.query(Parent).filter(Parent.id == lnk.parent_id).first()
+                if parent and parent.user_id:
+                    parent_ids.add(parent.user_id)
+        if not parent_ids:
+            return []
+        return db.query(User).filter(User.id.in_(parent_ids), User.id != sender_id).all()
+
+    return []
+
+
+@router.get("/broadcast-groups")
+def get_broadcast_groups(db: Session = Depends(get_db), current_user=Depends(is_principal_or_above)):
+    from app.models.class_ import Class
+    from app.models.student import Student
+
+    groups = []
+
+    # Role-based groups
+    role_groups = [
+        ("role", UserRole.PARENT,             "All Parents"),
+        ("role", UserRole.TEACHER,            "All Teachers"),
+        ("role", UserRole.STUDENT,            "All Students"),
+        ("role", UserRole.NON_TEACHING_STAFF, "All Non-Teaching Staff"),
+        ("role", UserRole.ADMIN,              "All Admin"),
+    ]
+    for ttype, role, label in role_groups:
+        count = db.query(User).filter(User.role == role, User.is_active == True).count()
+        if count > 0:
+            groups.append({"type": ttype, "value": role.value, "label": label, "count": count})
+
+    # Class-based groups
+    classes = db.query(Class).order_by(Class.name).all()
+    for cls in classes:
+        student_count = db.query(Student).filter(Student.current_class_id == cls.id).count()
+        if student_count > 0:
+            groups.append({
+                "type": "class_parents",
+                "value": str(cls.id),
+                "label": f"Parents of {cls.name}",
+                "count": student_count,
+            })
+
+    return success_response(groups)
+
+
+@router.post("/broadcast")
+@limiter.limit("5/minute")
+def broadcast_message(
+    request: Request,
+    data: BroadcastCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(is_principal_or_above),
+):
+    if not data.subject.strip() or not data.body.strip():
+        raise HTTPException(status_code=400, detail="Subject and body are required")
+
+    recipients = _get_broadcast_recipients(db, data.target_type, data.target_value, current_user.id)
+    if not recipients:
+        raise HTTPException(status_code=400, detail="No recipients found for this group")
+
+    for user in recipients:
+        msg = Message(
+            sender_user_id=current_user.id,
+            recipient_user_id=user.id,
+            subject=data.subject,
+            body=data.body,
+        )
+        db.add(msg)
+        db.flush()
+        send_notification(db, user.id, f"Message: {data.subject}", data.body[:100])
+
+    db.commit()
+    return success_response({"sent_to": len(recipients)}, f"Message sent to {len(recipients)} recipients")

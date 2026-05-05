@@ -1,5 +1,5 @@
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.schemas.auth import LoginRequest, TokenResponse, RefreshRequest
@@ -9,13 +9,15 @@ from app.utils.auth import (
     decode_refresh_token, get_current_user
 )
 from app.utils.response import success_response
+from app.utils.limiter import limiter
 from app.crud.user import get_user_by_email, set_reset_token, reset_password
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(data: LoginRequest, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
     user = get_user_by_email(db, data.email)
     if not user or not verify_password(data.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
@@ -28,7 +30,8 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/refresh")
-def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)):
+@limiter.limit("30/minute")
+def refresh_token(request: Request, data: RefreshRequest, db: Session = Depends(get_db)):
     payload = decode_refresh_token(data.refresh_token)
     user_id = payload.get("sub")
     from app.crud.user import get_user_by_id
@@ -40,7 +43,8 @@ def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/forgot-password")
-def forgot_password(data: ForgotPassword, db: Session = Depends(get_db)):
+@limiter.limit("3/minute")
+def forgot_password(request: Request, data: ForgotPassword, db: Session = Depends(get_db)):
     from app.utils.email import send_password_reset_email
     user = get_user_by_email(db, data.email)
     if user:
@@ -51,7 +55,8 @@ def forgot_password(data: ForgotPassword, db: Session = Depends(get_db)):
 
 
 @router.post("/reset-password")
-def reset_user_password(data: PasswordReset, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def reset_user_password(request: Request, data: PasswordReset, db: Session = Depends(get_db)):
     from app.models.user import User
     user = db.query(User).filter(User.password_reset_token == data.token).first()
     if not user or not user.password_reset_expires or user.password_reset_expires < datetime.utcnow():
