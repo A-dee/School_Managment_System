@@ -77,9 +77,10 @@ def test_email(to_email: str, db: Session = Depends(get_db), current_user=Depend
     from email.mime.multipart import MIMEMultipart
 
     if app_settings.RESEND_API_KEY and app_settings.RESEND_API_KEY != "re_placeholder":
-        ok = _send_via_resend(to_email, "Test Email from SMS", "<p>This is a test email from your School Management System.</p>")
-        if not ok:
-            raise HTTPException(status_code=500, detail="Resend API failed — check your RESEND_API_KEY environment variable.")
+        try:
+            _send_via_resend(to_email, "Test Email from SMS", "<p>This is a test email from your School Management System.</p>", raise_on_error=True)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Resend error: {str(e)}")
         return success_response(None, f"Test email sent via Resend to {to_email}")
 
     config = get_email_config(db)
@@ -123,7 +124,7 @@ def compose_email(data: ComposeEmail, db: Session = Depends(get_db), current_use
     from app.utils.email import _send_via_resend, get_email_config
     try:
         if app_settings.RESEND_API_KEY and app_settings.RESEND_API_KEY != "re_placeholder":
-            _send_via_resend(data.to_email, data.subject, f"<div style='font-family:sans-serif;white-space:pre-wrap'>{data.body}</div>")
+            _send_via_resend(data.to_email, data.subject, f"<div style='font-family:sans-serif;white-space:pre-wrap'>{data.body}</div>", raise_on_error=True)
         else:
             config = get_email_config(db)
             if not config:

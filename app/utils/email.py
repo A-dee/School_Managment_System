@@ -9,18 +9,24 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
-def _send_via_resend(to_email: str, subject: str, html_body: str) -> bool:
-    """Send via Resend API. Returns True on success, raises on failure."""
-    import resend
-    resend.api_key = settings.RESEND_API_KEY
-    result = resend.Emails.send({
-        "from": settings.EMAIL_FROM,
-        "to": [to_email],
-        "subject": subject,
-        "html": html_body,
-    })
-    logger.info("Resend: sent to=%s subject=%s id=%s", to_email, subject, getattr(result, "id", result))
-    return True
+def _send_via_resend(to_email: str, subject: str, html_body: str, raise_on_error: bool = False) -> bool:
+    """Send via Resend API. Returns True on success, False (or raises) on failure."""
+    try:
+        import resend
+        resend.api_key = settings.RESEND_API_KEY
+        result = resend.Emails.send({
+            "from": settings.EMAIL_FROM,
+            "to": [to_email],
+            "subject": subject,
+            "html": html_body,
+        })
+        logger.info("Resend: sent to=%s subject=%s id=%s", to_email, subject, getattr(result, "id", result))
+        return True
+    except Exception as exc:
+        logger.error("Resend send failed to=%s: %s", to_email, exc)
+        if raise_on_error:
+            raise
+        return False
 
 
 def _dispatch(
