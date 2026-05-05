@@ -119,7 +119,20 @@ class ComposeEmail(BaseModel):
 
 @router.post("/compose")
 def compose_email(data: ComposeEmail, db: Session = Depends(get_db), current_user=Depends(is_principal_or_above)):
-    ok = send_email(db, data.to_email, data.subject, data.body)
-    if not ok:
-        raise HTTPException(status_code=500, detail="Failed to send email — check your email configuration in Settings.")
+    from app.config import settings as app_settings
+    from app.utils.email import _send_via_resend, get_email_config
+    try:
+        if app_settings.RESEND_API_KEY and app_settings.RESEND_API_KEY != "re_placeholder":
+            _send_via_resend(data.to_email, data.subject, f"<div style='font-family:sans-serif;white-space:pre-wrap'>{data.body}</div>")
+        else:
+            config = get_email_config(db)
+            if not config:
+                raise HTTPException(status_code=400, detail="No email provider configured. Add RESEND_API_KEY to your environment or save SMTP settings.")
+            ok = send_email(db, data.to_email, data.subject, data.body)
+            if not ok:
+                raise HTTPException(status_code=500, detail="SMTP send failed — check your SMTP credentials in Settings.")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Email error: {str(e)}")
     return success_response(None, f"Email sent to {data.to_email}")

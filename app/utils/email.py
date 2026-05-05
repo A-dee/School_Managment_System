@@ -10,21 +10,17 @@ logger = logging.getLogger(__name__)
 
 
 def _send_via_resend(to_email: str, subject: str, html_body: str) -> bool:
-    """Send via Resend API. Returns True on success."""
-    try:
-        import resend
-        resend.api_key = settings.RESEND_API_KEY
-        resend.Emails.send({
-            "from": settings.EMAIL_FROM,
-            "to": [to_email],
-            "subject": subject,
-            "html": html_body,
-        })
-        logger.info("Resend: sent to=%s subject=%s", to_email, subject)
-        return True
-    except Exception as exc:
-        logger.error("Resend send failed to=%s: %s", to_email, exc)
-        return False
+    """Send via Resend API. Returns True on success, raises on failure."""
+    import resend
+    resend.api_key = settings.RESEND_API_KEY
+    result = resend.Emails.send({
+        "from": settings.EMAIL_FROM,
+        "to": [to_email],
+        "subject": subject,
+        "html": html_body,
+    })
+    logger.info("Resend: sent to=%s subject=%s id=%s", to_email, subject, getattr(result, "id", result))
+    return True
 
 
 def _dispatch(
