@@ -61,7 +61,7 @@ export default function SettingsPage() {
   const [testing, setTesting] = useState(false);
 
   useEffect(() => {
-    api.get("/email-config/").then(res => {
+    api.get("/api/v1/email-config/").then(res => {
       const d = res.data.data;
       setConfig(c => ({ ...c, smtp_host: d.smtp_host, smtp_port: d.smtp_port, smtp_user: d.smtp_user, from_name: d.from_name }));
     }).catch(() => {});
@@ -70,7 +70,7 @@ export default function SettingsPage() {
   const save = async () => {
     setSaving(true);
     try {
-      await api.post("/email-config/", config);
+      await api.post("/api/v1/email-config/", config);
       toast.success("Email configuration saved");
     } catch (e: any) {
       toast.error(e?.response?.data?.detail || "Failed to save");
@@ -82,7 +82,7 @@ export default function SettingsPage() {
     if (!testEmail) { toast.error("Enter a test email"); return; }
     setTesting(true);
     try {
-      await api.post(`/email-config/test?to_email=${encodeURIComponent(testEmail)}`);
+      await api.post(`/api/v1/email-config/test?to_email=${encodeURIComponent(testEmail)}`);
       toast.success(`Test email sent to ${testEmail}`);
     } catch (e: any) {
       toast.error(e?.response?.data?.detail || "Failed — check SMTP credentials");
