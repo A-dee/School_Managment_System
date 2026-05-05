@@ -60,6 +60,8 @@ def send_email(
     body: str,
     html_body: Optional[str] = None,
 ) -> bool:
+    if settings.RESEND_API_KEY and settings.RESEND_API_KEY != "re_placeholder":
+        return _send_via_resend(to_email, subject, html_body or f"<pre style='font-family:sans-serif'>{body}</pre>")
     config = get_email_config(db)
     if not config:
         logger.warning("No email config found — email not sent")

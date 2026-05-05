@@ -37,7 +37,7 @@ def create_parent(data: ParentCreate, db: Session = Depends(get_db), current_use
     db.add(parent)
     db.commit()
     db.refresh(parent)
-    send_login_credentials(db, data.user_email, data.user_password, data.full_name)
+    send_login_credentials(db, data.user_email, data.full_name, data.user_password, "Parent")
     return success_response(ParentOut.model_validate(parent).model_dump(), "Parent created")
 
 

@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import { login } from "@/lib/api";
 import { setTokens, setRole, getDashboardPath } from "@/lib/auth";
 import { Eye, EyeOff, LogIn } from "lucide-react";
+import api from "@/lib/api";
 
 interface LoginForm {
   email: string;
@@ -16,7 +17,23 @@ export default function LoginPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSending, setForgotSending] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>();
+
+  const sendForgot = async () => {
+    if (!forgotEmail) { toast.error("Enter your email"); return; }
+    setForgotSending(true);
+    try {
+      await api.post("/api/v1/auth/forgot-password", { email: forgotEmail });
+      setForgotSent(true);
+    } catch {
+      toast.error("Something went wrong. Try again.");
+    }
+    setForgotSending(false);
+  };
 
   const onSubmit = async (data: LoginForm) => {
     setLoading(true);
@@ -218,11 +235,58 @@ export default function LoginPage() {
                 </>
               )}
             </button>
+
+            <button
+              type="button"
+              onClick={() => { setForgotOpen(true); setForgotSent(false); setForgotEmail(""); }}
+              style={{ background: "none", border: "none", color: "#2563eb", fontSize: "0.8125rem", cursor: "pointer", textAlign: "center", width: "100%", marginTop: 4 }}
+            >
+              Forgot your password?
+            </button>
           </form>
 
           <p style={{ textAlign: "center", color: "#94a3b8", fontSize: "0.75rem", marginTop: 32 }}>
             School Management System &copy; {new Date().getFullYear()}
           </p>
+
+          {forgotOpen && (
+            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
+              <div style={{ background: "#fff", borderRadius: 14, padding: "28px 28px 24px", width: "100%", maxWidth: 380, boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+                {forgotSent ? (
+                  <>
+                    <h3 style={{ fontWeight: 800, fontSize: "1.1rem", color: "#0f172a", marginBottom: 10 }}>Check your email</h3>
+                    <p style={{ color: "#475569", fontSize: "0.875rem", marginBottom: 20 }}>
+                      If an account exists for <strong>{forgotEmail}</strong>, a password reset link has been sent. Check your inbox (and spam folder).
+                    </p>
+                    <button onClick={() => setForgotOpen(false)} style={{ width: "100%", padding: "10px", borderRadius: 10, background: "#2563eb", color: "#fff", fontWeight: 700, border: "none", cursor: "pointer" }}>
+                      Done
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <h3 style={{ fontWeight: 800, fontSize: "1.1rem", color: "#0f172a", marginBottom: 6 }}>Reset Password</h3>
+                    <p style={{ color: "#64748b", fontSize: "0.8125rem", marginBottom: 18 }}>Enter your email and we&apos;ll send a reset link.</p>
+                    <input
+                      type="email"
+                      placeholder="your@email.com"
+                      value={forgotEmail}
+                      onChange={e => setForgotEmail(e.target.value)}
+                      onKeyDown={e => e.key === "Enter" && sendForgot()}
+                      style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1.5px solid #e2e8f0", fontSize: "0.9rem", marginBottom: 14, outline: "none", boxSizing: "border-box" }}
+                    />
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={sendForgot} disabled={forgotSending} style={{ flex: 1, padding: "10px", borderRadius: 10, background: forgotSending ? "#93c5fd" : "#2563eb", color: "#fff", fontWeight: 700, border: "none", cursor: forgotSending ? "not-allowed" : "pointer" }}>
+                        {forgotSending ? "Sending..." : "Send Reset Link"}
+                      </button>
+                      <button onClick={() => setForgotOpen(false)} style={{ padding: "10px 16px", borderRadius: 10, background: "#f1f5f9", color: "#475569", fontWeight: 600, border: "none", cursor: "pointer" }}>
+                        Cancel
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

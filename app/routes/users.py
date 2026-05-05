@@ -12,6 +12,7 @@ from app.utils.auth import get_current_user, verify_password
 from app.utils.rbac import is_principal_or_above, is_super_admin
 from app.utils.response import success_response, paginated_response
 from app.utils.audit import log_action
+from app.utils.email import send_login_credentials
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -26,9 +27,11 @@ def create_new_user(
         raise HTTPException(status_code=403, detail="Only SUPER_ADMIN can create PRINCIPAL accounts")
     if get_user_by_email(db, data.email):
         raise HTTPException(status_code=400, detail="Email already registered")
+    plain_password = data.password
     user = create_user(db, data)
     log_action(db, "CREATE_USER", "User", current_user.id, entity_id=user.id, new_value={"email": user.email, "role": user.role.value})
     db.commit()
+    send_login_credentials(db, user.email, user.email.split("@")[0], plain_password, user.role.value)
     return success_response(UserOut.model_validate(user).model_dump(), "User created")
 
 

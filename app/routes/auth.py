@@ -41,12 +41,12 @@ def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)):
 
 @router.post("/forgot-password")
 def forgot_password(data: ForgotPassword, db: Session = Depends(get_db)):
+    from app.utils.email import send_password_reset_email
     user = get_user_by_email(db, data.email)
     if user:
         token = set_reset_token(db, user)
         db.commit()
-        # In production, send email here. Return token in dev mode.
-        return success_response({"reset_token": token}, "Password reset token generated")
+        send_password_reset_email(to_email=user.email, reset_token=token, user_name=user.email, db=db)
     return success_response(None, "If the email exists, a reset link has been sent")
 
 

@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from typing import Optional
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.email_config import EmailConfig
-from app.utils.rbac import is_super_admin
+from app.utils.rbac import is_super_admin, is_principal_or_above
 from app.utils.response import success_response
 from app.utils.email import send_email
 
@@ -70,10 +70,17 @@ def get_config(db: Session = Depends(get_db), current_user=Depends(is_super_admi
 
 @router.post("/test")
 def test_email(to_email: str, db: Session = Depends(get_db), current_user=Depends(is_super_admin)):
-    from app.utils.email import get_email_config
+    from app.config import settings as app_settings
+    from app.utils.email import get_email_config, _send_via_resend
     import smtplib
     from email.mime.text import MIMEText
     from email.mime.multipart import MIMEMultipart
+
+    if app_settings.RESEND_API_KEY and app_settings.RESEND_API_KEY != "re_placeholder":
+        ok = _send_via_resend(to_email, "Test Email from SMS", "<p>This is a test email from your School Management System.</p>")
+        if not ok:
+            raise HTTPException(status_code=500, detail="Resend API failed — check your RESEND_API_KEY environment variable.")
+        return success_response(None, f"Test email sent via Resend to {to_email}")
 
     config = get_email_config(db)
     if not config:
@@ -93,12 +100,26 @@ def test_email(to_email: str, db: Session = Depends(get_db), current_user=Depend
             server.login(config.smtp_user, config.smtp_password)
             server.sendmail(config.smtp_user, to_email, msg.as_string())
 
-        return success_response(None, f"Test email sent to {to_email}")
+        return success_response(None, f"Test email sent via SMTP to {to_email}")
     except smtplib.SMTPAuthenticationError:
-        raise HTTPException(status_code=400, detail="Authentication failed — wrong email or app password. For Gmail use an App Password, not your regular password.")
+        raise HTTPException(status_code=400, detail="Authentication failed — wrong email or app password.")
     except smtplib.SMTPConnectError:
-        raise HTTPException(status_code=400, detail=f"Cannot connect to {config.smtp_host}:{config.smtp_port} — check host/port or server firewall.")
+        raise HTTPException(status_code=400, detail=f"Cannot connect to {config.smtp_host}:{config.smtp_port} — server firewall may be blocking SMTP.")
     except smtplib.SMTPRecipientsRefused:
         raise HTTPException(status_code=400, detail=f"Recipient {to_email} was refused by the server.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"SMTP error: {str(e)}")
+
+
+class ComposeEmail(BaseModel):
+    to_email: EmailStr
+    subject: str
+    body: str
+
+
+@router.post("/compose")
+def compose_email(data: ComposeEmail, db: Session = Depends(get_db), current_user=Depends(is_principal_or_above)):
+    ok = send_email(db, data.to_email, data.subject, data.body)
+    if not ok:
+        raise HTTPException(status_code=500, detail="Failed to send email — check your email configuration in Settings.")
+    return success_response(None, f"Email sent to {data.to_email}")

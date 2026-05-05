@@ -258,14 +258,17 @@ export default function SettingsPage() {
           </div>
         )}
 
+        <ComposeEmailCard />
+
         <div className="t-card mt-4">
           <h2 className="font-semibold t-text-primary mb-3">Auto Email Triggers</h2>
           <div className="space-y-2 text-sm">
             {[
-              "✅ Login credentials sent when staff/parent account created",
+              "✅ Login credentials sent when staff/parent/user account created",
               "✅ Fee reminder sent to parents when invoice is generated",
               "✅ Result notification sent when results are published",
               "✅ Discipline alert sent to parent when record is created",
+              "✅ Password reset link sent via Forgot Password on login page",
             ].map((item) => (
               <p key={item} className="t-text-secondary">{item}</p>
             ))}
@@ -273,5 +276,58 @@ export default function SettingsPage() {
         </div>
       </div>
     </DashboardLayout>
+  );
+}
+
+function ComposeEmailCard() {
+  const [to, setTo] = useState("");
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const send = async () => {
+    if (!to || !subject || !body) { toast.error("Fill in all fields"); return; }
+    setSending(true);
+    try {
+      await api.post("/api/v1/email-config/compose", { to_email: to, subject, body });
+      toast.success(`Email sent to ${to}`);
+      setTo(""); setSubject(""); setBody("");
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || "Failed to send email");
+    }
+    setSending(false);
+  };
+
+  return (
+    <div className="t-card mt-4">
+      <div className="flex items-center gap-2 mb-4">
+        <Mail size={18} style={{ color: "var(--accent)" }} />
+        <h2 className="font-semibold t-text-primary">Compose & Send Email</h2>
+      </div>
+      <div className="space-y-3">
+        <div>
+          <label className="t-label">To (email address)</label>
+          <input className="t-input" type="email" placeholder="recipient@example.com" value={to} onChange={e => setTo(e.target.value)} />
+        </div>
+        <div>
+          <label className="t-label">Subject</label>
+          <input className="t-input" placeholder="Email subject" value={subject} onChange={e => setSubject(e.target.value)} />
+        </div>
+        <div>
+          <label className="t-label">Message</label>
+          <textarea
+            className="t-input"
+            rows={5}
+            placeholder="Write your message here..."
+            value={body}
+            onChange={e => setBody(e.target.value)}
+            style={{ resize: "vertical" }}
+          />
+        </div>
+        <button className="t-btn-primary w-full" onClick={send} disabled={sending}>
+          {sending ? "Sending..." : "Send Email"}
+        </button>
+      </div>
+    </div>
   );
 }
