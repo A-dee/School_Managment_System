@@ -25,6 +25,9 @@ export default function SettingsPage() {
   const [newPw, setNewPw] = useState("");
   const [resetting, setResetting] = useState(false);
   const [showPw, setShowPw] = useState(false);
+  const [testEmail, setTestEmail] = useState("");
+  const [testing, setTesting] = useState(false);
+  const [emailStatus, setEmailStatus] = useState<{ provider: string; from: string | null } | null>(null);
 
   useEffect(() => {
     const r = getRole();
@@ -32,6 +35,7 @@ export default function SettingsPage() {
       setIsSuperAdmin(true);
       api.get("/api/v1/users/").then(res => setUsers(res.data.data || [])).catch(() => {});
     }
+    api.get("/api/v1/email-config/status").then(res => setEmailStatus(res.data.data)).catch(() => {});
   }, []);
 
   const resetPassword = async () => {
@@ -48,38 +52,6 @@ export default function SettingsPage() {
     setResetting(false);
   };
 
-  const [config, setConfig] = useState({
-    smtp_host: "smtp.gmail.com",
-    smtp_port: 587,
-    smtp_user: "",
-    smtp_password: "",
-    from_name: "School Management System",
-  });
-  const [showPass, setShowPass] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [testEmail, setTestEmail] = useState("");
-  const [testing, setTesting] = useState(false);
-  const [emailStatus, setEmailStatus] = useState<{ provider: string; from: string | null } | null>(null);
-
-  useEffect(() => {
-    api.get("/api/v1/email-config/status").then(res => setEmailStatus(res.data.data)).catch(() => {});
-    api.get("/api/v1/email-config/").then(res => {
-      const d = res.data.data;
-      setConfig(c => ({ ...c, smtp_host: d.smtp_host, smtp_port: d.smtp_port, smtp_user: d.smtp_user, from_name: d.from_name }));
-    }).catch(() => {});
-  }, []);
-
-  const save = async () => {
-    setSaving(true);
-    try {
-      await api.post("/api/v1/email-config/", config);
-      toast.success("Email configuration saved");
-    } catch (e: any) {
-      toast.error(e?.response?.data?.detail || "Failed to save");
-    }
-    setSaving(false);
-  };
-
   const test = async () => {
     if (!testEmail) { toast.error("Enter a test email"); return; }
     setTesting(true);
@@ -87,7 +59,7 @@ export default function SettingsPage() {
       await api.post(`/api/v1/email-config/test?to_email=${encodeURIComponent(testEmail)}`);
       toast.success(`Test email sent to ${testEmail}`);
     } catch (e: any) {
-      toast.error(e?.response?.data?.detail || "Failed — check SMTP credentials");
+      toast.error(e?.response?.data?.detail || "Failed to send test email");
     }
     setTesting(false);
   };
@@ -96,115 +68,55 @@ export default function SettingsPage() {
     <DashboardLayout>
       <div className="mb-6">
         <h1 className="text-2xl font-bold t-text-primary">Settings</h1>
-        <p className="t-text-secondary text-sm mt-1">Configure school email service</p>
+        <p className="t-text-secondary text-sm mt-1">Email configuration and user management</p>
       </div>
 
       <div className="max-w-lg">
+        {/* Email provider status */}
         {emailStatus && (
           <div className={`flex items-center gap-3 px-4 py-3 rounded-lg mb-4 text-sm font-medium ${
-            emailStatus.provider === "resend"
-              ? "bg-green-50 text-green-800 border border-green-200"
-              : emailStatus.provider === "smtp"
-              ? "bg-blue-50 text-blue-800 border border-blue-200"
-              : "bg-red-50 text-red-800 border border-red-200"
+            emailStatus.provider === "resend" ? "bg-green-50 text-green-800 border border-green-200"
+            : emailStatus.provider === "smtp" ? "bg-blue-50 text-blue-800 border border-blue-200"
+            : "bg-red-50 text-red-800 border border-red-200"
           }`}>
             {emailStatus.provider === "resend" && <CheckCircle size={16} className="shrink-0" />}
-            {emailStatus.provider === "smtp" && <AlertCircle size={16} className="shrink-0" />}
-            {emailStatus.provider === "none" && <XCircle size={16} className="shrink-0" />}
+            {emailStatus.provider === "smtp"   && <AlertCircle size={16} className="shrink-0" />}
+            {emailStatus.provider === "none"   && <XCircle size={16} className="shrink-0" />}
             <span>
               {emailStatus.provider === "resend" && <>Email active via <strong>Resend API</strong> — sending from {emailStatus.from}</>}
-              {emailStatus.provider === "smtp" && <>Email active via <strong>SMTP</strong> — sending from {emailStatus.from}</>}
-              {emailStatus.provider === "none" && <>No email provider configured — emails will not be sent</>}
+              {emailStatus.provider === "smtp"   && <>Email active via <strong>SMTP</strong> — sending from {emailStatus.from}</>}
+              {emailStatus.provider === "none"   && <>No email provider configured — emails will not be sent</>}
             </span>
           </div>
         )}
 
+        {/* Test email */}
         <div className="t-card">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-4">
             <Mail size={20} style={{ color: "var(--accent)" }} />
-            <h2 className="font-semibold t-text-primary">Email (SMTP) Configuration</h2>
+            <h2 className="font-semibold t-text-primary">Test Email</h2>
           </div>
-          {emailStatus?.provider === "resend" && (
-            <p className="text-xs mb-4" style={{ color: "var(--text-secondary)" }}>
-              Resend API is active and takes priority. These SMTP settings are used as a fallback if Resend is ever removed.
-            </p>
-          )}
-
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="t-label">SMTP Host</label>
-                <input className="t-input" value={config.smtp_host}
-                  onChange={e => setConfig(c => ({ ...c, smtp_host: e.target.value }))} />
-              </div>
-              <div>
-                <label className="t-label">SMTP Port</label>
-                <input className="t-input" type="number" value={config.smtp_port}
-                  onChange={e => setConfig(c => ({ ...c, smtp_port: Number(e.target.value) }))} />
-              </div>
-            </div>
-
-            <div>
-              <label className="t-label">Email Address (school email)</label>
-              <input className="t-input" type="email" placeholder="hopehillsacademy@gmail.com"
-                value={config.smtp_user}
-                onChange={e => setConfig(c => ({ ...c, smtp_user: e.target.value }))} />
-            </div>
-
-            <div>
-              <label className="t-label">Email Password / App Password</label>
-              <div className="relative">
-                <input
-                  className="t-input pr-10"
-                  type={showPass ? "text" : "password"}
-                  placeholder="Your email password"
-                  value={config.smtp_password}
-                  onChange={e => setConfig(c => ({ ...c, smtp_password: e.target.value }))}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPass(p => !p)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 t-text-secondary"
-                >
-                  {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-              <p className="text-xs t-text-secondary mt-1">
-                For Gmail: use an <a href="https://myaccount.google.com/apppasswords" target="_blank" className="underline" style={{ color: "var(--accent)" }}>App Password</a>, not your Gmail password.
-              </p>
-            </div>
-
-            <div>
-              <label className="t-label">From Name</label>
-              <input className="t-input" placeholder="School Management System"
-                value={config.from_name}
-                onChange={e => setConfig(c => ({ ...c, from_name: e.target.value }))} />
-            </div>
-
-            <button className="t-btn-primary w-full" onClick={save} disabled={saving}>
-              {saving ? "Saving..." : "Save Configuration"}
+          <div className="flex gap-2">
+            <input className="t-input flex-1" type="email" placeholder="Send a test to this address"
+              value={testEmail} onChange={e => setTestEmail(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && test()} />
+            <button className="t-btn-primary shrink-0" onClick={test} disabled={testing}>
+              {testing ? "Sending..." : "Send Test"}
             </button>
-          </div>
-
-          <div className="mt-6 pt-5" style={{ borderTop: "1px solid var(--border)" }}>
-            <h3 className="text-sm font-semibold t-text-primary mb-3">Test Email</h3>
-            <div className="flex gap-2">
-              <input className="t-input flex-1" type="email" placeholder="test@example.com"
-                value={testEmail} onChange={e => setTestEmail(e.target.value)} />
-              <button className="t-btn-secondary text-sm shrink-0" onClick={test} disabled={testing}>
-                {testing ? "Sending..." : "Send Test"}
-              </button>
-            </div>
           </div>
         </div>
 
+        {/* Compose email */}
+        <ComposeEmailCard />
+
+        {/* User management — super admin only */}
         {isSuperAdmin && (
           <div className="t-card mt-4">
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+            <div className="flex items-center gap-2 mb-1">
               <Users size={18} style={{ color: "var(--accent)" }} />
               <h2 className="font-semibold t-text-primary">User Management</h2>
             </div>
-            <p className="t-text-secondary" style={{ fontSize: "0.8125rem", marginBottom: 14 }}>
+            <p className="t-text-secondary mb-4" style={{ fontSize: "0.8125rem" }}>
               Reset the password for any user account.
             </p>
 
@@ -258,8 +170,7 @@ export default function SettingsPage() {
           </div>
         )}
 
-        <ComposeEmailCard />
-
+        {/* Auto triggers info */}
         <div className="t-card mt-4">
           <h2 className="font-semibold t-text-primary mb-3">Auto Email Triggers</h2>
           <div className="space-y-2 text-sm">
@@ -306,7 +217,7 @@ function ComposeEmailCard() {
       </div>
       <div className="space-y-3">
         <div>
-          <label className="t-label">To (email address)</label>
+          <label className="t-label">To</label>
           <input className="t-input" type="email" placeholder="recipient@example.com" value={to} onChange={e => setTo(e.target.value)} />
         </div>
         <div>
@@ -315,14 +226,8 @@ function ComposeEmailCard() {
         </div>
         <div>
           <label className="t-label">Message</label>
-          <textarea
-            className="t-input"
-            rows={5}
-            placeholder="Write your message here..."
-            value={body}
-            onChange={e => setBody(e.target.value)}
-            style={{ resize: "vertical" }}
-          />
+          <textarea className="t-input" rows={5} placeholder="Write your message here..."
+            value={body} onChange={e => setBody(e.target.value)} style={{ resize: "vertical" }} />
         </div>
         <button className="t-btn-primary w-full" onClick={send} disabled={sending}>
           {sending ? "Sending..." : "Send Email"}
