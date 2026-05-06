@@ -13,7 +13,7 @@ export default function ParentChildrenPage() {
   useEffect(() => {
     Promise.allSettled([
       api.get("/api/v1/parents/me/children"),
-      api.get("/api/v1/classes?limit=200"),
+      api.get("/api/v1/classes/?limit=200"),
     ]).then(([c, cls]) => {
       if (c.status === "fulfilled") setChildren(c.value.data.data || []);
       if (cls.status === "fulfilled") setClasses(cls.value.data.data || []);

@@ -16,16 +16,26 @@ export default function ParentDashboard() {
   const [loading,       setLoading]       = useState(true);
 
   useEffect(() => {
+    // Load children first, then load per-child invoices using the parent-scoped endpoint
     Promise.allSettled([
       api.get("/api/v1/parents/me/children"),
       api.get("/api/v1/announcements/"),
       api.get("/api/v1/messages/unread/count"),
-      api.get("/api/v1/finance/invoices"),
-    ]).then(([ch, ann, unr, inv]) => {
-      if (ch.status === "fulfilled")  setChildren(ch.value.data.data || []);
+    ]).then(async ([ch, ann, unr]) => {
+      const kids: any[] = ch.status === "fulfilled" ? ch.value.data.data || [] : [];
       if (ann.status === "fulfilled") setAnnouncements((ann.value.data.data || []).slice(0, 3));
       if (unr.status === "fulfilled") setUnread(unr.value.data.data?.unread || 0);
-      if (inv.status === "fulfilled") setInvoices(inv.value.data.data || []);
+      setChildren(kids);
+
+      if (kids.length > 0) {
+        const invResults = await Promise.allSettled(
+          kids.map((k: any) => api.get(`/api/v1/finance/invoices/student/${k.id}`))
+        );
+        const allInvoices = invResults.flatMap(r =>
+          r.status === "fulfilled" ? r.value.data.data || [] : []
+        );
+        setInvoices(allInvoices);
+      }
     }).finally(() => setLoading(false));
   }, []);
 

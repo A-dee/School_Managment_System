@@ -5,6 +5,7 @@ from app.database import get_db
 from app.models.class_ import Class
 from app.schemas.class_ import ClassCreate, ClassOut, ClassUpdate
 from app.utils.rbac import is_principal_or_above, is_admin_or_above, is_teacher_or_above
+from app.utils.auth import get_current_user
 from app.utils.response import success_response, paginated_response
 
 router = APIRouter(prefix="/classes", tags=["Classes"])
@@ -23,7 +24,7 @@ def create_class(data: ClassCreate, db: Session = Depends(get_db), current_user=
 def list_classes(
     skip: int = 0, limit: int = 100, session_id: Optional[int] = None,
     class_teacher_id: Optional[int] = None,
-    db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above)
+    db: Session = Depends(get_db), current_user=Depends(get_current_user)
 ):
     q = db.query(Class)
     if session_id:
@@ -42,7 +43,7 @@ def list_classes(
 
 
 @router.get("/{class_id}")
-def get_class(class_id: int, db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above)):
+def get_class(class_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     cls = db.query(Class).filter(Class.id == class_id).first()
     if not cls:
         raise HTTPException(status_code=404, detail="Class not found")
