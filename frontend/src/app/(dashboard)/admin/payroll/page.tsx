@@ -28,7 +28,7 @@ export default function PayrollPage() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year,  setYear]  = useState(now.getFullYear());
   const [tab,   setTab]   = useState<Tab>("salaries");
-  const [staffTypeFilter, setStaffTypeFilter] = useState(isAdmin ? "TEACHER" : "");
+  const [staffTypeFilter, setStaffTypeFilter] = useState("");
 
   /* ---- Salaries tab state ---- */
   const [rows,    setRows]    = useState<Row[]>([]);
@@ -61,16 +61,25 @@ export default function PayrollPage() {
   const loadSalaries = async () => {
     setLoading(true);
     try {
-      const [staffR, payR] = await Promise.all([
-        api.get("/api/v1/staff?limit=200"),
+      const [staffR, payR] = await Promise.allSettled([
+        api.get("/api/v1/staff/?limit=200"),
         api.get(`/api/v1/finance/payroll?month=${month}&year=${year}`),
       ]);
-      const staffList: Staff[]   = staffR.data.data || [];
-      const payrolls:  Payroll[] = payR.data.data   || [];
+
+      if (staffR.status === "rejected") {
+        toast.error("Failed to load staff list — check your permissions");
+        setLoading(false);
+        return;
+      }
+
+      const staffList: Staff[]   = staffR.value.data.data || [];
+      const payrolls:  Payroll[] = payR.status === "fulfilled" ? (payR.value.data.data || []) : [];
       const payMap = Object.fromEntries(payrolls.map(p => [p.staff_id, p]));
       const active = staffList.filter(s => s.status === "ACTIVE");
       setRows(active.map(s => ({ ...s, payroll: payMap[s.id] ?? null })));
       setAllStaff(staffList);
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || "Failed to load payroll data");
     } finally { setLoading(false); }
   };
 
