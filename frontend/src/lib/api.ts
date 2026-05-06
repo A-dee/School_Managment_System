@@ -1,7 +1,11 @@
 import axios from "axios";
 import Cookies from "js-cookie";
 
-const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const _raw = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// Upgrade http → https when running in a secure browser context (prevents Mixed Content errors)
+const BASE = typeof window !== "undefined" && window.location.protocol === "https:" && _raw.startsWith("http://")
+  ? _raw.replace("http://", "https://")
+  : _raw;
 const API_URL = `${BASE}/api/v1`;
 
 const api = axios.create({
