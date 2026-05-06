@@ -25,27 +25,14 @@ router = APIRouter(prefix="/students", tags=["Students"])
 
 
 @router.post("/")
-def add_student(data: StudentCreate, db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above)):
+def add_student(data: StudentCreate, db: Session = Depends(get_db), current_user=Depends(is_admin_or_above)):
     import secrets
     from app.models.user import User, UserRole
     from app.models.parent import Parent, ParentStudent
-    from app.models.staff import Staff
-    from app.models.class_ import Class
     from app.utils.auth import hash_password
 
     if get_student_by_admission(db, data.admission_number):
         raise HTTPException(status_code=400, detail="Admission number already exists")
-
-    # Teachers can only enroll into their own class (if they have one assigned)
-    if current_user.role == UserRole.TEACHER:
-        staff = db.query(Staff).filter(Staff.user_id == current_user.id).first()
-        if staff and data.current_class_id:
-            cls = db.query(Class).filter(
-                Class.id == data.current_class_id,
-                Class.class_teacher_id == staff.id
-            ).first()
-            if not cls:
-                raise HTTPException(status_code=403, detail="You can only enroll students into your own class")
 
     student = create_student(db, data)
 
@@ -112,6 +99,39 @@ def add_student(data: StudentCreate, db: Session = Depends(get_db), current_user
         {**StudentOut.model_validate(student).model_dump(), "credentials": credentials},
         "Student created",
     )
+
+
+@router.patch("/{student_id}/assign-class")
+def assign_student_to_class(
+    student_id: int,
+    class_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(is_teacher_or_above),
+):
+    from app.models.user import UserRole
+    from app.models.staff import Staff
+    from app.models.class_ import Class
+
+    student = get_student_by_id(db, student_id)
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    if current_user.role == UserRole.TEACHER:
+        staff = db.query(Staff).filter(Staff.user_id == current_user.id).first()
+        if not staff:
+            raise HTTPException(status_code=403, detail="Staff profile not found")
+        cls = db.query(Class).filter(
+            Class.id == class_id,
+            Class.class_teacher_id == staff.id,
+        ).first()
+        if not cls:
+            raise HTTPException(status_code=403, detail="You can only enroll students into your own class")
+
+    student.current_class_id = class_id
+    log_action(db, "ASSIGN_CLASS", "Student", current_user.id, entity_id=student_id,
+               new_value={"class_id": class_id})
+    db.commit()
+    return success_response(None, "Student enrolled in class")
 
 
 @router.get("/")

@@ -13,7 +13,7 @@ from app.routes import (
     subjects, parents, results, attendance, discipline,
     finance, audit, notifications, exports, pdfs,
 )
-from app.routes import messages, email_config, report_card, seed, announcements
+from app.routes import messages, email_config, report_card, seed, announcements, calendar
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -65,6 +65,7 @@ app.include_router(email_config.router, prefix=API_PREFIX)
 app.include_router(report_card.router,  prefix=API_PREFIX)
 app.include_router(seed.router,         prefix=API_PREFIX)
 app.include_router(announcements.router, prefix=API_PREFIX)
+app.include_router(calendar.router,     prefix=API_PREFIX)
 
 
 @app.exception_handler(Exception)

@@ -18,3 +18,4 @@ from app.models.report_card_meta import ReportCardMeta
 from app.models.student_document import StudentDocument
 from app.models.announcement import Announcement
 from app.models.finance import PaymentDeclaration, OptionalFee
+from app.models.calendar import SchoolEvent

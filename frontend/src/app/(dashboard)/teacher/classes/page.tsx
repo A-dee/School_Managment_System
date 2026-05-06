@@ -1,10 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import api from "@/lib/api";
+import api, { assignStudentToClass } from "@/lib/api";
 import toast from "react-hot-toast";
-import { UserPlus, Users, BookOpen, ChevronDown, ChevronUp } from "lucide-react";
-import StudentRegistrationModal from "@/components/StudentRegistrationModal";
+import { UserPlus, Users, BookOpen, ChevronDown, ChevronUp, X, Search } from "lucide-react";
 
 export default function TeacherClassesPage() {
   const [assignments, setAssignments] = useState<any[]>([]);
@@ -13,38 +12,42 @@ export default function TeacherClassesPage() {
   const [students, setStudents] = useState<Record<number, any[]>>({});
   const [displayClassIds, setDisplayClassIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
-  const [registeringFor, setRegisteringFor] = useState<number | null>(null);
   const [expandedClass, setExpandedClass] = useState<number | null>(null);
+
+  // Enrollment modal state
+  const [enrollingFor, setEnrollingFor] = useState<number | null>(null);
+  const [unassigned, setUnassigned] = useState<any[]>([]);
+  const [enrollSearch, setEnrollSearch] = useState("");
+  const [enrollLoading, setEnrollLoading] = useState(false);
+  const [enrollSubmitting, setEnrollSubmitting] = useState<number | null>(null);
 
   const load = async () => {
     setLoading(true);
     try {
-      /* Step 1: get my staff profile */
       const meRes = await api.get("/api/v1/staff/me").catch(() => ({ data: { data: null } }));
       const myStaff: any = meRes.data.data;
 
-      /* Step 2: load everything in parallel */
       const requests: Promise<any>[] = [
         api.get("/api/v1/subjects/assignments"),
         api.get("/api/v1/subjects/"),
         api.get("/api/v1/classes/?limit=200"),
       ];
-      /* Use server-side filter to find my home class(es) reliably */
       if (myStaff) {
         requests.push(api.get(`/api/v1/classes/?class_teacher_id=${myStaff.id}&limit=10`));
       }
 
-      const [aRes, sRes, cRes, homeRes] = await Promise.all(requests);
-      const asgn: any[]      = aRes.data.data || [];
-      const subj: any[]      = sRes.data.data || [];
-      const cls: any[]       = cRes.data.data || [];
-      const homeClasses: any[] = homeRes?.data?.data || [];
+      const settled = await Promise.allSettled(requests);
+      const getValue = (r: PromiseSettledResult<any>) =>
+        r.status === "fulfilled" ? r.value.data.data || [] : [];
+      const asgn: any[]        = getValue(settled[0]);
+      const subj: any[]        = getValue(settled[1]);
+      const cls: any[]         = getValue(settled[2]);
+      const homeClasses: any[] = settled[3] ? getValue(settled[3]) : [];
 
       setAssignments(asgn);
       setSubjects(subj);
       setClasses(cls);
 
-      /* Union: classes from subject assignments + classes where I'm the class teacher */
       const classIdSet = new Set<number>([
         ...asgn.map((a: any) => a.class_id),
         ...homeClasses.map((c: any) => c.id),
@@ -52,7 +55,6 @@ export default function TeacherClassesPage() {
       const allClassIds = [...classIdSet];
       setDisplayClassIds(allClassIds);
 
-      /* Load students for each class */
       const studentMap: Record<number, any[]> = {};
       await Promise.all(allClassIds.map(async (cid: number) => {
         const r = await api.get(`/api/v1/students/?class_id=${cid}&limit=200`);
@@ -75,6 +77,44 @@ export default function TeacherClassesPage() {
     const r = await api.get(`/api/v1/students/?class_id=${classId}&limit=200`);
     setStudents(p => ({ ...p, [classId]: r.data.data || [] }));
   };
+
+  const openEnroll = async (classId: number) => {
+    setEnrollingFor(classId);
+    setEnrollSearch("");
+    setEnrollLoading(true);
+    try {
+      const r = await api.get("/api/v1/students/?limit=500&status=ACTIVE");
+      const all: any[] = r.data.data || [];
+      setUnassigned(all.filter((s: any) => !s.current_class_id));
+    } catch {
+      toast.error("Failed to load students");
+    }
+    setEnrollLoading(false);
+  };
+
+  const enrollStudent = async (studentId: number) => {
+    if (!enrollingFor) return;
+    setEnrollSubmitting(studentId);
+    try {
+      await assignStudentToClass(studentId, enrollingFor);
+      toast.success("Student enrolled successfully");
+      setUnassigned(u => u.filter(s => s.id !== studentId));
+      await reloadClassStudents(enrollingFor);
+      setExpandedClass(enrollingFor);
+    } catch (e: any) {
+      toast.error(e.response?.data?.detail || "Failed to enroll student");
+    }
+    setEnrollSubmitting(null);
+  };
+
+  const filteredUnassigned = unassigned.filter(s => {
+    const q = enrollSearch.toLowerCase();
+    return (
+      s.first_name.toLowerCase().includes(q) ||
+      s.last_name.toLowerCase().includes(q) ||
+      s.admission_number.toLowerCase().includes(q)
+    );
+  });
 
   return (
     <DashboardLayout>
@@ -135,11 +175,11 @@ export default function TeacherClassesPage() {
                       {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                     </button>
                     <button
-                      onClick={() => setRegisteringFor(classId)}
+                      onClick={() => openEnroll(classId)}
                       className="t-btn-primary"
                       style={{ fontSize: "0.75rem", padding: "5px 12px", display: "flex", alignItems: "center", gap: 5 }}
                     >
-                      <UserPlus size={12} /> Register Student
+                      <UserPlus size={12} /> Enroll Student
                     </button>
                   </div>
                 </div>
@@ -148,7 +188,7 @@ export default function TeacherClassesPage() {
                   <div style={{ marginTop: 16 }}>
                     {classStudents.length === 0 ? (
                       <p className="t-text-secondary" style={{ fontSize: "0.8125rem", textAlign: "center", padding: "20px 0" }}>
-                        No students enrolled yet. Use "Register Student" to add students.
+                        No students enrolled yet. Use &ldquo;Enroll Student&rdquo; to add students.
                       </p>
                     ) : (
                       <div className="overflow-x-auto">
@@ -189,17 +229,69 @@ export default function TeacherClassesPage() {
         </div>
       )}
 
-      {registeringFor !== null && (
-        <StudentRegistrationModal
-          classId={registeringFor}
-          classes={classes}
-          onClose={() => setRegisteringFor(null)}
-          onSuccess={async () => {
-            await reloadClassStudents(registeringFor!);
-            setExpandedClass(registeringFor);
-            setRegisteringFor(null);
-          }}
-        />
+      {/* Enroll Student Modal */}
+      {enrollingFor !== null && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 16 }}>
+          <div className="t-card" style={{ width: "100%", maxWidth: 520, maxHeight: "80vh", display: "flex", flexDirection: "column", gap: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
+              <div>
+                <h2 className="font-semibold t-text-primary" style={{ fontSize: "1rem" }}>Enroll Student</h2>
+                <p className="t-text-secondary" style={{ fontSize: "0.8125rem" }}>
+                  {getClass(enrollingFor)?.name || `Class #${enrollingFor}`} — pick an unassigned student
+                </p>
+              </div>
+              <button onClick={() => setEnrollingFor(null)} className="t-btn-secondary" style={{ padding: 6 }}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ padding: "12px 20px", borderBottom: "1px solid var(--border)" }}>
+              <div style={{ position: "relative" }}>
+                <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-secondary)" }} />
+                <input
+                  className="t-input"
+                  style={{ paddingLeft: 32, width: "100%" }}
+                  placeholder="Search by name or admission no."
+                  value={enrollSearch}
+                  onChange={e => setEnrollSearch(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div style={{ flex: 1, overflowY: "auto", padding: "8px 20px 20px" }}>
+              {enrollLoading ? (
+                <div className="flex justify-center py-8"><div className="t-spinner" /></div>
+              ) : filteredUnassigned.length === 0 ? (
+                <p className="t-text-secondary" style={{ textAlign: "center", padding: "32px 0", fontSize: "0.875rem" }}>
+                  {enrollSearch ? "No students match your search." : "No unassigned students found."}
+                </p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+                  {filteredUnassigned.map((s: any) => (
+                    <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 12px", borderRadius: 8, background: "var(--bg-card-inner, rgba(0,0,0,0.03))", border: "1px solid var(--border)" }}>
+                      <div>
+                        <p className="font-medium t-text-primary" style={{ fontSize: "0.875rem" }}>
+                          {s.first_name} {s.last_name}
+                        </p>
+                        <p className="t-text-secondary" style={{ fontSize: "0.75rem" }}>
+                          {s.admission_number} &nbsp;·&nbsp; {s.gender}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => enrollStudent(s.id)}
+                        disabled={enrollSubmitting === s.id}
+                        className="t-btn-primary"
+                        style={{ fontSize: "0.75rem", padding: "5px 14px", flexShrink: 0 }}
+                      >
+                        {enrollSubmitting === s.id ? "..." : "Enroll"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </DashboardLayout>
   );

@@ -97,3 +97,14 @@ export const getUnreadCount = () => api.get("/api/v1/messages/unread/count");
 
 // Audit logs
 export const getAuditLogs = (params?: object) => api.get("/api/v1/audit-logs", { params });
+
+// Student class assignment (teacher-accessible)
+export const assignStudentToClass = (student_id: number, class_id: number) =>
+  api.patch(`/api/v1/students/${student_id}/assign-class`, null, { params: { class_id } });
+
+// Calendar / School Events
+export const getCalendarEvents = (params?: { year?: number; month?: number }) =>
+  api.get("/api/v1/calendar/", { params });
+export const createCalendarEvent = (data: object) => api.post("/api/v1/calendar/", data);
+export const updateCalendarEvent = (id: number, data: object) => api.put(`/api/v1/calendar/${id}`, data);
+export const deleteCalendarEvent = (id: number) => api.delete(`/api/v1/calendar/${id}`);
