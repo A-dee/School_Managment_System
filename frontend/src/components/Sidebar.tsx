@@ -114,11 +114,12 @@ const roleNavItems: Record<string, { label: string; href: string; icon: any; sec
 };
 
 const themes: { id: Theme; label: string; color: string; bg: string }[] = [
-  { id: "light",    label: "Light",    color: "#4f46e5", bg: "#eef2ff" },
-  { id: "dark",     label: "Dark",     color: "#6366f1", bg: "#0d1117" },
-  { id: "glass",    label: "Aurora",   color: "#ec4899", bg: "rgba(188,212,238,0.8)" },
-  { id: "nova",     label: "Nova",     color: "#818cf8", bg: "#070412" },
-  { id: "business", label: "Business", color: "#0369a1", bg: "#eef2f8" },
+  { id: "light",      label: "Light",    color: "#4f46e5", bg: "#eef2ff" },
+  { id: "dark",       label: "Dark",     color: "#6366f1", bg: "#0d1117" },
+  { id: "glass",      label: "Aurora",   color: "#ec4899", bg: "rgba(188,212,238,0.8)" },
+  { id: "nova",       label: "Nova",     color: "#818cf8", bg: "#070412" },
+  { id: "business",   label: "Business", color: "#0369a1", bg: "#eef2f8" },
+  { id: "mono-glass", label: "Mono",     color: "#6b7280", bg: "rgba(215,220,228,0.9)" },
 ];
 
 const roleLabel: Record<string, string> = {

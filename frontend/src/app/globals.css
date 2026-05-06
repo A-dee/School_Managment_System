@@ -247,6 +247,54 @@
   --topbar-border:      rgba(255,255,255,0.08);
 }
 
+/* ── MONO GLASS (SILVER FROST) ──────────────────── */
+[data-theme="mono-glass"] {
+  --bg-page:            #d4d8e0;
+  --bg-card:            rgba(255,255,255,0.45);
+  --bg-card-glass:      rgba(255,255,255,0.22);
+  --bg-sidebar:         #111116;
+  --bg-sidebar-hover:   rgba(255,255,255,0.09);
+  --bg-sidebar-active:  rgba(255,255,255,0.16);
+  --sidebar-text:       #e8eaed;
+  --sidebar-muted:      rgba(232,234,237,0.45);
+  --sidebar-brand:      #ffffff;
+  --text-primary:       #0d0f14;
+  --text-secondary:     #6b7280;
+  --border:             rgba(255,255,255,0.52);
+  --border-strong:      rgba(255,255,255,0.72);
+  --accent:             #4b5563;
+  --accent-hover:       #374151;
+  --accent-light:       rgba(75,85,99,0.10);
+  --accent-text:        #374151;
+  --success:            #16a34a;
+  --success-bg:         rgba(22,163,74,0.08);
+  --danger:             #dc2626;
+  --danger-bg:          rgba(220,38,38,0.08);
+  --warn:               #b45309;
+  --warn-bg:            rgba(180,83,9,0.08);
+  --info:               #374151;
+  --info-bg:            rgba(75,85,99,0.08);
+  --badge-success-bg:   rgba(22,163,74,0.14);
+  --badge-success-text: #15803d;
+  --badge-danger-bg:    rgba(220,38,38,0.13);
+  --badge-danger-text:  #b91c1c;
+  --badge-warn-bg:      rgba(180,83,9,0.12);
+  --badge-warn-text:    #92400e;
+  --badge-info-bg:      rgba(75,85,99,0.13);
+  --badge-info-text:    #374151;
+  --input-bg:           rgba(255,255,255,0.60);
+  --input-border:       rgba(255,255,255,0.60);
+  --input-focus:        #4b5563;
+  --btn-primary-bg:     #1f2937;
+  --btn-primary-text:   #f9fafb;
+  --btn-primary-hover:  #111827;
+  --shadow-sm:          0 2px 10px rgba(10,12,18,0.10), 0 1px 3px rgba(10,12,18,0.06);
+  --shadow-md:          0 6px 28px rgba(10,12,18,0.13), 0 2px 8px rgba(10,12,18,0.07);
+  --shadow-lg:          0 18px 48px rgba(10,12,18,0.18), 0 4px 12px rgba(10,12,18,0.09);
+  --topbar-bg:          rgba(255,255,255,0.28);
+  --topbar-border:      rgba(255,255,255,0.48);
+}
+
 /* ═══════════════════════════════════════════════════
    BASE
 ═══════════════════════════════════════════════════ */
@@ -315,6 +363,13 @@ body {
   --blob-d: rgba(167,139,250,0.68);
   --blob-e: rgba(52,211,153,0.55);
 }
+[data-theme="mono-glass"] {
+  --blob-a: rgba(200,205,215,0.70);
+  --blob-b: rgba(175,182,195,0.55);
+  --blob-c: rgba(225,228,234,0.60);
+  --blob-d: rgba(155,162,175,0.50);
+  --blob-e: rgba(240,242,245,0.65);
+}
 
 /* ═══════════════════════════════════════════════════
    COMPONENT LAYER
@@ -342,6 +397,13 @@ body {
     box-shadow: 0 4px 24px rgba(99,102,241,0.10), inset 0 1px 0 rgba(255,255,255,0.55);
     backdrop-filter: blur(28px) saturate(200%);
     -webkit-backdrop-filter: blur(28px) saturate(200%);
+  }
+  [data-theme="mono-glass"] .t-card {
+    background: rgba(255,255,255,0.42);
+    border-color: rgba(255,255,255,0.62);
+    box-shadow: 0 4px 24px rgba(10,12,18,0.08), inset 0 1px 0 rgba(255,255,255,0.70);
+    backdrop-filter: blur(28px) saturate(140%);
+    -webkit-backdrop-filter: blur(28px) saturate(140%);
   }
   [data-theme="nova"] .t-card {
     background: rgba(255,255,255,0.06);
@@ -403,6 +465,12 @@ body {
     backdrop-filter: blur(32px) saturate(180%);
     -webkit-backdrop-filter: blur(32px) saturate(180%);
     border-right: 1px solid rgba(255,255,255,0.10);
+  }
+  [data-theme="mono-glass"] .t-sidebar {
+    background: rgba(14,14,18,0.88);
+    backdrop-filter: blur(32px) saturate(120%);
+    -webkit-backdrop-filter: blur(32px) saturate(120%);
+    border-right: 1px solid rgba(255,255,255,0.08);
   }
   [data-theme="nova"] .t-sidebar {
     background: rgba(3,1,12,0.75);
