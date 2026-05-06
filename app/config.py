@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE: int = 10485760
     ENVIRONMENT: str = "development"
     # Comma-separated allowed CORS origins; override via ALLOWED_ORIGINS env var on Railway/Vercel
-    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:3001,https://school-managment-system-dye9.vercel.app"
+    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:3001,https://school-managment-system-dye9.vercel.app,https://school-managment-system-dye9-git-main-dee11.vercel.app"
 
     # Email (Resend)
     RESEND_API_KEY: str = "re_placeholder"
