@@ -488,9 +488,9 @@ export default function FinancePage() {
       )}
       {/* ── Confirm Modal ── */}
       {confirmModal && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.5)" }}
+        <div className="modal-overlay"
           onClick={e => { if (e.target === e.currentTarget) setConfirmModal(null); }}>
-          <div className="t-card animate-fade-in" style={{ width: "100%", maxWidth: 440, margin: 16 }}>
+          <div className="modal-box-md" style={{ padding: 24 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <h2 style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)" }}>Confirm Payment</h2>
               <button onClick={() => setConfirmModal(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)" }}><X size={16} /></button>
@@ -517,9 +517,9 @@ export default function FinancePage() {
 
       {/* ── Reject Modal ── */}
       {rejectModal && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.5)" }}
+        <div className="modal-overlay"
           onClick={e => { if (e.target === e.currentTarget) setRejectModal(null); }}>
-          <div className="t-card animate-fade-in" style={{ width: "100%", maxWidth: 440, margin: 16 }}>
+          <div className="modal-box-md" style={{ padding: 24 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <h2 style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)" }}>Reject Declaration</h2>
               <button onClick={() => setRejectModal(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)" }}><X size={16} /></button>

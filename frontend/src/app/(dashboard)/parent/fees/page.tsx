@@ -259,10 +259,10 @@ export default function ParentFeesPage() {
       {/* Declaration modal */}
       {declInvoice && (
         <div
-          style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.5)" }}
+          className="modal-overlay"
           onClick={e => { if (e.target === e.currentTarget) setDeclInvoice(null); }}
         >
-          <div className="t-card animate-fade-in" style={{ width: "100%", maxWidth: 480, margin: 16 }}>
+          <div className="modal-box-md" style={{ padding: 24 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
               <div>
                 <h2 style={{ fontWeight: 700, fontSize: "1rem", color: "var(--text-primary)" }}>Declare Payment</h2>

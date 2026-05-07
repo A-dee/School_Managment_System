@@ -55,6 +55,16 @@ export default function StaffPage() {
 
   useEffect(() => { setRole(getRole() || ""); }, []);
 
+  // Lock body scroll when edit modal is open
+  useEffect(() => {
+    if (editingStaff) {
+      document.body.classList.add("modal-open");
+    } else {
+      document.body.classList.remove("modal-open");
+    }
+    return () => document.body.classList.remove("modal-open");
+  }, [editingStaff]);
+
   const load = async () => {
     setLoading(true);
     try {
@@ -307,57 +317,65 @@ export default function StaffPage() {
       {/* Edit modal */}
       {editingStaff && (
         <div
-          style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.45)" }}
+          className="modal-overlay"
           onClick={e => { if (e.target === e.currentTarget) setEditingStaff(null); }}
         >
-          <div className="t-card animate-fade-in" style={{ width: "100%", maxWidth: 560, maxHeight: "90vh", overflowY: "auto", margin: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-              <h2 className="font-semibold t-text-primary">Edit Staff — {editingStaff.full_name}</h2>
-              <button onClick={() => setEditingStaff(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)" }}>
+          <div className="modal-box-md" style={{ maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 24px 16px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
+              <div>
+                <h2 className="font-semibold t-text-primary" style={{ fontSize: "1rem" }}>Edit Staff</h2>
+                <p className="t-text-secondary" style={{ fontSize: "0.78rem", marginTop: 2 }}>{editingStaff.full_name}</p>
+              </div>
+              <button onClick={() => setEditingStaff(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)", padding: 4, borderRadius: 6 }}>
                 <X size={18} />
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div style={{ gridColumn: "1 / -1" }}>
-                <label className="t-label">Full Name *</label>
-                <input className="t-input" value={editForm.full_name} onChange={e => setE("full_name", e.target.value)} />
-              </div>
-              <div>
-                <label className="t-label">Staff Type</label>
-                <select className="t-input" value={editForm.staff_type} onChange={e => setE("staff_type", e.target.value)}>
-                  <option value="TEACHER">Teacher</option>
-                  <option value="ADMIN">Principal</option>
-                  <option value="PRINCIPAL">Vice Principal</option>
-                  <option value="NON_TEACHING">Non-Teaching Staff</option>
-                </select>
-              </div>
-              <div>
-                <label className="t-label">Status</label>
-                <select className="t-input" value={editForm.status} onChange={e => setE("status", e.target.value)}>
-                  <option value="ACTIVE">Active</option>
-                  <option value="INACTIVE">Inactive</option>
-                </select>
-              </div>
-              <div>
-                <label className="t-label">Phone Number</label>
-                <input className="t-input" placeholder="+234..." value={editForm.phone_number} onChange={e => setE("phone_number", e.target.value)} />
-              </div>
-              <div>
-                <label className="t-label">Salary (₦)</label>
-                <input className="t-input" type="number" placeholder="0" value={editForm.salary_amount} onChange={e => setE("salary_amount", e.target.value)} />
-              </div>
-              <div>
-                <label className="t-label">Employment Date</label>
-                <input className="t-input" type="date" value={editForm.employment_date} onChange={e => setE("employment_date", e.target.value)} />
-              </div>
-              <div>
-                <label className="t-label">Address</label>
-                <input className="t-input" placeholder="Home address" value={editForm.address} onChange={e => setE("address", e.target.value)} />
+            {/* Body */}
+            <div style={{ overflowY: "auto", padding: "20px 24px", flex: 1 }}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <label className="t-label">Full Name *</label>
+                  <input className="t-input" value={editForm.full_name} onChange={e => setE("full_name", e.target.value)} />
+                </div>
+                <div>
+                  <label className="t-label">Staff Type</label>
+                  <select className="t-input" value={editForm.staff_type} onChange={e => setE("staff_type", e.target.value)}>
+                    <option value="TEACHER">Teacher</option>
+                    <option value="ADMIN">Principal</option>
+                    <option value="PRINCIPAL">Vice Principal</option>
+                    <option value="NON_TEACHING">Non-Teaching Staff</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="t-label">Status</label>
+                  <select className="t-input" value={editForm.status} onChange={e => setE("status", e.target.value)}>
+                    <option value="ACTIVE">Active</option>
+                    <option value="INACTIVE">Inactive</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="t-label">Phone Number</label>
+                  <input className="t-input" placeholder="+234..." value={editForm.phone_number} onChange={e => setE("phone_number", e.target.value)} />
+                </div>
+                <div>
+                  <label className="t-label">Salary (₦)</label>
+                  <input className="t-input" type="number" placeholder="0" value={editForm.salary_amount} onChange={e => setE("salary_amount", e.target.value)} />
+                </div>
+                <div>
+                  <label className="t-label">Employment Date</label>
+                  <input className="t-input" type="date" value={editForm.employment_date} onChange={e => setE("employment_date", e.target.value)} />
+                </div>
+                <div>
+                  <label className="t-label">Address</label>
+                  <input className="t-input" placeholder="Home address" value={editForm.address} onChange={e => setE("address", e.target.value)} />
+                </div>
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
+            {/* Footer */}
+            <div style={{ display: "flex", gap: 10, padding: "16px 24px", borderTop: "1px solid var(--border)", flexShrink: 0 }}>
               <button className="t-btn-primary" onClick={saveEdit} disabled={editSaving}>
                 {editSaving ? "Saving..." : "Save Changes"}
               </button>

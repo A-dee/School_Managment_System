@@ -113,6 +113,12 @@ export default function StudentRegistrationModal({ studentId, classId, classes, 
     } catch { /* ignore */ }
   };
 
+  // Lock body scroll while modal is open
+  useEffect(() => {
+    document.body.classList.add("modal-open");
+    return () => document.body.classList.remove("modal-open");
+  }, []);
+
   useEffect(() => {
     if (!studentId) return;
     loadDocuments(studentId);
