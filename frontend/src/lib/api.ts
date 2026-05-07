@@ -1,5 +1,6 @@
 import axios from "axios";
 import Cookies from "js-cookie";
+import { logger } from "@/lib/logger";
 
 const _raw = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 // Upgrade http → https when running in a secure browser context (prevents Mixed Content errors)
@@ -17,29 +18,47 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   const token = Cookies.get("access_token");
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  // Attach request timestamp for response timing
+  (config as any)._t = Date.now();
+  logger.request(config.method || "GET", config.url || "");
   return config;
 });
 
 api.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    const ms = Date.now() - ((res.config as any)._t || Date.now());
+    logger.response(res.config.method || "GET", res.config.url || "", res.status, ms, res.data);
+    return res;
+  },
   async (err) => {
-    if (err.response?.status === 401) {
+    const cfg = err.config || {};
+    const ms  = Date.now() - ((cfg as any)._t || Date.now());
+    const status = err.response?.status ?? "network";
+
+    if (status === 401) {
       const refresh = Cookies.get("refresh_token");
       if (refresh) {
         try {
+          logger.auth("token_refresh");
           const { data } = await axios.post(`${API_URL}/auth/refresh`, { refresh_token: refresh });
           Cookies.set("access_token", data.data.access_token, { secure: true, sameSite: "strict" });
-          err.config.headers.Authorization = `Bearer ${data.data.access_token}`;
-          return api.request(err.config);
+          cfg.headers.Authorization = `Bearer ${data.data.access_token}`;
+          return api.request(cfg);
         } catch {
+          logger.auth("refresh_failed");
           Cookies.remove("access_token");
           Cookies.remove("refresh_token");
+          logger.auth("redirect_login");
           window.location.href = "/login";
         }
       } else {
+        logger.auth("redirect_login", "no refresh token");
         window.location.href = "/login";
       }
     }
+
+    logger.error(cfg.method || "GET", cfg.url || "", status, err.response?.data ?? err.message);
+    void ms; // used above in non-401 path via logger.error (timing not critical for errors)
     return Promise.reject(err);
   }
 );

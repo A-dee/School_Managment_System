@@ -1,3 +1,4 @@
+import time
 import logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,6 +7,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from app.utils.limiter import limiter
+from app.utils.log import get_logger
 from app.config import settings
 
 from app.routes import (
@@ -15,8 +17,8 @@ from app.routes import (
 )
 from app.routes import messages, email_config, report_card, seed, announcements, calendar
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+logger = get_logger(__name__)
 
 app = FastAPI(
     title="School Management System API",
@@ -29,6 +31,18 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start = time.perf_counter()
+    response = await call_next(request)
+    ms = round((time.perf_counter() - start) * 1000)
+    status = response.status_code
+    # Colour-code by status bucket
+    marker = "✓" if status < 300 else ("⚠" if status < 500 else "✗")
+    logger.info("%s %s %s → %d (%dms)", marker, request.method, request.url.path, status, ms)
+    return response
 
 _allowed_origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()]
 
@@ -70,7 +84,7 @@ app.include_router(calendar.router,     prefix=API_PREFIX)
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    logger.error("✗ 500 %s %s — %s", request.method, request.url.path, exc, exc_info=True)
     return JSONResponse(status_code=500, content={"status": "error", "message": "Internal server error", "data": None})
 
 
