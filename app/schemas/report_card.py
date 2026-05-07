@@ -1,4 +1,5 @@
 from typing import Optional
+from datetime import datetime
 from pydantic import BaseModel
 
 
@@ -40,6 +41,9 @@ class ReportCardMetaOut(BaseModel):
     class_teacher_comment: Optional[str] = None
     head_teacher_comment: Optional[str] = None
     next_term_begins: Optional[str] = None
+    approved: bool = False
+    approved_by_id: Optional[int] = None
+    approved_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

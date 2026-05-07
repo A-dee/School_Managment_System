@@ -2,7 +2,9 @@
 import { useEffect, useRef, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import api from "@/lib/api";
-import { Printer, Save, CheckCircle, Users, FileText, Download, ArrowLeft, Search, BookOpen } from "lucide-react";
+import { getRole } from "@/lib/auth";
+import { Save, CheckCircle, Users, FileText, Download, ArrowLeft, Search, BookOpen, ShieldCheck, ShieldX } from "lucide-react";
+import toast from "react-hot-toast";
 
 /* ------------------------------------------------------------------ */
 const PERSONAL_QUALITIES = [
@@ -25,6 +27,7 @@ type Meta = Partial<{
   personal_cleanliness: string; self_confidence: string; expression_ability: string;
   indoor_outdoor_play: string; environment_awareness: string;
   class_teacher_comment: string; head_teacher_comment: string; next_term_begins: string;
+  approved: boolean; approved_at: string | null;
 }>;
 
 /* ------------------------------------------------------------------ */
@@ -291,13 +294,14 @@ export default function ReportCardsPage() {
   const [termId,    setTermId]    = useState("");
 
   const [students,    setStudents]    = useState<StudentRow[]>([]);
-  const [allResults,  setAllResults]  = useState<Result[]>([]);   // all class results for the term
+  const [allResults,  setAllResults]  = useState<Result[]>([]);
   const [selected,    setSelected]    = useState<StudentRow | null>(null);
   const [meta,        setMeta]        = useState<Meta>({});
+  const [approving,   setApproving]   = useState(false);
 
   const [subjSearch, setSubjSearch]   = useState("");
   const [stuSearch,  setStuSearch]    = useState("");
-  const [selSubject, setSelSubject]   = useState<number | null>(null); // filter students by subject
+  const [selSubject, setSelSubject]   = useState<number | null>(null);
 
   const [tab,        setTab]       = useState<"edit" | "preview">("edit");
   const [saving,     setSaving]    = useState(false);
@@ -305,6 +309,7 @@ export default function ReportCardsPage() {
   const [loading,    setLoading]   = useState(false);
 
   const printRef = useRef<HTMLDivElement>(null);
+  const isProprietor = getRole() === "SUPER_ADMIN";
 
   useEffect(() => {
     Promise.all([
@@ -366,6 +371,32 @@ export default function ReportCardsPage() {
       setTimeout(() => setSaved(false), 2500);
     } catch { /* silent */ }
     setSaving(false);
+  };
+
+  const approveCard = async (approve: boolean) => {
+    if (!selected || !sessionId || !termId) return;
+    setApproving(true);
+    try {
+      const endpoint = approve ? "approve" : "unapprove";
+      await api.post(`/api/v1/report-cards/${selected.id}/${endpoint}`, null, {
+        params: { term_id: parseInt(termId), session_id: parseInt(sessionId) },
+      });
+      setMeta(m => ({ ...m, approved: approve, approved_at: approve ? new Date().toISOString() : null }));
+      toast.success(approve ? "Report card approved" : "Approval revoked");
+    } catch (e: any) { toast.error(e?.response?.data?.detail || "Failed"); }
+    setApproving(false);
+  };
+
+  const approveAll = async () => {
+    if (!classId || !sessionId || !termId) return;
+    setApproving(true);
+    try {
+      const r = await api.post(`/api/v1/report-cards/class/${classId}/approve-all`, null, {
+        params: { term_id: parseInt(termId), session_id: parseInt(sessionId) },
+      });
+      toast.success(r.data.message || "All report cards approved");
+    } catch (e: any) { toast.error(e?.response?.data?.detail || "Failed"); }
+    setApproving(false);
   };
 
   const handlePrint = () => {
@@ -480,6 +511,15 @@ export default function ReportCardsPage() {
             >
               {loading ? "Loading…" : "Load"}
             </button>
+            {isProprietor && loaded && (
+              <button
+                onClick={approveAll}
+                disabled={approving}
+                style={{ alignSelf: "flex-end", display: "flex", alignItems: "center", gap: 6, padding: "8px 18px", borderRadius: 8, border: "none", background: "#16a34a", color: "#fff", fontWeight: 700, fontSize: "0.8125rem", cursor: "pointer", opacity: approving ? 0.7 : 1 }}
+              >
+                <ShieldCheck size={15} /> {approving ? "Approving…" : "Approve All"}
+              </button>
+            )}
           </div>
         </div>
 
@@ -578,13 +618,20 @@ export default function ReportCardsPage() {
                         color: isSelected ? "var(--btn-primary-text)" : "var(--text-primary)" }}
                     >
                       <span style={{ fontSize: "0.8rem", fontWeight: 600 }}>{s.first_name} {s.last_name}</span>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
                         <span style={{ fontSize: "0.68rem", opacity: 0.65 }}>{s.admission_number}</span>
                         {hasResults && (
                           <span style={{ fontSize: "0.6rem", padding: "1px 5px", borderRadius: 4,
                             background: isSelected ? "rgba(255,255,255,0.2)" : "rgba(34,197,94,0.15)",
                             color: isSelected ? "#fff" : "#16a34a", fontWeight: 700 }}>
                             Results
+                          </span>
+                        )}
+                        {selected?.id === s.id && meta.approved && (
+                          <span style={{ fontSize: "0.6rem", padding: "1px 5px", borderRadius: 4,
+                            background: isSelected ? "rgba(255,255,255,0.2)" : "rgba(34,197,94,0.15)",
+                            color: isSelected ? "#fff" : "#16a34a", fontWeight: 700 }}>
+                            Approved
                           </span>
                         )}
                       </div>
@@ -625,14 +672,48 @@ export default function ReportCardsPage() {
                         </button>
                       ))}
                     </div>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                      {/* Approval status badge */}
+                      {meta.approved ? (
+                        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "0.75rem", color: "#16a34a", fontWeight: 700 }}>
+                          <ShieldCheck size={13} /> Approved
+                        </span>
+                      ) : (
+                        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "0.75rem", color: "#f59e0b", fontWeight: 700 }}>
+                          <ShieldX size={13} /> Pending Approval
+                        </span>
+                      )}
+
                       {saved && <span style={{ fontSize: "0.75rem", color: "#22c55e", display: "flex", alignItems: "center", gap: 4 }}><CheckCircle size={13} /> Saved</span>}
-                      <button onClick={saveMeta} disabled={saving}
-                        style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 14px", borderRadius: 8, border: "none", background: "var(--accent)", color: "var(--btn-primary-text)", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600 }}>
-                        <Save size={13} />{saving ? "Saving…" : "Save"}
-                      </button>
-                      <button onClick={handlePrint}
-                        style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 14px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--accent-light)", color: "var(--accent)", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600 }}>
+
+                      {/* Save — not for proprietor (they approve, not edit) */}
+                      {!isProprietor && (
+                        <button onClick={saveMeta} disabled={saving}
+                          style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 14px", borderRadius: 8, border: "none", background: "var(--accent)", color: "var(--btn-primary-text)", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600 }}>
+                          <Save size={13} />{saving ? "Saving…" : "Save"}
+                        </button>
+                      )}
+
+                      {/* Approve / Revoke — proprietor only */}
+                      {isProprietor && (
+                        meta.approved ? (
+                          <button onClick={() => approveCard(false)} disabled={approving}
+                            style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 14px", borderRadius: 8, border: "1px solid #ef4444", background: "rgba(239,68,68,0.08)", color: "#ef4444", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600 }}>
+                            <ShieldX size={13} />{approving ? "…" : "Revoke"}
+                          </button>
+                        ) : (
+                          <button onClick={() => approveCard(true)} disabled={approving}
+                            style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 14px", borderRadius: 8, border: "none", background: "#16a34a", color: "#fff", cursor: "pointer", fontSize: "0.8rem", fontWeight: 700 }}>
+                            <ShieldCheck size={13} />{approving ? "…" : "Approve"}
+                          </button>
+                        )
+                      )}
+
+                      <button
+                        onClick={handlePrint}
+                        disabled={!meta.approved && !isProprietor}
+                        title={!meta.approved ? "Awaiting proprietor approval" : ""}
+                        style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 14px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--accent-light)", color: "var(--accent)", cursor: meta.approved || isProprietor ? "pointer" : "not-allowed", fontSize: "0.8rem", fontWeight: 600, opacity: !meta.approved && !isProprietor ? 0.45 : 1 }}>
                         <Download size={13} />PDF
                       </button>
                     </div>

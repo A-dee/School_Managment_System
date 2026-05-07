@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Boolean, Column, Integer, String, Text, DateTime, ForeignKey, UniqueConstraint
 from app.database import Base
 
 
@@ -27,6 +27,10 @@ class ReportCardMeta(Base):
     class_teacher_comment = Column(Text, nullable=True)
     head_teacher_comment = Column(Text, nullable=True)
     next_term_begins = Column(String(50), nullable=True)
+
+    approved = Column(Boolean, nullable=False, default=False, server_default="false")
+    approved_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    approved_at = Column(DateTime, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
