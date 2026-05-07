@@ -291,12 +291,12 @@ export default function Home() {
             <a href="#about" className="btn-outline">Learn More</a>
           </div>
 
-          {/* Role pills */}
+          {/* Role pills — click to sign in */}
           <div className={visible ? "fade-up d4" : ""} style={{ display:"flex", gap:8, justifyContent:"center", flexWrap:"wrap" }}>
             {["Proprietor", "Principal", "Admin", "Teacher", "Parent", "Student"].map((role, i) => (
-              <span key={role} className={`role-pill ${visible ? "fade-up" : ""}`} style={{ animationDelay:`${0.55+i*0.08}s` }}>
+              <Link key={role} href="/login" className={`role-pill ${visible ? "fade-up" : ""}`} style={{ animationDelay:`${0.55+i*0.08}s`, textDecoration:"none", cursor:"pointer" }}>
                 {role}
-              </span>
+              </Link>
             ))}
           </div>
         </div>

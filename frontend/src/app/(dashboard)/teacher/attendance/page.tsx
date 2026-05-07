@@ -15,22 +15,15 @@ export default function TeacherAttendancePage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    Promise.allSettled([
-      getClasses({ limit: 100 }),
-      api.get("/api/v1/auth/me"),
-      api.get("/api/v1/staff/"),
-    ]).then(([clsRes, meRes, staffRes]) => {
-      const allClasses = clsRes.status === "fulfilled" ? clsRes.value.data.data || [] : [];
-      const userId = meRes.status === "fulfilled" ? meRes.value.data.data?.id : null;
-      const staffList = staffRes.status === "fulfilled" ? staffRes.value.data.data || [] : [];
-      const myStaff = staffList.find((s: any) => s.user_id === userId);
-      if (myStaff) {
-        const myClasses = allClasses.filter((c: any) => c.class_teacher_id === myStaff.id);
-        setClasses(myClasses);
-        if (myClasses.length === 1) setClassId(String(myClasses[0].id));
-      } else {
-        setClasses(allClasses);
-      }
+    api.get("/api/v1/staff/me").then(r => {
+      const staff = r.data.data;
+      return getClasses({ class_teacher_id: staff.id, limit: 100 });
+    }).then(r => {
+      const cls = r.data.data || [];
+      setClasses(cls);
+      if (cls.length === 1) setClassId(String(cls[0].id));
+    }).catch(() => {
+      toast.error("Could not load your assigned classes");
     });
   }, []);
 
