@@ -466,7 +466,11 @@ export default function Home() {
         </div>
         <div style={{ maxWidth:1060, margin:"0 auto", padding:"14px 32px 20px", borderTop:"1px solid rgba(148,163,184,0.2)", display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
           <span style={{ color:"#94a3b8", fontSize:12 }}>© {new Date().getFullYear()} {SCHOOL.name}. All rights reserved.</span>
-          <span style={{ color:"#94a3b8", fontSize:11 }}>School Management System</span>
+          <div style={{ display:"flex", gap:16, alignItems:"center" }}>
+            <Link href="/privacy" style={{ color:"#64748b", fontSize:12, textDecoration:"none" }}>Privacy Policy</Link>
+            <span style={{ color:"#cbd5e1" }}>·</span>
+            <span style={{ color:"#94a3b8", fontSize:11 }}>NDPA 2023 · GDPR Compliant</span>
+          </div>
         </div>
       </footer>
     </div>

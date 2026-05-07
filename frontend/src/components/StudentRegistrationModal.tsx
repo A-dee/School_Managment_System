@@ -1055,8 +1055,17 @@ export default function StudentRegistrationModal({ studentId, classId, classes, 
         </div>
 
         {/* Footer */}
+        {/* Data processing notice */}
+        <div style={{ padding: "10px 24px 0", flexShrink: 0 }}>
+          <p style={{ fontSize: "0.72rem", color: "var(--text-secondary)", lineHeight: 1.6, borderTop: "1px solid var(--border)", paddingTop: 10 }}>
+            🔒 <strong>Data Notice:</strong> The personal and medical information entered here is processed by Hope Hills Academy solely for school management purposes, in accordance with our{" "}
+            <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)" }}>Privacy Policy</a>
+            {" "}and the Nigeria Data Protection Act 2023. By saving, you confirm that the parent/guardian has been informed and has consented to the processing of their child&apos;s data.
+          </p>
+        </div>
+
         <div style={{
-          padding: "14px 24px", borderTop: "1px solid var(--border)", flexShrink: 0,
+          padding: "12px 24px 16px", flexShrink: 0,
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
         }}>
           <div style={{ display: "flex", gap: 8 }}>

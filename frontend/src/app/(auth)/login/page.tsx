@@ -245,13 +245,20 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p style={{ textAlign: "center", color: "#94a3b8", fontSize: "0.75rem", marginTop: 32 }}>
-            School Management System &copy; {new Date().getFullYear()}
-          </p>
+          <div style={{ textAlign: "center", marginTop: 32, display: "flex", flexDirection: "column", gap: 6 }}>
+            <p style={{ color: "#94a3b8", fontSize: "0.75rem" }}>
+              School Management System &copy; {new Date().getFullYear()}
+            </p>
+            <p style={{ fontSize: "0.72rem", color: "#cbd5e1", lineHeight: 1.6 }}>
+              By signing in you acknowledge that your data is processed in accordance with our{" "}
+              <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: "#2563eb", textDecoration: "underline" }}>Privacy Policy</a>
+              {" "}and the Nigeria Data Protection Act 2023.
+            </p>
+          </div>
 
           {forgotOpen && (
-            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
-              <div style={{ background: "#fff", borderRadius: 14, padding: "28px 28px 24px", width: "100%", maxWidth: 380, boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+            <div className="modal-overlay">
+              <div style={{ background: "#fff", borderRadius: 16, padding: "28px 28px 24px", width: "100%", maxWidth: 400, boxShadow: "0 24px 80px rgba(0,0,0,0.4)" }}>
                 {forgotSent ? (
                   <>
                     <h3 style={{ fontWeight: 800, fontSize: "1.1rem", color: "#0f172a", marginBottom: 10 }}>Check your email</h3>
