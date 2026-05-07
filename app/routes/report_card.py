@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.report_card_meta import ReportCardMeta
 from app.models.student import Student
+from app.models.academic import AcademicSession, Term
+from app.models.class_ import Class
 from app.schemas.report_card import ReportCardMetaIn, ReportCardMetaOut
 from app.utils.auth import get_current_user
 from app.utils.rbac import is_teacher_or_above, is_super_admin
@@ -20,12 +22,44 @@ def _get_or_none(db: Session, student_id: int, term_id: int, session_id: int):
     ).first()
 
 
+# ── Student-facing endpoint MUST come before /{student_id} ──────────────────
+
+@router.get("/my/{term_id}/{session_id}")
+def get_my_report_card(
+    term_id: int, session_id: int,
+    db: Session = Depends(get_db), current_user=Depends(get_current_user),
+):
+    """Student-facing: only returns the card if approved by the proprietor.
+    Includes enriched context (student info, class, session, term names)."""
+    student = db.query(Student).filter(Student.user_id == current_user.id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student profile not found")
+
+    record = _get_or_none(db, student.id, term_id, session_id)
+    if not record or not record.approved:
+        return success_response(None)
+
+    # Enrich with context needed for the print template
+    session_obj = db.query(AcademicSession).filter(AcademicSession.id == session_id).first()
+    term_obj    = db.query(Term).filter(Term.id == term_id).first()
+    class_obj   = db.query(Class).filter(Class.id == student.current_class_id).first() if student.current_class_id else None
+
+    data = ReportCardMetaOut.model_validate(record).model_dump()
+    data["student_name"]      = f"{student.first_name} {student.last_name}"
+    data["admission_number"]  = student.admission_number
+    data["class_name"]        = class_obj.name if class_obj else ""
+    data["session_name"]      = session_obj.name if session_obj else ""
+    data["term_name"]         = term_obj.name if term_obj else ""
+    return success_response(data)
+
+
+# ── Staff / admin endpoints ──────────────────────────────────────────────────
+
 @router.get("/class/{class_id}")
 def get_class_report_card_status(
     class_id: int, term_id: int, session_id: int,
     db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above),
 ):
-    """Return approval status for all students in a class (for the proprietor overview)."""
     students = db.query(Student).filter(Student.class_id == class_id).all()
     student_ids = [s.id for s in students]
     metas = {
@@ -57,21 +91,6 @@ def get_report_card_meta(
 ):
     record = _get_or_none(db, student_id, term_id, session_id)
     return success_response(ReportCardMetaOut.model_validate(record).model_dump() if record else None)
-
-
-@router.get("/my/{term_id}/{session_id}")
-def get_my_report_card(
-    term_id: int, session_id: int,
-    db: Session = Depends(get_db), current_user=Depends(get_current_user),
-):
-    """Student-facing: only returns the card if it has been approved by the proprietor."""
-    student = db.query(Student).filter(Student.user_id == current_user.id).first()
-    if not student:
-        raise HTTPException(status_code=404, detail="Student profile not found")
-    record = _get_or_none(db, student.id, term_id, session_id)
-    if not record or not record.approved:
-        return success_response(None)
-    return success_response(ReportCardMetaOut.model_validate(record).model_dump())
 
 
 @router.put("/{student_id}")
@@ -129,7 +148,6 @@ def approve_all_class_report_cards(
     class_id: int, term_id: int, session_id: int,
     db: Session = Depends(get_db), current_user=Depends(is_super_admin),
 ):
-    """Approve all existing report card records for a class/term/session."""
     now = datetime.utcnow()
     records = db.query(ReportCardMeta).filter(
         ReportCardMeta.term_id == term_id,
