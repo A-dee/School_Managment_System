@@ -312,15 +312,15 @@ export default function ReportCardsPage() {
   const isProprietor = getRole() === "SUPER_ADMIN";
 
   useEffect(() => {
-    Promise.all([
-      api.get("/api/v1/classes?limit=200"),
+    Promise.allSettled([
+      api.get("/api/v1/classes/?limit=200"),
       api.get("/api/v1/academic/sessions"),
       api.get("/api/v1/subjects/"),
     ]).then(([c, s, sub]) => {
-      setClasses(c.data.data  || []);
-      setSessions(s.data.data || []);
-      setSubjects(sub.data.data || []);
-    }).catch(() => {});
+      if (c.status   === "fulfilled") setClasses(c.value.data.data   || []);
+      if (s.status   === "fulfilled") setSessions(s.value.data.data  || []);
+      if (sub.status === "fulfilled") setSubjects(sub.value.data.data || []);
+    });
   }, []);
 
   useEffect(() => {

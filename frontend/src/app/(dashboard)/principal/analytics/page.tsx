@@ -38,19 +38,19 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    Promise.all([
+    Promise.allSettled([
       api.get("/api/v1/classes/?limit=200"),
       api.get("/api/v1/academic/sessions"),
       api.get("/api/v1/academic/terms"),
       api.get("/api/v1/subjects/"),
       api.get("/api/v1/staff/?limit=200"),
     ]).then(([c, s, t, sub, st]) => {
-      setClasses(c.data.data || []);
-      setSessions(s.data.data || []);
-      setTerms(t.data.data || []);
-      setSubjects(sub.data.data || []);
-      setStaff(st.data.data || []);
-    }).catch(() => toast.error("Failed to load data"));
+      if (c.status   === "fulfilled") setClasses(c.value.data.data   || []);
+      if (s.status   === "fulfilled") setSessions(s.value.data.data  || []);
+      if (t.status   === "fulfilled") setTerms(t.value.data.data     || []);
+      if (sub.status === "fulfilled") setSubjects(sub.value.data.data || []);
+      if (st.status  === "fulfilled") setStaff(st.value.data.data    || []);
+    });
   }, []);
 
   const load = async () => {
