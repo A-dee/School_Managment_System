@@ -71,6 +71,7 @@ const roleNavItems: Record<string, { label: string; href: string; icon: any; sec
     { label: "Staff",            href: "/principal/staff",        icon: Users },
     { label: "Classes",          href: "/principal/classes",      icon: School },
     { label: "Subjects",         href: "/principal/subjects",     icon: BookOpen },
+    { label: "Results",          href: "/principal/results",      icon: ClipboardList },
     { label: "Report Cards",     href: "/principal/report-cards", icon: BookMarked },
     { label: "Invoices",         href: "/admin/invoices",         icon: CreditCard,     section: "Finance" },
     { label: "Payments",         href: "/admin/payments",         icon: DollarSign },

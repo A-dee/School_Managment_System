@@ -1,11 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import api from "@/lib/api";
 import toast from "react-hot-toast";
-import { Save, Send, PlusCircle, Trash2, BookOpen, ChevronRight } from "lucide-react";
+import { Save, Send, PlusCircle, Trash2, BookOpen, ChevronRight, Users } from "lucide-react";
 
-/* ── Grading system (matches report card exactly) ─────────────────── */
 const gradeLabel = (total: number) => {
   if (total >= 70) return { g: "A", color: "#16a34a", bg: "rgba(34,197,94,0.12)" };
   if (total >= 60) return { g: "B", color: "#2563eb", bg: "rgba(37,99,235,0.1)"  };
@@ -14,35 +13,40 @@ const gradeLabel = (total: number) => {
   return            { g: "F", color: "#dc2626", bg: "rgba(220,38,38,0.1)"   };
 };
 
+const gradeColor = (g: string) => ({ A: "#16a34a", B: "#2563eb", C: "#d97706", D: "#ea580c", F: "#dc2626" }[g] || "#64748b");
+
 type ScoreRow = { ca: string; exam: string; resultId: number | null; saving: boolean };
 type Assignment = { id: number; teacher_id: number; subject_id: number; class_id: number };
 
 export default function TeacherResultsPage() {
-  /* ── data ── */
-  const [myStaff,    setMyStaff]    = useState<any>(null);
-  const [myClass,    setMyClass]    = useState<any>(null);
+  const [myStaff,     setMyStaff]     = useState<any>(null);
+  const [myClass,     setMyClass]     = useState<any>(null);
   const [allSubjects, setAllSubjects] = useState<any[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [sessions,   setSessions]   = useState<any[]>([]);
-  const [terms,      setTerms]      = useState<any[]>([]);
-  const [students,   setStudents]   = useState<any[]>([]);
-  const [scores,     setScores]     = useState<Record<number, ScoreRow>>({});
+  const [sessions,    setSessions]    = useState<any[]>([]);
+  const [terms,       setTerms]       = useState<any[]>([]);
+  const [students,    setStudents]    = useState<any[]>([]);
+  const [scores,      setScores]      = useState<Record<number, ScoreRow>>({});
 
-  /* ── selections ── */
-  const [selSubjectAssign, setSelSubjectAssign] = useState("");   // assignment id
+  const [selSubjectAssign, setSelSubjectAssign] = useState("");
   const [selSession,       setSelSession]       = useState("");
   const [selTerm,          setSelTerm]          = useState("");
-  const [loaded,  setLoaded]  = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loaded,     setLoaded]     = useState(false);
+  const [loading,    setLoading]    = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  /* ── subject registration ── */
-  const [tab,            setTab]          = useState<"results" | "subjects">("results");
-  const [addSubjectId,   setAddSubjectId] = useState("");
-  const [addingSubject,  setAddingSubject] = useState(false);
-  const [removingId,     setRemovingId]   = useState<number | null>(null);
+  const [tab,           setTab]          = useState<"results" | "overview" | "subjects">("results");
+  const [addSubjectId,  setAddSubjectId] = useState("");
+  const [addingSubject, setAddingSubject] = useState(false);
+  const [removingId,    setRemovingId]   = useState<number | null>(null);
 
-  /* ── boot ── */
+  /* ── Overview tab state ── */
+  const [ovSession,  setOvSession]  = useState("");
+  const [ovTerm,     setOvTerm]     = useState("");
+  const [ovResults,  setOvResults]  = useState<any[]>([]);
+  const [ovLoaded,   setOvLoaded]   = useState(false);
+  const [ovLoading,  setOvLoading]  = useState(false);
+
   useEffect(() => {
     Promise.allSettled([
       api.get("/api/v1/subjects/assignments"),
@@ -50,12 +54,11 @@ export default function TeacherResultsPage() {
       api.get("/api/v1/academic/sessions"),
       api.get("/api/v1/academic/terms"),
     ]).then(([asgn, subj, sess, trms]) => {
-      if (asgn.status === "fulfilled") setAssignments(asgn.value.data.data || []);
-      if (subj.status === "fulfilled") setAllSubjects(subj.value.data.data || []);
-      if (sess.status === "fulfilled") setSessions(sess.value.data.data || []);
-      if (trms.status === "fulfilled") setTerms(trms.value.data.data || []);
+      if (asgn.status  === "fulfilled") setAssignments(asgn.value.data.data  || []);
+      if (subj.status  === "fulfilled") setAllSubjects(subj.value.data.data  || []);
+      if (sess.status  === "fulfilled") setSessions(sess.value.data.data     || []);
+      if (trms.status  === "fulfilled") setTerms(trms.value.data.data        || []);
 
-      /* find teacher's own staff profile and home class */
       api.get("/api/v1/staff/me").then(r => {
         const myS = r.data.data;
         if (myS) {
@@ -74,11 +77,10 @@ export default function TeacherResultsPage() {
     setAssignments(r.data.data || []);
   };
 
-  const subjectName  = (id: number) => allSubjects.find(s => s.id === id)?.name || `Subject #${id}`;
+  const subjectName   = (id: number) => allSubjects.find(s => s.id === id)?.name || `Subject #${id}`;
   const myAssignments = assignments.filter(a => myStaff && a.teacher_id === myStaff.id);
   const selectedAssignment = myAssignments.find(a => String(a.id) === selSubjectAssign);
 
-  /* ── register a subject ── */
   const addSubject = async () => {
     if (!addSubjectId || !myStaff || !myClass) { toast.error("Select a subject first"); return; }
     setAddingSubject(true);
@@ -106,7 +108,6 @@ export default function TeacherResultsPage() {
     setRemovingId(null);
   };
 
-  /* ── load results ── */
   const loadResults = async () => {
     if (!selectedAssignment || !selSession || !selTerm) {
       toast.error("Select a subject, session and term first"); return;
@@ -133,6 +134,35 @@ export default function TeacherResultsPage() {
     setLoading(false);
   };
 
+  const loadOverview = async () => {
+    if (!myClass || !ovSession || !ovTerm) { toast.error("Select session and term"); return; }
+    setOvLoading(true); setOvLoaded(false);
+    try {
+      const r = await api.get(`/api/v1/results/class/${myClass.id}`, {
+        params: { term_id: Number(ovTerm), session_id: Number(ovSession) },
+      });
+      setOvResults(r.data.data || []);
+      setOvLoaded(true);
+    } catch (e: any) { toast.error(e?.response?.data?.detail || "Failed to load"); }
+    setOvLoading(false);
+  };
+
+  /* group overview results by student */
+  const ovByStudent = useMemo(() => {
+    const map = new Map<number, { name: string; admNo: string; subjects: any[]; avg: number; position: number | null }>();
+    for (const r of ovResults) {
+      if (!map.has(r.student_id)) {
+        map.set(r.student_id, { name: r.student_name || `Student #${r.student_id}`, admNo: "", subjects: [], avg: 0, position: r.class_position });
+      }
+      map.get(r.student_id)!.subjects.push(r);
+    }
+    for (const [, val] of map) {
+      val.avg = val.subjects.reduce((s, r) => s + Number(r.total_score), 0) / (val.subjects.length || 1);
+      val.position = val.subjects[0]?.class_position ?? null;
+    }
+    return [...map.values()].sort((a, b) => (a.position ?? 999) - (b.position ?? 999));
+  }, [ovResults]);
+
   const setScore = (studentId: number, field: "ca" | "exam", value: string) =>
     setScores(p => ({ ...p, [studentId]: { ...p[studentId], [field]: value } }));
 
@@ -143,7 +173,7 @@ export default function TeacherResultsPage() {
     if (!row || !selectedAssignment) return;
     const ca = Number(row.ca) || 0;
     const exam = Number(row.exam) || 0;
-    if (ca > 40) { toast.error("CA score cannot exceed 40"); return; }
+    if (ca > 40)   { toast.error("CA score cannot exceed 40");   return; }
     if (exam > 60) { toast.error("Exam score cannot exceed 60"); return; }
     setScores(p => ({ ...p, [studentId]: { ...p[studentId], saving: true } }));
     try {
@@ -186,15 +216,14 @@ export default function TeacherResultsPage() {
     setSubmitting(false);
   };
 
-  /* ── unregistered subjects (for dropdown) ── */
-  const registeredSubjectIds = new Set(myAssignments.map(a => a.subject_id));
-  const unregisteredSubjects = allSubjects.filter(s => s.status === "APPROVED" && !registeredSubjectIds.has(s.id));
+  const registeredSubjectIds  = new Set(myAssignments.map(a => a.subject_id));
+  const unregisteredSubjects  = allSubjects.filter(s => s.status === "APPROVED" && !registeredSubjectIds.has(s.id));
 
   return (
     <DashboardLayout>
       <div className="t-page-header">
         <div>
-          <h1 className="t-page-title">Results Entry</h1>
+          <h1 className="t-page-title">Results</h1>
           <p className="t-page-subtitle">
             {myClass ? `Class: ${myClass.name} (${myClass.level})` : "Loading class…"}
             &nbsp;·&nbsp; CA (40) + Exam (60) = Total (100)
@@ -202,7 +231,7 @@ export default function TeacherResultsPage() {
         </div>
       </div>
 
-      {/* Grade key banner */}
+      {/* Grade key */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
         {[
           { g: "A", range: "70–100", color: "#16a34a", bg: "rgba(34,197,94,0.12)" },
@@ -216,19 +245,20 @@ export default function TeacherResultsPage() {
             <span style={{ fontSize: "0.72rem", color: "var(--text-secondary)" }}>{range}</span>
           </div>
         ))}
-        <div style={{ marginLeft: "auto", fontSize: "0.72rem", color: "var(--text-secondary)", display: "flex", alignItems: "center" }}>
-          Grade key from report card
-        </div>
       </div>
 
       {/* Tabs */}
       <div style={{ display: "flex", gap: 4, marginBottom: 16 }}>
-        {([["results", "Enter Scores"], ["subjects", "My Subjects"]] as const).map(([key, label]) => (
+        {([
+          ["results",  "Enter Scores"],
+          ["overview", "Class Overview"],
+          ["subjects", "My Subjects"],
+        ] as const).map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)} style={{
             padding: "7px 18px", borderRadius: 8, border: "none", cursor: "pointer",
             fontSize: "0.8125rem", fontWeight: 600,
             background: tab === key ? "var(--accent)" : "var(--accent-light)",
-            color: tab === key ? "var(--btn-primary-text)" : "var(--accent)",
+            color:      tab === key ? "var(--btn-primary-text)" : "var(--accent)",
           }}>{label}</button>
         ))}
       </div>
@@ -237,17 +267,14 @@ export default function TeacherResultsPage() {
       {tab === "subjects" && (
         <div className="t-card" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <div>
-            <h2 style={{ fontWeight: 700, fontSize: "0.9375rem", color: "var(--text-primary)", marginBottom: 4 }}>
-              Subjects I Teach
-            </h2>
+            <h2 style={{ fontWeight: 700, fontSize: "0.9375rem", color: "var(--text-primary)", marginBottom: 4 }}>Subjects I Teach</h2>
             <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
-              Register each subject you teach to your class. Only registered subjects appear in the results entry list.
+              Register each subject you teach to your class.
             </p>
           </div>
 
-          {/* Registered subjects list */}
           {myAssignments.length === 0 ? (
-            <div style={{ padding: "24px", border: "1px dashed var(--border)", borderRadius: 10, textAlign: "center", color: "var(--text-secondary)", fontSize: "0.8125rem" }}>
+            <div style={{ padding: 24, border: "1px dashed var(--border)", borderRadius: 10, textAlign: "center", color: "var(--text-secondary)", fontSize: "0.8125rem" }}>
               <BookOpen size={32} style={{ opacity: 0.2, display: "block", margin: "0 auto 8px" }} />
               No subjects registered yet. Add your class subjects below.
             </div>
@@ -272,7 +299,6 @@ export default function TeacherResultsPage() {
             </div>
           )}
 
-          {/* Add subject */}
           {!myClass ? (
             <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontStyle: "italic" }}>
               You need to be assigned as a class teacher to register subjects.
@@ -281,34 +307,132 @@ export default function TeacherResultsPage() {
             <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16 }}>
               <h3 style={{ fontWeight: 700, fontSize: "0.8125rem", color: "var(--text-primary)", marginBottom: 10 }}>Add a Subject</h3>
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <select
-                  className="t-input"
-                  style={{ flex: 1, minWidth: 200 }}
-                  value={addSubjectId}
-                  onChange={e => setAddSubjectId(e.target.value)}
-                >
+                <select className="t-input" style={{ flex: 1, minWidth: 200 }} value={addSubjectId} onChange={e => setAddSubjectId(e.target.value)}>
                   <option value="">Select subject to add…</option>
-                  {unregisteredSubjects.map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
+                  {unregisteredSubjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
-                <button
-                  onClick={addSubject}
-                  disabled={addingSubject || !addSubjectId}
-                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 20px", borderRadius: 9, background: "var(--accent)", color: "var(--btn-primary-text)", border: "none", cursor: "pointer", fontWeight: 700, fontSize: "0.8125rem" }}
-                >
+                <button onClick={addSubject} disabled={addingSubject || !addSubjectId}
+                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 20px", borderRadius: 9, background: "var(--accent)", color: "var(--btn-primary-text)", border: "none", cursor: "pointer", fontWeight: 700, fontSize: "0.8125rem" }}>
                   <PlusCircle size={14} />{addingSubject ? "Adding…" : "Add Subject"}
                 </button>
               </div>
-              {unregisteredSubjects.length === 0 && allSubjects.filter(s => s.status === "APPROVED").length > 0 && (
-                <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 8 }}>All approved subjects are already registered.</p>
-              )}
-              {allSubjects.filter(s => s.status === "APPROVED").length === 0 && (
-                <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 8 }}>No approved subjects exist yet. Ask your principal to approve subjects first.</p>
-              )}
             </div>
           )}
         </div>
+      )}
+
+      {/* ══ TAB: Class Overview ══ */}
+      {tab === "overview" && (
+        <>
+          {!myClass ? (
+            <div className="t-card" style={{ textAlign: "center", padding: "40px 20px" }}>
+              <Users size={40} style={{ opacity: 0.2, margin: "0 auto 12px", display: "block" }} />
+              <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>No class assigned yet.</p>
+            </div>
+          ) : (
+            <>
+              {/* Filters */}
+              <div className="t-card mb-4" style={{ padding: "14px 18px" }}>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+                  <div>
+                    <label className="t-label">Session</label>
+                    <select className="t-input" style={{ width: 160 }} value={ovSession} onChange={e => { setOvSession(e.target.value); setOvLoaded(false); }}>
+                      <option value="">Select session</option>
+                      {sessions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="t-label">Term</label>
+                    <select className="t-input" style={{ width: 160 }} value={ovTerm} onChange={e => { setOvTerm(e.target.value); setOvLoaded(false); }}>
+                      <option value="">Select term</option>
+                      {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                  </div>
+                  <button className="t-btn-primary" onClick={loadOverview} disabled={ovLoading || !myClass}>
+                    {ovLoading ? "Loading…" : "View Results"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Results by student */}
+              {ovLoaded && ovByStudent.length === 0 && (
+                <div className="t-card" style={{ textAlign: "center", padding: "50px 20px" }}>
+                  <BookOpen size={40} style={{ opacity: 0.15, display: "block", margin: "0 auto 12px" }} />
+                  <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem" }}>No results recorded for this class / term yet.</p>
+                </div>
+              )}
+
+              {ovLoaded && ovByStudent.length > 0 && (
+                <>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                    <p style={{ fontWeight: 700, fontSize: "0.9rem", color: "var(--text-primary)" }}>
+                      {myClass.name} — {ovByStudent.length} students
+                    </p>
+                    <span style={{ fontSize: "0.72rem", color: "var(--text-secondary)" }}>
+                      · {ovResults.length} total result entries
+                    </span>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    {ovByStudent.map(stu => (
+                      <div key={stu.name} className="t-card" style={{ padding: 0, overflow: "hidden" }}>
+                        {/* Student header */}
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 18px", background: "var(--bg-main)", borderBottom: "1px solid var(--border)" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                            <div style={{ width: 34, height: 34, borderRadius: 9, background: "var(--accent-light)", color: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "0.85rem", flexShrink: 0 }}>
+                              {stu.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}
+                            </div>
+                            <div>
+                              <p style={{ fontWeight: 700, fontSize: "0.9rem", color: "var(--text-primary)" }}>{stu.name}</p>
+                              <p style={{ fontSize: "0.72rem", color: "var(--text-secondary)", marginTop: 1 }}>
+                                {stu.subjects.length} subject{stu.subjects.length !== 1 ? "s" : ""} &nbsp;·&nbsp; Avg: <strong style={{ color: "var(--text-primary)" }}>{stu.avg.toFixed(1)}</strong>
+                                {stu.position != null && <> &nbsp;·&nbsp; Position: <strong style={{ color: "var(--accent)" }}>#{stu.position}</strong></>}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        {/* Subjects table */}
+                        <div style={{ overflowX: "auto" }}>
+                          <table style={{ width: "100%", fontSize: "0.8125rem", borderCollapse: "collapse" }}>
+                            <thead>
+                              <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                                {["Subject", "CA (/40)", "Exam (/60)", "Total", "Grade"].map(h => (
+                                  <th key={h} style={{ padding: "7px 14px", textAlign: "left", color: "var(--text-secondary)", fontWeight: 600, fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: 0.4 }}>{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {stu.subjects.map((r: any) => (
+                                <tr key={r.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                                  <td style={{ padding: "8px 14px", fontWeight: 600, color: "var(--text-primary)" }}>{r.subject_name || `Subject #${r.subject_id}`}</td>
+                                  <td style={{ padding: "8px 14px", color: "var(--text-secondary)" }}>{r.ca_score}</td>
+                                  <td style={{ padding: "8px 14px", color: "var(--text-secondary)" }}>{r.exam_score}</td>
+                                  <td style={{ padding: "8px 14px", fontWeight: 700 }}>{r.total_score}</td>
+                                  <td style={{ padding: "8px 14px" }}>
+                                    <span style={{ display: "inline-block", padding: "2px 10px", borderRadius: 6, background: `${gradeColor(r.grade)}15`, color: gradeColor(r.grade), fontWeight: 800, fontSize: "0.8125rem" }}>
+                                      {r.grade}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {!ovLoaded && !ovLoading && (
+                <div className="t-card" style={{ textAlign: "center", padding: "50px 20px" }}>
+                  <Users size={40} style={{ opacity: 0.15, display: "block", margin: "0 auto 12px" }} />
+                  <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem" }}>Select session and term, then click View Results.</p>
+                </div>
+              )}
+            </>
+          )}
+        </>
       )}
 
       {/* ══ TAB: Enter Scores ══ */}
@@ -324,16 +448,13 @@ export default function TeacherResultsPage() {
             </div>
           ) : (
             <>
-              {/* Selectors */}
               <div className="t-card mb-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   <div>
                     <label className="t-label">Subject *</label>
                     <select className="t-input" value={selSubjectAssign} onChange={e => { setSelSubjectAssign(e.target.value); setLoaded(false); }}>
                       <option value="">— Select subject —</option>
-                      {myAssignments.map(a => (
-                        <option key={a.id} value={a.id}>{subjectName(a.subject_id)}</option>
-                      ))}
+                      {myAssignments.map(a => <option key={a.id} value={a.id}>{subjectName(a.subject_id)}</option>)}
                     </select>
                   </div>
                   <div>
@@ -413,24 +534,14 @@ export default function TeacherResultsPage() {
                               <td style={{ fontWeight: 600, color: "var(--text-primary)" }}>{stu.first_name} {stu.last_name}</td>
                               <td style={{ fontFamily: "monospace", fontSize: "0.75rem", color: "var(--text-secondary)" }}>{stu.admission_number}</td>
                               <td>
-                                <input
-                                  className="t-input"
-                                  type="number" min={0} max={40}
+                                <input className="t-input" type="number" min={0} max={40}
                                   style={{ padding: "4px 8px", fontSize: "0.8125rem", width: 90 }}
-                                  placeholder="0"
-                                  value={row.ca}
-                                  onChange={e => setScore(stu.id, "ca", e.target.value)}
-                                />
+                                  placeholder="0" value={row.ca} onChange={e => setScore(stu.id, "ca", e.target.value)} />
                               </td>
                               <td>
-                                <input
-                                  className="t-input"
-                                  type="number" min={0} max={60}
+                                <input className="t-input" type="number" min={0} max={60}
                                   style={{ padding: "4px 8px", fontSize: "0.8125rem", width: 90 }}
-                                  placeholder="0"
-                                  value={row.exam}
-                                  onChange={e => setScore(stu.id, "exam", e.target.value)}
-                                />
+                                  placeholder="0" value={row.exam} onChange={e => setScore(stu.id, "exam", e.target.value)} />
                               </td>
                               <td style={{ fontWeight: 700, fontSize: "0.9375rem", color: hasScore ? color : "var(--text-secondary)" }}>
                                 {hasScore ? total : "—"}
@@ -443,11 +554,8 @@ export default function TeacherResultsPage() {
                                 )}
                               </td>
                               <td>
-                                <button
-                                  onClick={() => saveRow(stu.id)}
-                                  disabled={row.saving}
-                                  style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, background: row.resultId ? "rgba(34,197,94,0.1)" : "var(--accent-light)", color: row.resultId ? "#16a34a" : "var(--accent)", border: "none", cursor: "pointer", fontSize: "0.72rem", fontWeight: 600 }}
-                                >
+                                <button onClick={() => saveRow(stu.id)} disabled={row.saving}
+                                  style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, background: row.resultId ? "rgba(34,197,94,0.1)" : "var(--accent-light)", color: row.resultId ? "#16a34a" : "var(--accent)", border: "none", cursor: "pointer", fontSize: "0.72rem", fontWeight: 600 }}>
                                   <Save size={11} />{row.saving ? "…" : row.resultId ? "Update" : "Save"}
                                 </button>
                               </td>

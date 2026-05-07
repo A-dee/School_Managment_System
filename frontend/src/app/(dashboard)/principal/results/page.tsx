@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { getClasses } from "@/lib/api";
 import api from "@/lib/api";
+import { getRole } from "@/lib/auth";
 import toast from "react-hot-toast";
 import { CheckCircle, BookOpen, Send, Users } from "lucide-react";
 
@@ -101,7 +102,8 @@ export default function ResultsPage() {
     published: results.filter(r => r.status === "PUBLISHED").length,
   }), [results]);
 
-  const hasResults = results.length > 0;
+  const hasResults  = results.length > 0;
+  const canManage   = ["SUPER_ADMIN", "PRINCIPAL", "ADMIN"].includes(getRole() || "");
   const selectedClass = classes.find(c => String(c.id) === filter.class_id);
 
   return (
@@ -144,7 +146,7 @@ export default function ResultsPage() {
             {loading ? "Loading…" : "Load Results"}
           </button>
 
-          {hasResults && (
+          {hasResults && canManage && (
             <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
               <button
                 onClick={approve}
