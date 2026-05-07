@@ -205,14 +205,20 @@ export default function TeacherResultsPage() {
   };
 
   const submitForApproval = async () => {
-    if (!selectedAssignment || !selTerm) return;
+    if (!myClass || !selTerm) return;
+    if (myAssignments.length === 0) { toast.error("No subjects registered"); return; }
     setSubmitting(true);
-    try {
-      await api.post("/api/v1/results/submit", null, {
-        params: { class_id: selectedAssignment.class_id, subject_id: selectedAssignment.subject_id, term_id: Number(selTerm) },
-      });
-      toast.success("Results submitted for approval");
-    } catch (e: any) { toast.error(e?.response?.data?.detail || "Failed to submit"); }
+    let ok = 0; let fail = 0;
+    for (const a of myAssignments) {
+      try {
+        await api.post("/api/v1/results/submit", null, {
+          params: { class_id: a.class_id, subject_id: a.subject_id, term_id: Number(selTerm) },
+        });
+        ok++;
+      } catch { fail++; }
+    }
+    if (fail === 0) toast.success(`All ${ok} subject${ok !== 1 ? "s" : ""} submitted for approval`);
+    else toast.error(`${ok} submitted, ${fail} failed`);
     setSubmitting(false);
   };
 
@@ -449,33 +455,40 @@ export default function TeacherResultsPage() {
           ) : (
             <>
               <div className="t-card mb-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
                   <div>
                     <label className="t-label">Subject *</label>
-                    <select className="t-input" value={selSubjectAssign} onChange={e => { setSelSubjectAssign(e.target.value); setLoaded(false); }}>
+                    <select className="t-input" style={{ width: 160 }} value={selSubjectAssign} onChange={e => { setSelSubjectAssign(e.target.value); setLoaded(false); }}>
                       <option value="">— Select subject —</option>
                       {myAssignments.map(a => <option key={a.id} value={a.id}>{subjectName(a.subject_id)}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="t-label">Session *</label>
-                    <select className="t-input" value={selSession} onChange={e => { setSelSession(e.target.value); setLoaded(false); }}>
+                    <select className="t-input" style={{ width: 150 }} value={selSession} onChange={e => { setSelSession(e.target.value); setLoaded(false); }}>
                       <option value="">— Select —</option>
                       {sessions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="t-label">Term *</label>
-                    <select className="t-input" value={selTerm} onChange={e => { setSelTerm(e.target.value); setLoaded(false); }}>
+                    <select className="t-input" style={{ width: 140 }} value={selTerm} onChange={e => { setSelTerm(e.target.value); setLoaded(false); }}>
                       <option value="">— Select —</option>
                       {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                     </select>
                   </div>
-                  <div style={{ display: "flex", alignItems: "flex-end" }}>
-                    <button className="t-btn-primary w-full" onClick={loadResults} disabled={loading}>
-                      {loading ? "Loading…" : "Load Students"}
+                  <button className="t-btn-primary" onClick={loadResults} disabled={loading}>
+                    {loading ? "Loading…" : "Load Students"}
+                  </button>
+                  {selTerm && myAssignments.length > 0 && (
+                    <button
+                      onClick={submitForApproval}
+                      disabled={submitting}
+                      style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 18px", borderRadius: 8, border: "none", background: "var(--accent)", color: "var(--btn-primary-text)", cursor: "pointer", fontSize: "0.8125rem", fontWeight: 700, opacity: submitting ? 0.7 : 1 }}
+                    >
+                      <Send size={14} />{submitting ? "Submitting…" : `Submit All ${myAssignments.length} Subject${myAssignments.length !== 1 ? "s" : ""} for Approval`}
                     </button>
-                  </div>
+                  )}
                 </div>
               </div>
 
@@ -490,20 +503,12 @@ export default function TeacherResultsPage() {
                         {myClass ? `${myClass.name} (${myClass.level})` : ""} · {students.length} students
                       </p>
                     </div>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <button
-                        style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 14px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--accent-light)", color: "var(--accent)", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600 }}
-                        onClick={saveAll}
-                      >
-                        <Save size={13} /> Save All
-                      </button>
-                      <button
-                        style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 14px", borderRadius: 8, border: "none", background: "var(--accent)", color: "var(--btn-primary-text)", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600 }}
-                        onClick={submitForApproval} disabled={submitting}
-                      >
-                        <Send size={13} />{submitting ? "Submitting…" : "Submit for Approval"}
-                      </button>
-                    </div>
+                    <button
+                      style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 14px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--accent-light)", color: "var(--accent)", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600 }}
+                      onClick={saveAll}
+                    >
+                      <Save size={13} /> Save All
+                    </button>
                   </div>
 
                   {students.length === 0 ? (
