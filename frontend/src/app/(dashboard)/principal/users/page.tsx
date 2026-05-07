@@ -94,7 +94,8 @@ export default function UsersPage() {
   };
 
   const filtered = users.filter(u => {
-    const matchSearch = u.email.toLowerCase().includes(search.toLowerCase());
+    const q = search.toLowerCase();
+    const matchSearch = u.email.toLowerCase().includes(q) || (u.full_name || "").toLowerCase().includes(q);
     const matchRole   = roleFilter ? u.role === roleFilter : true;
     return matchSearch && matchRole;
   });
@@ -114,7 +115,7 @@ export default function UsersPage() {
       <div className="t-card mb-4" style={{ padding: "12px 16px", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
         <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
           <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-secondary)" }} />
-          <input className="t-input" style={{ paddingLeft: 30 }} placeholder="Search by email…"
+          <input className="t-input" style={{ paddingLeft: 30 }} placeholder="Search by name or email…"
             value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <select className="t-input" style={{ width: 180 }} value={roleFilter} onChange={e => setRoleFilter(e.target.value)}>
@@ -128,6 +129,7 @@ export default function UsersPage() {
         <table className="t-table">
           <thead>
             <tr>
+              <th>Name</th>
               <th>Email / Account</th>
               <th>Role</th>
               <th>Status</th>
@@ -137,13 +139,16 @@ export default function UsersPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={5}><div className="flex justify-center py-12"><div className="t-spinner" /></div></td></tr>
+              <tr><td colSpan={6}><div className="flex justify-center py-12"><div className="t-spinner" /></div></td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={5} className="t-empty">No users found</td></tr>
+              <tr><td colSpan={6} className="t-empty">No users found</td></tr>
             ) : filtered.map(u => (
               <tr key={u.id}>
+                <td style={{ fontWeight: 600, fontSize: "0.8125rem", color: "var(--text-primary)" }}>
+                  {u.full_name || <span style={{ color: "var(--text-secondary)", fontStyle: "italic", fontWeight: 400 }}>—</span>}
+                </td>
                 <td>
-                  <div style={{ fontWeight: 600, fontSize: "0.8125rem", color: "var(--text-primary)" }}>{u.email}</div>
+                  <div style={{ fontSize: "0.8125rem", color: "var(--text-primary)" }}>{u.email}</div>
                   <div style={{ fontSize: "0.7rem", color: "var(--text-secondary)", marginTop: 1 }}>ID #{u.id}</div>
                 </td>
                 <td>
@@ -175,8 +180,8 @@ export default function UsersPage() {
 
       {/* ── Reset Password Modal ── */}
       {target && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-          <div style={{ background: "var(--bg-card)", borderRadius: 16, width: "100%", maxWidth: 480, boxShadow: "0 24px 64px rgba(0,0,0,0.4)", overflow: "hidden" }}>
+        <div className="modal-overlay">
+          <div className="modal-box-md" style={{ overflow: "hidden" }}>
 
             {/* Header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 20px 14px", borderBottom: "1px solid var(--border)" }}>

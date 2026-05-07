@@ -35,13 +35,38 @@ def create_new_user(
     return success_response(UserOut.model_validate(user).model_dump(), "User created")
 
 
+def _get_full_name(db: Session, user) -> str | None:
+    """Resolve the display name from the linked profile for any user role."""
+    try:
+        if user.role in (UserRole.TEACHER, UserRole.ADMIN, UserRole.PRINCIPAL, UserRole.NON_TEACHING_STAFF):
+            from app.models.staff import Staff
+            s = db.query(Staff).filter(Staff.user_id == user.id).first()
+            return s.full_name if s else None
+        if user.role == UserRole.PARENT:
+            from app.models.parent import Parent
+            p = db.query(Parent).filter(Parent.user_id == user.id).first()
+            return p.full_name if p else None
+        if user.role == UserRole.STUDENT:
+            from app.models.student import Student
+            s = db.query(Student).filter(Student.user_id == user.id).first()
+            return f"{s.first_name} {s.last_name}" if s else None
+    except Exception:
+        pass
+    return None
+
+
 @router.get("/")
 def list_users(
     skip: int = 0, limit: int = 50, role: Optional[UserRole] = None,
     db: Session = Depends(get_db), current_user=Depends(is_principal_or_above)
 ):
     users, total = get_all_users(db, skip=skip, limit=limit, role=role)
-    return paginated_response([UserOut.model_validate(u).model_dump() for u in users], total, skip // limit + 1, limit)
+    result = []
+    for u in users:
+        d = UserOut.model_validate(u).model_dump()
+        d["full_name"] = _get_full_name(db, u)
+        result.append(d)
+    return paginated_response(result, total, skip // limit + 1, limit)
 
 
 @router.get("/{user_id}")

@@ -18,6 +18,27 @@ from app.crud.staff import get_staff_by_user_id
 router = APIRouter(prefix="/results", tags=["Results"])
 
 
+def _enrich(db: Session, results: list) -> list:
+    """Add student_name and subject_name to serialised result dicts."""
+    if not results:
+        return []
+    from app.models.student import Student
+    from app.models.subject import Subject
+    student_ids = {r.student_id for r in results}
+    subject_ids = {r.subject_id for r in results}
+    students = {s.id: s for s in db.query(Student).filter(Student.id.in_(student_ids)).all()}
+    subjects = {s.id: s for s in db.query(Subject).filter(Subject.id.in_(subject_ids)).all()}
+    out = []
+    for r in results:
+        d = ResultOut.model_validate(r).model_dump()
+        stu = students.get(r.student_id)
+        sub = subjects.get(r.subject_id)
+        d["student_name"] = f"{stu.first_name} {stu.last_name}" if stu else None
+        d["subject_name"] = sub.name if sub else None
+        out.append(d)
+    return out
+
+
 def verify_teacher_assignment(db, teacher_id, subject_id, class_id):
     assignment = db.query(TeacherSubjectClass).filter(
         TeacherSubjectClass.teacher_id == teacher_id,
@@ -82,7 +103,7 @@ def class_results(
     db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above)
 ):
     results = get_results_by_class_term(db, class_id, term_id, session_id)
-    return success_response([ResultOut.model_validate(r).model_dump() for r in results])
+    return success_response(_enrich(db, results))
 
 
 @router.get("/student/{student_id}")
@@ -102,7 +123,7 @@ def student_results(
         if not link:
             raise HTTPException(status_code=403, detail="Not your child")
     results = get_student_results(db, student_id, session_id, term_id)
-    return success_response([ResultOut.model_validate(r).model_dump() for r in results])
+    return success_response(_enrich(db, results))
 
 
 @router.get("/my")
@@ -115,7 +136,7 @@ def my_results(
     if not student:
         raise HTTPException(status_code=404, detail="Student profile not found")
     results = get_student_results(db, student.id, session_id, term_id)
-    return success_response([ResultOut.model_validate(r).model_dump() for r in results])
+    return success_response(_enrich(db, results))
 
 
 @router.post("/submit")

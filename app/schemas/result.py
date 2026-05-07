@@ -39,6 +39,9 @@ class ResultOut(BaseModel):
     class_position: Optional[int]
     status: ResultStatus
     created_at: datetime
+    # Enriched fields (populated by route handlers)
+    student_name: Optional[str] = None
+    subject_name: Optional[str] = None
 
     class Config:
         from_attributes = True
