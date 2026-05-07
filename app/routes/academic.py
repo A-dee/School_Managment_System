@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.academic import AcademicSession, Term
 from app.schemas.academic import SessionCreate, SessionOut, TermCreate, TermUpdate, TermOut
+from app.utils.auth import get_current_user
 from app.utils.rbac import is_principal_or_above, is_teacher_or_above
 from app.utils.response import success_response
 
@@ -22,13 +23,13 @@ def create_session(data: SessionCreate, db: Session = Depends(get_db), current_u
 
 
 @router.get("/sessions")
-def list_sessions(db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above)):
+def list_sessions(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     sessions = db.query(AcademicSession).all()
     return success_response([SessionOut.model_validate(s).model_dump() for s in sessions])
 
 
 @router.get("/sessions/current")
-def current_session(db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above)):
+def current_session(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     session = db.query(AcademicSession).filter(AcademicSession.is_current == True).first()
     if not session:
         raise HTTPException(status_code=404, detail="No current session set")
@@ -47,7 +48,7 @@ def create_term(data: TermCreate, db: Session = Depends(get_db), current_user=De
 
 
 @router.get("/terms")
-def list_terms(session_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above)):
+def list_terms(session_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     q = db.query(Term)
     if session_id:
         q = q.filter(Term.session_id == session_id)
@@ -56,7 +57,7 @@ def list_terms(session_id: Optional[int] = None, db: Session = Depends(get_db), 
 
 
 @router.get("/terms/current")
-def current_term(db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above)):
+def current_term(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     term = db.query(Term).filter(Term.is_current == True).first()
     if not term:
         raise HTTPException(status_code=404, detail="No current term set")

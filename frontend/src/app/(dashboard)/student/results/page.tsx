@@ -13,15 +13,24 @@ export default function StudentResultsPage() {
   const [me, setMe] = useState<any>(null);
 
   useEffect(() => {
-    Promise.all([
+    Promise.allSettled([
       api.get("/api/v1/auth/me"),
       api.get("/api/v1/academic/sessions"),
       api.get("/api/v1/academic/terms"),
     ]).then(([m, s, t]) => {
-      setMe(m.data.data);
-      setSessions(s.data.data || []);
-      setTerms(t.data.data || []);
-    }).catch(() => {});
+      if (m.status === "fulfilled") setMe(m.value.data.data);
+      const sessionList = s.status === "fulfilled" ? (s.value.data.data || []) : [];
+      const termList    = t.status === "fulfilled" ? (t.value.data.data || []) : [];
+      setSessions(sessionList);
+      setTerms(termList);
+      // Auto-select current session and term if available
+      const currentSession = sessionList.find((x: any) => x.is_current);
+      const currentTerm    = termList.find((x: any) => x.is_current);
+      setFilter({
+        session_id: currentSession ? String(currentSession.id) : "",
+        term_id:    currentTerm    ? String(currentTerm.id)    : "",
+      });
+    });
   }, []);
 
   const load = async () => {
