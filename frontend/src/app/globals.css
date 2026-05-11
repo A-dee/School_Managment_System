@@ -759,6 +759,9 @@ body {
     animation: shimmer 1.6s linear infinite;
     border-radius: 7px;
   }
+  .t-skeleton-text   { height: 13px; border-radius: 4px; }
+  .t-skeleton-title  { height: 22px; border-radius: 6px; }
+  .t-skeleton-circle { border-radius: 50% !important; }
 
   /* ── Stat accent helpers ──────────────────────── */
   .stat-blue   { --stat-color: #3b82f6; --stat-bg: color-mix(in srgb, #3b82f6 14%, transparent); }
@@ -814,6 +817,13 @@ body {
 .animate-slide-up { animation: slideUp 0.32s cubic-bezier(0.22,0.61,0.36,1) both; }
 .animate-scale-in { animation: scaleIn 0.22s cubic-bezier(0.22,0.61,0.36,1) both; }
 .animate-float    { animation: float   3s ease-in-out infinite; }
+
+/* Staggered entrance delays */
+.delay-1 { animation-delay:  60ms; }
+.delay-2 { animation-delay: 120ms; }
+.delay-3 { animation-delay: 180ms; }
+.delay-4 { animation-delay: 240ms; }
+.delay-5 { animation-delay: 300ms; }
 
 /* ═══════════════════════════════════════════════════
    MOBILE RESPONSIVE

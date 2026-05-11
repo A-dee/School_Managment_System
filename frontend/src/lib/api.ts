@@ -114,6 +114,9 @@ export const sendMessage = (data: object) => api.post("/api/v1/messages/", data)
 export const replyMessage = (id: number, data: object) => api.post(`/api/v1/messages/${id}/reply`, data);
 export const getUnreadCount = () => api.get("/api/v1/messages/unread/count");
 
+// Announcements
+export const getAnnouncements = () => api.get("/api/v1/announcements");
+
 // Audit logs
 export const getAuditLogs = (params?: object) => api.get("/api/v1/audit-logs", { params });
 
