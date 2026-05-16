@@ -2,7 +2,7 @@ from typing import Optional, Any
 from datetime import date, datetime
 from decimal import Decimal
 from pydantic import BaseModel, Field, field_validator
-from app.models.finance import InvoiceStatus, ExpenseApprovalStatus, PayrollStatus, PaymentDeclarationStatus
+from app.models.finance import InvoiceStatus, ExpenseApprovalStatus, PayrollStatus, PaymentDeclarationStatus, PaystackTransactionStatus
 
 _VALID_PAYMENT_METHODS = {"cash", "bank_transfer", "pos", "online", "cheque",
                           "CASH", "BANK_TRANSFER", "POS", "ONLINE", "CHEQUE"}
@@ -248,6 +248,40 @@ class OptionalFeeOut(BaseModel):
     description:    Optional[str]
     is_active:      bool
     created_at:     datetime
+
+    class Config:
+        from_attributes = True
+
+
+class PaystackInitializeIn(BaseModel):
+    invoice_id: int = Field(gt=0)
+
+
+class PaystackInitializeOut(BaseModel):
+    reference: str
+    authorization_url: str
+    access_code: str
+    invoice_id: int
+    amount_minor: int
+    currency: str
+
+
+class PaystackTransactionOut(BaseModel):
+    id: int
+    invoice_id: int
+    student_id: int
+    initiated_by_user_id: int
+    payment_id: Optional[int]
+    reference: str
+    authorization_url: Optional[str]
+    access_code: Optional[str]
+    amount_minor: int
+    currency: str
+    status: PaystackTransactionStatus
+    gateway_response: Optional[str]
+    paystack_transaction_id: Optional[str]
+    paid_at: Optional[datetime]
+    created_at: datetime
 
     class Config:
         from_attributes = True

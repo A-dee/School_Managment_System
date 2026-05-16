@@ -194,11 +194,14 @@ export default function MessagesPage() {
   };
 
   const filteredContacts = useMemo(() =>
-    contacts.filter(c =>
-      !contactSearch ||
-      c.name.toLowerCase().includes(contactSearch.toLowerCase()) ||
-      (roleLabel[c.role] || c.role).toLowerCase().includes(contactSearch.toLowerCase())
-    ),
+    contacts
+      .filter(c =>
+        !contactSearch ||
+        c.name.toLowerCase().includes(contactSearch.toLowerCase()) ||
+        c.email.toLowerCase().includes(contactSearch.toLowerCase()) ||
+        (roleLabel[c.role] || c.role).toLowerCase().includes(contactSearch.toLowerCase())
+      )
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })),
     [contacts, contactSearch]
   );
 
@@ -343,9 +346,9 @@ export default function MessagesPage() {
                 <div>
                   <label className="t-label">To *</label>
                   {selectedContact ? (
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 9, border: "1px solid var(--accent)", background: "var(--accent-light)" }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", borderRadius: 9, border: "1px solid var(--accent)", background: "var(--accent-light)" }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontWeight: 600, fontSize: "0.875rem", color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <p style={{ fontWeight: 600, fontSize: "0.875rem", color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: 3 }}>
                           {selectedContact.name}
                         </p>
                         <p style={{ fontSize: "0.7rem", color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -355,7 +358,7 @@ export default function MessagesPage() {
                       <RoleBadge role={selectedContact.role} />
                       <button
                         onClick={() => { setSelectedContact(null); setContactSearch(""); setShowDropdown(false); }}
-                        style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)", flexShrink: 0, display: "flex", alignItems: "center" }}
+                        style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)", flexShrink: 0, display: "flex", alignItems: "center", marginTop: 1 }}
                       >
                         <X size={15} />
                       </button>
@@ -375,22 +378,26 @@ export default function MessagesPage() {
                       </div>
                       {contacts.length === 0 ? (
                         <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 6 }}>No contacts available for your role.</p>
-                      ) : showDropdown && filteredContacts.length > 0 && (
+                      ) : showDropdown && (
                         <div style={{
-                          position: "absolute", zIndex: 50, width: "100%", maxHeight: 240, overflowY: "auto",
+                          position: "absolute", zIndex: 50, width: "100%", maxHeight: 260, overflowY: "auto",
                           background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 10,
                           boxShadow: "0 8px 32px rgba(0,0,0,0.18)", marginTop: 4,
                         }}>
-                          {filteredContacts.map(c => (
+                          {filteredContacts.length === 0 ? (
+                            <div style={{ padding: "12px 14px", fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+                              No contacts match your search.
+                            </div>
+                          ) : filteredContacts.map(c => (
                             <div
                               key={c.user_id}
                               onMouseDown={() => { setSelectedContact(c); setContactSearch(""); setShowDropdown(false); }}
-                              style={{ padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10 }}
+                              style={{ padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "flex-start", gap: 10 }}
                               onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "var(--accent-light)"}
                               onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = ""}
                             >
                               <div style={{ flex: 1, minWidth: 0 }}>
-                                <p style={{ fontWeight: 600, fontSize: "0.8125rem", color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</p>
+                                <p style={{ fontWeight: 600, fontSize: "0.8125rem", color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: 3 }}>{c.name}</p>
                                 <p style={{ fontSize: "0.7rem", color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.email}</p>
                               </div>
                               <RoleBadge role={c.role} />

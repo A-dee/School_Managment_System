@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     RESEND_API_KEY: str = "re_placeholder"
     EMAIL_FROM: str = "Hope Hills Academy <noreply@hopehillsacademy.ng>"
     FRONTEND_URL: str = "http://localhost:3000"
+    PAYSTACK_SECRET_KEY: str = ""
+    PAYSTACK_PUBLIC_KEY: str = ""
+    PAYSTACK_BASE_URL: str = "https://api.paystack.co"
+    PAYSTACK_CALLBACK_URL: str = ""
+    PAYSTACK_WEBHOOK_SECRET: str = ""
 
     class Config:
         env_file = ".env"
@@ -27,6 +32,14 @@ class Settings(BaseSettings):
     def frontend_url_normalized(self) -> str:
         # Email links should not depend on whether FRONTEND_URL was configured with a trailing slash.
         return self.FRONTEND_URL.rstrip("/")
+
+    @property
+    def paystack_base_url_normalized(self) -> str:
+        return self.PAYSTACK_BASE_URL.rstrip("/")
+
+    @property
+    def paystack_callback_url_normalized(self) -> str:
+        return self.PAYSTACK_CALLBACK_URL.rstrip("/")
 
 
 @lru_cache()

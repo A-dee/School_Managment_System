@@ -2,8 +2,9 @@
 import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import api from "@/lib/api";
+import { initializePaystackPayment, verifyPaystackPayment } from "@/lib/api";
 import toast from "react-hot-toast";
-import { X, Send, Clock, CheckCircle, XCircle } from "lucide-react";
+import { X, Send, Clock, CheckCircle, XCircle, CreditCard } from "lucide-react";
 
 const fmt = (n: number | string) =>
   `₦${Number(n).toLocaleString("en-NG", { minimumFractionDigits: 0 })}`;
@@ -33,6 +34,16 @@ export default function ParentFeesPage() {
   const [declInvoice, setDeclInvoice] = useState<any | null>(null);
   const [declForm,    setDeclForm]    = useState(blankDecl);
   const [declaring,   setDeclaring]   = useState(false);
+  const [verifyingRef, setVerifyingRef] = useState("");
+
+  const loadSelectedData = (studentId: number) =>
+    Promise.all([
+      api.get(`/api/v1/finance/invoices/student/${studentId}`),
+      api.get("/api/v1/finance/payment-declarations/my"),
+    ]).then(([invR, declR]) => {
+      setInvoices(invR.data.data || []);
+      setDecls(declR.data.data || []);
+    });
 
   useEffect(() => {
     api.get("/api/v1/parents/me/children")
@@ -43,17 +54,26 @@ export default function ParentFeesPage() {
   useEffect(() => {
     if (!selected) return;
     setLoading(true);
-    Promise.all([
-      api.get(`/api/v1/finance/invoices/student/${selected.id}`),
-      api.get("/api/v1/finance/payment-declarations/my"),
-    ])
-      .then(([invR, declR]) => {
-        setInvoices(invR.data.data || []);
-        setDecls(declR.data.data || []);
-      })
+    loadSelectedData(selected.id)
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [selected]);
+
+  useEffect(() => {
+    const reference = typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("reference")
+      : null;
+    if (!reference || !selected || verifyingRef === reference) return;
+    setVerifyingRef(reference);
+    verifyPaystackPayment(reference)
+      .then(async () => {
+        toast.success("Paystack payment verified");
+        await loadSelectedData(selected.id);
+      })
+      .catch((e: any) => {
+        toast.error(e?.response?.data?.detail || "Failed to verify Paystack payment");
+      });
+  }, [selected, verifyingRef]);
 
   const totalOwed = invoices.reduce((s, i) => s + Number(i.balance), 0);
 
@@ -88,6 +108,20 @@ export default function ParentFeesPage() {
 
   const invoiceDecls = (invId: number) =>
     decls.filter(d => d.invoice_id === invId);
+
+  const payWithPaystack = async (inv: any) => {
+    try {
+      const r = await initializePaystackPayment(inv.id);
+      const url = r.data.data?.authorization_url;
+      if (!url) {
+        toast.error("Paystack checkout URL is missing");
+        return;
+      }
+      window.location.href = url;
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || "Failed to start Paystack checkout");
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -169,17 +203,30 @@ export default function ParentFeesPage() {
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <span className={statusBadge[inv.status] || "badge-red"}>{inv.status}</span>
                     {Number(inv.balance) > 0 && !hasPending && (
-                      <button
-                        onClick={() => openDeclare(inv)}
-                        style={{
-                          display: "flex", alignItems: "center", gap: 6,
-                          padding: "6px 14px", borderRadius: 8, border: "none",
-                          background: "var(--accent)", color: "var(--btn-primary-text)",
-                          fontWeight: 600, fontSize: "0.78rem", cursor: "pointer",
-                        }}
-                      >
-                        <Send size={13} /> Declare Payment
-                      </button>
+                      <>
+                        <button
+                          onClick={() => payWithPaystack(inv)}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 6,
+                            padding: "6px 14px", borderRadius: 8, border: "1px solid var(--border)",
+                            background: "var(--accent-light)", color: "var(--accent)",
+                            fontWeight: 600, fontSize: "0.78rem", cursor: "pointer",
+                          }}
+                        >
+                          <CreditCard size={13} /> Pay with Paystack
+                        </button>
+                        <button
+                          onClick={() => openDeclare(inv)}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 6,
+                            padding: "6px 14px", borderRadius: 8, border: "none",
+                            background: "var(--accent)", color: "var(--btn-primary-text)",
+                            fontWeight: 600, fontSize: "0.78rem", cursor: "pointer",
+                          }}
+                        >
+                          <Send size={13} /> Declare Payment
+                        </button>
+                      </>
                     )}
                     {hasPending && (
                       <span style={{ fontSize: "0.75rem", color: "#f59e0b", display: "flex", alignItems: "center", gap: 4 }}>

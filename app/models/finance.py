@@ -28,6 +28,13 @@ class PaymentDeclarationStatus(str, enum.Enum):
     REJECTED = "REJECTED"
 
 
+class PaystackTransactionStatus(str, enum.Enum):
+    INITIALIZED = "INITIALIZED"
+    PENDING = "PENDING"
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+
+
 class FeeStructure(Base):
     __tablename__ = "fee_structures"
 
@@ -83,6 +90,7 @@ class Payment(Base):
 
     invoice = relationship("Invoice", back_populates="payments")
     recorded_by = relationship("User")
+    paystack_transactions = relationship("PaystackTransaction", back_populates="payment")
 
 
 class Expenditure(Base):
@@ -158,3 +166,31 @@ class OptionalFee(Base):
     description = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class PaystackTransaction(Base):
+    __tablename__ = "paystack_transactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    invoice_id = Column(Integer, ForeignKey("invoices.id"), nullable=False)
+    student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
+    initiated_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    payment_id = Column(Integer, ForeignKey("payments.id"), nullable=True)
+    reference = Column(String, unique=True, nullable=False, index=True)
+    authorization_url = Column(String, nullable=True)
+    access_code = Column(String, nullable=True)
+    amount_minor = Column(Integer, nullable=False)
+    currency = Column(String, nullable=False, default="NGN")
+    status = Column(Enum(PaystackTransactionStatus), default=PaystackTransactionStatus.INITIALIZED)
+    gateway_response = Column(String, nullable=True)
+    paystack_transaction_id = Column(String, nullable=True)
+    paid_at = Column(DateTime, nullable=True)
+    raw_initialize_response = Column(JSON, nullable=True)
+    raw_verify_response = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    invoice = relationship("Invoice")
+    student = relationship("Student")
+    initiated_by = relationship("User", foreign_keys=[initiated_by_user_id])
+    payment = relationship("Payment", back_populates="paystack_transactions")

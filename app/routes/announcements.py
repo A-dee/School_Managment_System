@@ -24,15 +24,16 @@ _ROLE_ALIASES = {
 }
 
 _MANAGEMENT_ROLES = {UserRole.SUPER_ADMIN, UserRole.PRINCIPAL}
-_VALID_AUDIENCES = {
-    "ALL",
-    "STUDENT",
-    "TEACHER",
-    "PARENT",
-    "STUDENT,PARENT",
-    "STUDENT,TEACHER",
-    "TEACHER,PARENT",
-    "STUDENT,TEACHER,PARENT",
+_AUDIENCE_ORDER = ["STUDENT", "TEACHER", "PARENT"]
+_VALID_AUDIENCE_SETS = {
+    frozenset(),
+    frozenset({"STUDENT"}),
+    frozenset({"TEACHER"}),
+    frozenset({"PARENT"}),
+    frozenset({"STUDENT", "PARENT"}),
+    frozenset({"STUDENT", "TEACHER"}),
+    frozenset({"TEACHER", "PARENT"}),
+    frozenset({"STUDENT", "TEACHER", "PARENT"}),
 }
 
 
@@ -51,10 +52,11 @@ def _normalize_target_roles(raw: str) -> str:
         return "ALL"
     if "ALL" in roles:
         return "ALL"
-    normalized = ",".join(sorted(set(roles)))
-    if normalized not in _VALID_AUDIENCES:
+    role_set = frozenset(roles)
+    if role_set not in _VALID_AUDIENCE_SETS:
         raise HTTPException(status_code=422, detail="Invalid announcement audience")
-    return normalized
+    normalized_roles = [role for role in _AUDIENCE_ORDER if role in role_set]
+    return ",".join(normalized_roles)
 
 
 def _serialize(a: Announcement) -> dict:

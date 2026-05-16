@@ -3,10 +3,10 @@ import uuid
 from typing import Optional
 from datetime import date
 from decimal import Decimal
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Header, Request
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models.finance import FeeStructure, Invoice, Payment, Expenditure, Payroll, PaymentDeclaration, PaymentDeclarationStatus, InvoiceStatus
+from app.models.finance import FeeStructure, Invoice, Payment, Expenditure, Payroll, PaymentDeclaration, PaymentDeclarationStatus, InvoiceStatus, PaystackTransaction, PaystackTransactionStatus
 from app.schemas.finance import (
     FeeStructureCreate, FeeStructureOut, InvoiceOut,
     PaymentCreate, PaymentOut, ExpenditureCreate, ExpenditureOut,
@@ -15,6 +15,7 @@ from app.schemas.finance import (
     PaymentDeclarationConfirm, PaymentDeclarationReject,
     DirectPaymentCreate,
     OptionalFeeCreate, OptionalFeeUpdate, OptionalFeeOut,
+    PaystackInitializeIn, PaystackInitializeOut, PaystackTransactionOut,
 )
 from app.crud.finance import (
     create_fee_structure, generate_invoices_for_term, get_invoice,
@@ -22,6 +23,7 @@ from app.crud.finance import (
     create_expenditure, approve_expenditure, reject_expenditure,
     create_payroll, mark_payroll_paid, get_profit_loss,
     list_optional_fees, create_optional_fee, update_optional_fee, delete_optional_fee,
+    get_paystack_transaction_by_reference,
 )
 from app.utils.rbac import is_principal_or_above, is_admin_or_above, is_vp_or_above
 from app.utils.auth import get_current_user
@@ -31,6 +33,10 @@ from app.config import settings
 from app.models.user import UserRole
 from app.crud.staff import get_staff_by_user_id
 from app.routes.notifications import send_bulk_notifications
+from app.utils.paystack import (
+    initialize_paystack_transaction, verify_paystack_signature,
+    verify_paystack_transaction, paystack_is_configured,
+)
 
 router = APIRouter(prefix="/finance", tags=["Finance"])
 
@@ -65,6 +71,91 @@ def _get_student_finance_recipient_ids(db: Session, student_id: int) -> set[int]
         parents = db.query(Parent).filter(Parent.id.in_([link.parent_id for link in links])).all()
         recipient_ids.update(parent.user_id for parent in parents if parent.user_id)
     return recipient_ids
+
+
+def _assert_user_can_access_invoice(db: Session, current_user, invoice: Invoice):
+    if current_user.role in {UserRole.ADMIN, UserRole.PRINCIPAL, UserRole.SUPER_ADMIN}:
+        return
+    if current_user.role == UserRole.STUDENT:
+        from app.models.student import Student
+        student = db.query(Student).filter(Student.id == invoice.student_id, Student.user_id == current_user.id).first()
+        if student:
+            return
+        raise HTTPException(status_code=403, detail="You can only access your own invoices")
+    if current_user.role == UserRole.PARENT:
+        from app.models.parent import Parent, ParentStudent
+        parent = db.query(Parent).filter(Parent.user_id == current_user.id).first()
+        if not parent:
+            raise HTTPException(status_code=403, detail="Parent profile not found")
+        link = db.query(ParentStudent).filter(
+            ParentStudent.parent_id == parent.id,
+            ParentStudent.student_id == invoice.student_id,
+        ).first()
+        if link:
+            return
+        raise HTTPException(status_code=403, detail="Not your child's invoice")
+    raise HTTPException(status_code=403, detail="You are not allowed to access this invoice")
+
+
+def _get_paystack_callback_path(current_user) -> str:
+    # Send the payer back to the fees page that can immediately refresh their balance.
+    if current_user.role == UserRole.PARENT:
+        return "/parent/fees"
+    if current_user.role == UserRole.STUDENT:
+        return "/student/fees"
+    return "/principal/finance"
+
+
+def _minor_units(amount: Decimal) -> int:
+    return int((Decimal(str(amount)) * 100).quantize(Decimal("1")))
+
+
+def _sync_paystack_transaction(db: Session, transaction: PaystackTransaction, verify_response: dict):
+    data = verify_response.get("data") or {}
+    status = data.get("status")
+    transaction.raw_verify_response = verify_response
+    transaction.gateway_response = data.get("gateway_response")
+    transaction.paystack_transaction_id = str(data.get("id")) if data.get("id") is not None else None
+
+    if data.get("paid_at"):
+        from datetime import datetime as dt
+        try:
+            transaction.paid_at = dt.fromisoformat(str(data["paid_at"]).replace("Z", "+00:00"))
+        except ValueError:
+            transaction.paid_at = None
+
+    if status == "success":
+        transaction.status = PaystackTransactionStatus.SUCCESS
+        if transaction.payment_id is None:
+            # Only create one internal payment per Paystack reference even if verify/webhook run more than once.
+            amount_paid = Decimal(str(data.get("amount", 0))) / Decimal("100")
+            payment_date = transaction.paid_at.date() if transaction.paid_at else date.today()
+            payment = record_payment(
+                db,
+                PaymentCreate(
+                    invoice_id=transaction.invoice_id,
+                    amount_paid=amount_paid,
+                    payment_method="ONLINE",
+                    receipt_number=transaction.reference,
+                    payment_date=payment_date,
+                ),
+                transaction.initiated_by_user_id,
+            )
+            transaction.payment_id = payment.id
+            send_bulk_notifications(
+                db,
+                _get_student_finance_recipient_ids(db, transaction.student_id),
+                "Paystack payment confirmed",
+                f"An online payment of NGN {amount_paid:,.2f} has been confirmed for your school fees.",
+            )
+    elif status in {"failed", "reversed"}:
+        transaction.status = PaystackTransactionStatus.FAILED
+    else:
+        transaction.status = PaystackTransactionStatus.PENDING
+
+
+def _serialize_paystack_transaction(transaction: PaystackTransaction) -> dict:
+    return PaystackTransactionOut.model_validate(transaction).model_dump()
 
 
 # --- Fee Structures ---
@@ -481,6 +572,134 @@ def direct_payment(
         "payment_id": payment.id,
         "invoice_status": invoice.status.value,
     }, "Payment recorded successfully")
+
+
+# --- Paystack ---
+@router.post("/paystack/initialize")
+def initialize_paystack(
+    data: PaystackInitializeIn,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    if not paystack_is_configured():
+        raise HTTPException(status_code=503, detail="Paystack is not configured yet")
+
+    invoice = db.query(Invoice).filter(Invoice.id == data.invoice_id).first()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    _assert_user_can_access_invoice(db, current_user, invoice)
+    if invoice.status == InvoiceStatus.PAID or Decimal(str(invoice.balance)) <= 0:
+        raise HTTPException(status_code=400, detail="This invoice has already been paid")
+
+    amount_minor = _minor_units(Decimal(str(invoice.balance)))
+    reference = f"SMS-PSTK-{invoice.id}-{uuid.uuid4().hex[:10].upper()}"
+    callback_url = (
+        settings.paystack_callback_url_normalized
+        or f"{settings.frontend_url_normalized}{_get_paystack_callback_path(current_user)}"
+    )
+    payload = {
+        "email": current_user.email,
+        "amount": amount_minor,
+        "reference": reference,
+        "callback_url": callback_url,
+        "metadata": {
+            "invoice_id": invoice.id,
+            "student_id": invoice.student_id,
+            "session_id": invoice.session_id,
+            "term_id": invoice.term_id,
+            "initiated_by_user_id": current_user.id,
+        },
+        "currency": "NGN",
+    }
+    try:
+        response = initialize_paystack_transaction(payload)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Paystack initialize failed: {exc}") from exc
+
+    response_data = response.get("data") or {}
+    transaction = PaystackTransaction(
+        invoice_id=invoice.id,
+        student_id=invoice.student_id,
+        initiated_by_user_id=current_user.id,
+        reference=reference,
+        authorization_url=response_data.get("authorization_url"),
+        access_code=response_data.get("access_code"),
+        amount_minor=amount_minor,
+        currency="NGN",
+        status=PaystackTransactionStatus.INITIALIZED,
+        raw_initialize_response=response,
+    )
+    db.add(transaction)
+    db.commit()
+    db.refresh(transaction)
+    return success_response(
+        PaystackInitializeOut(
+            reference=transaction.reference,
+            authorization_url=transaction.authorization_url or "",
+            access_code=transaction.access_code or "",
+            invoice_id=transaction.invoice_id,
+            amount_minor=transaction.amount_minor,
+            currency=transaction.currency,
+        ).model_dump(),
+        "Paystack checkout initialized",
+    )
+
+
+@router.get("/paystack/verify/{reference}")
+def verify_paystack(
+    reference: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    if not paystack_is_configured():
+        raise HTTPException(status_code=503, detail="Paystack is not configured yet")
+
+    transaction = get_paystack_transaction_by_reference(db, reference)
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+
+    invoice = db.query(Invoice).filter(Invoice.id == transaction.invoice_id).first()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    _assert_user_can_access_invoice(db, current_user, invoice)
+
+    try:
+        response = verify_paystack_transaction(reference)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Paystack verification failed: {exc}") from exc
+
+    _sync_paystack_transaction(db, transaction, response)
+    db.commit()
+    db.refresh(transaction)
+    return success_response(_serialize_paystack_transaction(transaction), "Paystack transaction verified")
+
+
+@router.post("/paystack/webhook")
+async def paystack_webhook(
+    request: Request,
+    x_paystack_signature: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    if not paystack_is_configured():
+        raise HTTPException(status_code=503, detail="Paystack is not configured yet")
+
+    payload = await request.body()
+    if not verify_paystack_signature(payload, x_paystack_signature):
+        raise HTTPException(status_code=401, detail="Invalid Paystack signature")
+
+    event = await request.json()
+    event_name = event.get("event")
+    event_data = event.get("data") or {}
+    reference = event_data.get("reference")
+
+    if event_name == "charge.success" and reference:
+        transaction = get_paystack_transaction_by_reference(db, reference)
+        if transaction:
+            verify_response = verify_paystack_transaction(reference)
+            _sync_paystack_transaction(db, transaction, verify_response)
+            db.commit()
+
+    return success_response({"received": True}, "Webhook processed")
 
 
 # --- Ledger (accounting view) ---

@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from app.models.finance import FeeStructure, Invoice, Payment, Expenditure, Payroll, InvoiceStatus, ExpenseApprovalStatus, PayrollStatus, OptionalFee
+from app.models.finance import FeeStructure, Invoice, Payment, Expenditure, Payroll, InvoiceStatus, ExpenseApprovalStatus, PayrollStatus, OptionalFee, PaystackTransaction
 from app.models.student import Student, StudentStatus
 
 
@@ -65,6 +65,10 @@ def get_invoice(db: Session, invoice_id: int) -> Optional[Invoice]:
 
 def get_student_invoices(db: Session, student_id: int):
     return db.query(Invoice).filter(Invoice.student_id == student_id).all()
+
+
+def get_paystack_transaction_by_reference(db: Session, reference: str) -> Optional[PaystackTransaction]:
+    return db.query(PaystackTransaction).filter(PaystackTransaction.reference == reference).first()
 
 
 def record_payment(db: Session, data, admin_user_id: int) -> Payment:

@@ -119,6 +119,10 @@ export const getDebtors = (session_id: number, term_id: number) =>
   api.get("/api/v1/finance/invoices/debtors", { params: { session_id, term_id } });
 export const getProfitLoss = (params?: object) =>
   api.get("/api/v1/finance/reports/profit-loss", { params });
+export const initializePaystackPayment = (invoice_id: number) =>
+  api.post("/api/v1/finance/paystack/initialize", { invoice_id });
+export const verifyPaystackPayment = (reference: string) =>
+  api.get(`/api/v1/finance/paystack/verify/${reference}`);
 
 // Results
 export const getResults = (class_id: number, term_id: number, session_id: number) =>

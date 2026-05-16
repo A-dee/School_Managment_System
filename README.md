@@ -80,6 +80,8 @@ Production notes:
 - Set `NEXT_PUBLIC_API_URL` to your backend origin only, for example `https://schoolmanagmentsystem-production.up.railway.app`
 - Set `FRONTEND_URL` to your frontend origin, for example `https://school-managment-system-dye9.vercel.app`
 - Add your deployed frontend domains to `ALLOWED_ORIGINS`
+- For Paystack prep, set `PAYSTACK_SECRET_KEY`, `PAYSTACK_PUBLIC_KEY`, and `PAYSTACK_WEBHOOK_SECRET`
+- Optionally set `PAYSTACK_CALLBACK_URL`; otherwise the app falls back to the relevant fees page after checkout
 
 ## Roles & Default Credentials
 
