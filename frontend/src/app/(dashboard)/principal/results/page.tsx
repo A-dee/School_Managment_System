@@ -16,6 +16,20 @@ const gradeColor = (g: string) => ({
   A: "#16a34a", B: "#2563eb", C: "#d97706", D: "#ea580c", E: "#9333ea", F: "#dc2626",
 }[g] || "#64748b");
 
+const getErrorMessage = (error: any, fallback: string) => {
+  const detail = error?.response?.data?.detail;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => item?.msg || item?.message || JSON.stringify(item))
+      .join(", ");
+  }
+  if (detail && typeof detail === "object") {
+    return detail.msg || detail.message || fallback;
+  }
+  return fallback;
+};
+
 export default function ResultsPage() {
   const [classes,  setClasses]  = useState<any[]>([]);
   const [terms,    setTerms]    = useState<any[]>([]);
@@ -52,13 +66,16 @@ export default function ResultsPage() {
   };
 
   const approve = async () => {
-    if (!filter.class_id || !filter.term_id) return;
+    if (!filter.class_id || !filter.term_id || !filter.session_id) {
+      toast.error("Select class, term, and session");
+      return;
+    }
     try {
       await api.post("/api/v1/results/approve", null, {
-        params: { class_id: filter.class_id, term_id: filter.term_id },
+        params: { class_id: filter.class_id, term_id: filter.term_id, session_id: filter.session_id },
       });
       toast.success("Results approved"); load();
-    } catch (e: any) { toast.error(e?.response?.data?.detail || "Failed to approve"); }
+    } catch (e: any) { toast.error(getErrorMessage(e, "Failed to approve")); }
   };
 
   const publish = async () => {
@@ -68,10 +85,10 @@ export default function ResultsPage() {
         params: { class_id: filter.class_id, term_id: filter.term_id, session_id: filter.session_id },
       });
       await api.post("/api/v1/results/publish", null, {
-        params: { class_id: filter.class_id, term_id: filter.term_id },
+        params: { class_id: filter.class_id, term_id: filter.term_id, session_id: filter.session_id },
       });
       toast.success("Results published"); load();
-    } catch (e: any) { toast.error(e?.response?.data?.detail || "Failed to publish"); }
+    } catch (e: any) { toast.error(getErrorMessage(e, "Failed to publish")); }
   };
 
   // Group by student
