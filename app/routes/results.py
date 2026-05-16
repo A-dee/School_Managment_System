@@ -14,6 +14,7 @@ from app.utils.auth import get_current_user
 from app.utils.response import success_response
 from app.utils.audit import log_action
 from app.crud.staff import get_staff_by_user_id
+from app.routes.notifications import send_bulk_notifications
 
 router = APIRouter(prefix="/results", tags=["Results"])
 
@@ -75,6 +76,22 @@ def _assert_teacher_can_access_student_results(db: Session, current_user, studen
     cls = db.query(Class).filter(Class.id == student.current_class_id, Class.class_teacher_id == staff.id).first()
     if not cls:
         raise HTTPException(status_code=403, detail="You can only access records for students in your own class")
+
+
+def _get_result_notification_recipient_ids(db: Session, class_id: int) -> set[int]:
+    from app.models.student import Student
+    from app.models.parent import ParentStudent, Parent
+
+    students = db.query(Student).filter(Student.current_class_id == class_id).all()
+    recipient_ids = {student.user_id for student in students if student.user_id}
+    student_ids = [student.id for student in students]
+    if student_ids:
+        links = db.query(ParentStudent).filter(ParentStudent.student_id.in_(student_ids)).all()
+        parent_ids = {link.parent_id for link in links}
+        if parent_ids:
+            parents = db.query(Parent).filter(Parent.id.in_(parent_ids)).all()
+            recipient_ids.update(parent.user_id for parent in parents if parent.user_id)
+    return recipient_ids
 
 
 @router.post("/")
@@ -186,8 +203,21 @@ def approve(class_id: int, term_id: int, session_id: int, db: Session = Depends(
 
 @router.post("/publish")
 def publish(class_id: int, term_id: int, session_id: int, db: Session = Depends(get_db), current_user=Depends(is_principal_or_above)):
+    from app.models.academic import Term, AcademicSession
+    from app.models.class_ import Class
+
     compute_class_positions(db, class_id, term_id, session_id)
     publish_results(db, class_id, term_id, session_id)
+    class_obj = db.query(Class).filter(Class.id == class_id).first()
+    term_obj = db.query(Term).filter(Term.id == term_id).first()
+    session_obj = db.query(AcademicSession).filter(AcademicSession.id == session_id).first()
+    title = "Results published"
+    message = (
+        f"{term_obj.name if term_obj else 'Selected term'} results for "
+        f"{class_obj.name if class_obj else 'your class'}"
+        f"{f' ({session_obj.name})' if session_obj else ''} are now available."
+    )
+    send_bulk_notifications(db, _get_result_notification_recipient_ids(db, class_id), title, message)
     log_action(db, "PUBLISH_RESULTS", "Result", current_user.id, new_value={"class_id": class_id, "term_id": term_id, "session_id": session_id})
     db.commit()
     return success_response(None, "Results published")

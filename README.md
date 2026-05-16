@@ -68,12 +68,18 @@ API docs: http://localhost:8000/docs
 cd frontend
 npm install
 cp .env.example .env.local
-# Set NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+# Set NEXT_PUBLIC_API_URL=http://localhost:8000
 
 npm run dev
 ```
 
 Frontend: http://localhost:3000
+
+Production notes:
+
+- Set `NEXT_PUBLIC_API_URL` to your backend origin only, for example `https://schoolmanagmentsystem-production.up.railway.app`
+- Set `FRONTEND_URL` to your frontend origin, for example `https://school-managment-system-dye9.vercel.app`
+- Add your deployed frontend domains to `ALLOWED_ORIGINS`
 
 ## Roles & Default Credentials
 

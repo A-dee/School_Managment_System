@@ -1,9 +1,11 @@
-import smtplib
 import logging
-from email.mime.text import MIMEText
+import smtplib
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from typing import Optional
+
 from sqlalchemy.orm import Session
+
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -13,13 +15,16 @@ def _send_via_resend(to_email: str, subject: str, html_body: str, raise_on_error
     """Send via Resend API. Returns True on success, False (or raises) on failure."""
     try:
         import resend
+
         resend.api_key = settings.RESEND_API_KEY
-        result = resend.Emails.send({
-            "from": settings.EMAIL_FROM,
-            "to": [to_email],
-            "subject": subject,
-            "html": html_body,
-        })
+        result = resend.Emails.send(
+            {
+                "from": settings.EMAIL_FROM,
+                "to": [to_email],
+                "subject": subject,
+                "html": html_body,
+            }
+        )
         logger.info("Resend: sent to=%s subject=%s id=%s", to_email, subject, getattr(result, "id", result))
         return True
     except Exception as exc:
@@ -40,7 +45,7 @@ def _dispatch(
     Dispatch email using the best available channel:
     1. Resend API (if RESEND_API_KEY is configured)
     2. SMTP config stored in the database
-    3. Dev fallback — log to stdout
+    3. Dev fallback - log to stdout
     """
     if settings.RESEND_API_KEY and settings.RESEND_API_KEY != "re_placeholder":
         return _send_via_resend(to_email, subject, html_body)
@@ -52,7 +57,36 @@ def _dispatch(
 
 def get_email_config(db: Session):
     from app.models.email_config import EmailConfig
+
     return db.query(EmailConfig).filter(EmailConfig.is_active == True).first()
+
+
+def _send_via_smtp(
+    smtp_host: str,
+    smtp_port: int,
+    smtp_user: str,
+    smtp_password: str,
+    from_name: str,
+    to_email: str,
+    subject: str,
+    body: str,
+    html_body: Optional[str] = None,
+) -> bool:
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = f"{from_name} <{smtp_user}>"
+    msg["To"] = to_email
+    msg.attach(MIMEText(body, "plain"))
+    if html_body:
+        msg.attach(MIMEText(html_body, "html"))
+
+    with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as server:
+        server.ehlo()
+        server.starttls()
+        server.ehlo()
+        server.login(smtp_user, smtp_password)
+        server.sendmail(smtp_user, to_email, msg.as_string())
+    return True
 
 
 def send_email(
@@ -64,28 +98,28 @@ def send_email(
 ) -> bool:
     if settings.RESEND_API_KEY and settings.RESEND_API_KEY != "re_placeholder":
         return _send_via_resend(to_email, subject, html_body or f"<pre style='font-family:sans-serif'>{body}</pre>")
+
     config = get_email_config(db)
     if not config:
-        logger.warning("No email config found — email not sent")
+        logger.warning("No email config found - email not sent")
         return False
+
     try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = f"{config.from_name} <{config.smtp_user}>"
-        msg["To"] = to_email
-
-        msg.attach(MIMEText(body, "plain"))
-        if html_body:
-            msg.attach(MIMEText(html_body, "html"))
-
-        with smtplib.SMTP(config.smtp_host, config.smtp_port) as server:
-            server.starttls()
-            server.login(config.smtp_user, config.smtp_password)
-            server.sendmail(config.smtp_user, to_email, msg.as_string())
-        logger.info(f"Email sent to {to_email}: {subject}")
+        _send_via_smtp(
+            config.smtp_host,
+            config.smtp_port,
+            config.smtp_user,
+            config.smtp_password,
+            config.from_name,
+            to_email,
+            subject,
+            body,
+            html_body,
+        )
+        logger.info("Email sent to %s: %s", to_email, subject)
         return True
-    except Exception as e:
-        logger.error(f"Failed to send email to {to_email}: {e}")
+    except Exception as exc:
+        logger.error("Failed to send email to %s: %s", to_email, exc)
         return False
 
 
@@ -122,28 +156,37 @@ School Management System
 
 
 def send_fee_reminder(db: Session, to_email: str, student_name: str, amount: float, due_date: str) -> bool:
-    subject = f"Fee Payment Reminder — {student_name}"
-    body = f"Dear Parent,\n\nThis is a reminder that a fee balance of ₦{amount:,.2f} is due by {due_date} for {student_name}.\n\nPlease make payment at the earliest.\n\nRegards,\nSchool Finance Office"
+    subject = f"Fee Payment Reminder - {student_name}"
+    body = (
+        f"Dear Parent,\n\nThis is a reminder that a fee balance of N{amount:,.2f} "
+        f"is due by {due_date} for {student_name}.\n\nPlease make payment at the earliest."
+        "\n\nRegards,\nSchool Finance Office"
+    )
     return send_email(db, to_email, subject, body)
 
 
 def send_result_notification(db: Session, to_email: str, student_name: str, term: str) -> bool:
-    subject = f"Results Published — {student_name}"
-    body = f"Dear Parent,\n\nThe {term} results for {student_name} have been published. Please log in to your portal to view them.\n\nRegards,\nSchool Management System"
+    subject = f"Results Published - {student_name}"
+    body = (
+        f"Dear Parent,\n\nThe {term} results for {student_name} have been published. "
+        "Please log in to your portal to view them.\n\nRegards,\nSchool Management System"
+    )
     return send_email(db, to_email, subject, body)
 
-
-# ── New transactional templates ───────────────────────────────────────────────
 
 def send_password_reset_email(
     to_email: str, reset_token: str, user_name: str = "", db: Optional[Session] = None
 ) -> bool:
-    reset_url = f"{settings.FRONTEND_URL}/reset-password?token={reset_token}"
+    # Build a stable reset URL even if the configured frontend origin includes a trailing slash.
+    reset_url = f"{settings.frontend_url_normalized}/reset-password?token={reset_token}"
     greeting = f"Hi {user_name}," if user_name else "Hello,"
-    subject = "Reset Your Password — Hope Hills Academy"
+    subject = "Reset Your Password - Hope Hills Academy"
     plain = (
-        f"{greeting}\n\nReset your password here: {reset_url}\n\n"
-        "This link expires in 1 hour. If you didn't request this, ignore this email."
+        f"{greeting}\n\n"
+        "Use this one-time reset token to create a new password:\n"
+        f"{reset_token}\n\n"
+        f"You can also reset directly with this link:\n{reset_url}\n\n"
+        "This token expires in 1 hour. If you didn't request this, ignore this email."
     )
     html = f"""
     <div style="font-family:sans-serif;max-width:540px;margin:0 auto;padding:32px;
@@ -152,7 +195,17 @@ def send_password_reset_email(
       <p style="color:#475569;margin-bottom:24px">
         {greeting}<br><br>
         We received a request to reset your portal password.
-        Click the button below — the link expires in <strong>1 hour</strong>.
+        Use the one-time token below or click the button.
+        It expires in <strong>1 hour</strong>.
+      </p>
+      <div style="margin:0 0 24px;padding:16px 18px;background:#e2e8f0;border-radius:10px">
+        <div style="font-size:0.78rem;color:#475569;margin-bottom:6px">One-time reset token</div>
+        <div style="font-size:1.1rem;font-weight:800;letter-spacing:0.08em;color:#0f172a;word-break:break-all">
+          {reset_token}
+        </div>
+      </div>
+      <p style="color:#475569;margin-bottom:24px">
+        If your email app blocks the button, open the reset page and paste the token manually.
       </p>
       <a href="{reset_url}"
          style="display:inline-block;padding:12px 28px;background:#2563eb;
@@ -175,9 +228,9 @@ def send_payment_confirmation_email(
     db: Optional[Session] = None,
 ) -> bool:
     fmt = f"{amount:,.2f}"
-    subject = f"Payment Confirmed — ₦{fmt} for {student_name}"
+    subject = f"Payment Confirmed - N{fmt} for {student_name}"
     plain = (
-        f"Dear Parent,\n\nA payment of ₦{fmt} has been recorded for {student_name}.\n"
+        f"Dear Parent,\n\nA payment of N{fmt} has been recorded for {student_name}.\n"
         f"Receipt: {receipt_number} | Term: {term_name}\n\n"
         "Please keep this email as proof of payment.\n\nRegards,\nSchool Finance Office"
     )
@@ -191,7 +244,7 @@ def send_payment_confirmation_email(
       <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
         <tr style="border-bottom:1px solid #e2e8f0">
           <td style="padding:10px 0;color:#64748b">Amount</td>
-          <td style="padding:10px 0;font-weight:700;color:#0f172a">&#8358;{fmt}</td>
+          <td style="padding:10px 0;font-weight:700;color:#0f172a">N{fmt}</td>
         </tr>
         <tr style="border-bottom:1px solid #e2e8f0">
           <td style="padding:10px 0;color:#64748b">Receipt No.</td>

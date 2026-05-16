@@ -30,6 +30,7 @@ from app.utils.audit import log_action
 from app.config import settings
 from app.models.user import UserRole
 from app.crud.staff import get_staff_by_user_id
+from app.routes.notifications import send_bulk_notifications
 
 router = APIRouter(prefix="/finance", tags=["Finance"])
 
@@ -48,6 +49,22 @@ def _assert_teacher_can_access_student_finance(db: Session, current_user, studen
     cls = db.query(Class).filter(Class.id == student.current_class_id, Class.class_teacher_id == staff.id).first()
     if not cls:
         raise HTTPException(status_code=403, detail="You can only access finance records for students in your own class")
+
+
+def _get_student_finance_recipient_ids(db: Session, student_id: int) -> set[int]:
+    from app.models.student import Student
+    from app.models.parent import ParentStudent, Parent
+
+    recipient_ids: set[int] = set()
+    student = db.query(Student).filter(Student.id == student_id).first()
+    if student and student.user_id:
+        recipient_ids.add(student.user_id)
+
+    links = db.query(ParentStudent).filter(ParentStudent.student_id == student_id).all()
+    if links:
+        parents = db.query(Parent).filter(Parent.id.in_([link.parent_id for link in links])).all()
+        recipient_ids.update(parent.user_id for parent in parents if parent.user_id)
+    return recipient_ids
 
 
 # --- Fee Structures ---
@@ -165,6 +182,14 @@ def student_invoices(student_id: int, db: Session = Depends(get_db), current_use
 @router.post("/payments")
 def add_payment(data: PaymentCreate, db: Session = Depends(get_db), current_user=Depends(is_admin_or_above)):
     payment = record_payment(db, data, current_user.id)
+    invoice = db.query(Invoice).filter(Invoice.id == data.invoice_id).first()
+    if invoice:
+        send_bulk_notifications(
+            db,
+            _get_student_finance_recipient_ids(db, invoice.student_id),
+            "Payment recorded",
+            f"A payment of NGN {data.amount_paid:,.2f} has been recorded for your school fees.",
+        )
     log_action(db, "RECORD_PAYMENT", "Payment", current_user.id, entity_id=payment.id,
                new_value={"amount": float(data.amount_paid), "invoice_id": data.invoice_id})
     db.commit()
@@ -361,6 +386,12 @@ def confirm_declaration(
             invoice.balance = Decimal("0")
         else:
             invoice.status = InvoiceStatus.PARTIAL
+        send_bulk_notifications(
+            db,
+            _get_student_finance_recipient_ids(db, invoice.student_id),
+            "Payment confirmed",
+            f"Your payment declaration of NGN {data.confirmed_amount:,.2f} has been confirmed.",
+        )
     log_action(db, "CONFIRM_DECLARATION", "PaymentDeclaration", current_user.id,
                entity_id=decl_id, new_value={"confirmed_amount": float(data.confirmed_amount)})
     db.commit()
@@ -382,6 +413,14 @@ def reject_declaration(
     decl.rejection_reason = data.rejection_reason
     decl.confirmed_by = current_user.id
     decl.confirmed_at = dt.utcnow()
+    invoice = db.query(Invoice).filter(Invoice.id == decl.invoice_id).first()
+    if invoice:
+        send_bulk_notifications(
+            db,
+            _get_student_finance_recipient_ids(db, invoice.student_id),
+            "Payment declaration rejected",
+            data.rejection_reason or "Your payment declaration could not be confirmed.",
+        )
     log_action(db, "REJECT_DECLARATION", "PaymentDeclaration", current_user.id, entity_id=decl_id)
     db.commit()
     return success_response(None, "Declaration rejected")

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { getNotifications } from "@/lib/api";
+import { getNotifications, markAllNotificationsRead, markNotificationRead } from "@/lib/api";
 import api from "@/lib/api";
 import { Bell, CheckCheck, CheckCircle, Megaphone, CalendarDays, Palmtree } from "lucide-react";
 
@@ -32,13 +32,12 @@ export default function NotificationsPage() {
   useEffect(() => { load(); }, []);
 
   const markRead = async (id: number) => {
-    await api.post(`/api/v1/notifications/${id}/read`).catch(() => {});
+    await markNotificationRead(id).catch(() => {});
     setNotifications(n => n.map(x => x.id === id ? { ...x, is_read: true } : x));
   };
 
   const markAllRead = async () => {
-    const unreadItems = notifications.filter(n => !n.is_read);
-    await Promise.all(unreadItems.map(n => api.post(`/api/v1/notifications/${n.id}/read`).catch(() => {})));
+    await markAllNotificationsRead().catch(() => {});
     setNotifications(prev => prev.map(x => ({ ...x, is_read: true })));
   };
 

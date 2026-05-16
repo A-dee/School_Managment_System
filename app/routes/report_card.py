@@ -12,6 +12,7 @@ from app.utils.rbac import is_teacher_or_above, is_super_admin
 from app.utils.response import success_response
 from app.models.user import UserRole
 from app.crud.staff import get_staff_by_user_id
+from app.routes.notifications import send_bulk_notifications
 
 router = APIRouter(prefix="/report-cards", tags=["Report Cards"])
 
@@ -34,6 +35,21 @@ def _assert_teacher_can_access_student(db: Session, current_user, student: Stude
     cls = db.query(Class).filter(Class.id == student.current_class_id, Class.class_teacher_id == staff.id).first()
     if not cls:
         raise HTTPException(status_code=403, detail="You can only access report cards for your own class")
+
+
+def _get_report_card_recipient_ids(db: Session, student_id: int) -> set[int]:
+    from app.models.parent import ParentStudent, Parent
+
+    recipient_ids: set[int] = set()
+    student = db.query(Student).filter(Student.id == student_id).first()
+    if student and student.user_id:
+        recipient_ids.add(student.user_id)
+
+    links = db.query(ParentStudent).filter(ParentStudent.student_id == student_id).all()
+    if links:
+        parents = db.query(Parent).filter(Parent.id.in_([link.parent_id for link in links])).all()
+        recipient_ids.update(parent.user_id for parent in parents if parent.user_id)
+    return recipient_ids
 
 
 # ── Student-facing endpoint MUST come before /{student_id} ──────────────────
@@ -160,6 +176,12 @@ def approve_report_card(
     record.approved = True
     record.approved_by_id = current_user.id
     record.approved_at = datetime.utcnow()
+    send_bulk_notifications(
+        db,
+        _get_report_card_recipient_ids(db, student_id),
+        "Report card approved",
+        "A report card has been approved and is now available on the portal.",
+    )
     db.commit()
     return success_response({"approved": True}, "Report card approved")
 
@@ -195,5 +217,14 @@ def approve_all_class_report_cards(
         r.approved = True
         r.approved_by_id = current_user.id
         r.approved_at = now
+    recipient_ids: set[int] = set()
+    for r in records:
+        recipient_ids.update(_get_report_card_recipient_ids(db, r.student_id))
+    send_bulk_notifications(
+        db,
+        recipient_ids,
+        "Report cards approved",
+        "Approved report cards for your class are now available on the portal.",
+    )
     db.commit()
     return success_response({"approved_count": len(records)}, f"{len(records)} report card(s) approved")

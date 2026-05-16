@@ -1,12 +1,30 @@
 import axios from "axios";
 import Cookies from "js-cookie";
 import { logger } from "@/lib/logger";
+import { clearTokens, storeAccessToken } from "@/lib/auth";
 
-const _raw = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+function normalizeBaseUrl(raw?: string): string {
+  let base = (raw || "http://localhost:8000").trim();
+  if (base.endsWith("/")) base = base.slice(0, -1);
+  // Accept either the backend origin or an already-suffixed API path from env config.
+  if (base.endsWith("/api/v1")) base = base.slice(0, -"/api/v1".length);
+
+  const isLocalhost =
+    base.startsWith("http://localhost") ||
+    base.startsWith("http://127.0.0.1") ||
+    base.startsWith("https://localhost") ||
+    base.startsWith("https://127.0.0.1");
+
+  if (typeof window !== "undefined" && window.location.protocol === "https:" && !isLocalhost && base.startsWith("http://")) {
+    // Prevent mixed-content failures when a deployed HTTPS frontend is pointed at an HTTP backend origin.
+    base = `https://${base.slice("http://".length)}`;
+  }
+
+  return base;
+}
 // Upgrade http → https when running in a secure browser context (prevents Mixed Content errors)
-const BASE = typeof window !== "undefined" && window.location.protocol === "https:" && _raw.startsWith("http://")
-  ? _raw.replace("http://", "https://")
-  : _raw;
+// Shared API root for all frontend requests.
+const BASE = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_URL);
 const API_URL = `${BASE}/api/v1`;
 
 const api = axios.create({
@@ -34,26 +52,34 @@ api.interceptors.response.use(
     const cfg = err.config || {};
     const ms  = Date.now() - ((cfg as any)._t || Date.now());
     const status = err.response?.status ?? "network";
+    const requestUrl = String(cfg.url || "");
+    // Never try to refresh the refresh request itself, and only retry each request once.
+    const isRefreshCall = requestUrl.includes("/auth/refresh");
 
-    if (status === 401) {
+    if (status === 401 && !cfg._retry && !isRefreshCall) {
       const refresh = Cookies.get("refresh_token");
       if (refresh) {
         try {
+          cfg._retry = true;
           logger.auth("token_refresh");
-          const { data } = await axios.post(`${API_URL}/auth/refresh`, { refresh_token: refresh });
-          Cookies.set("access_token", data.data.access_token, { secure: true, sameSite: "strict" });
+          const { data } = await axios.post(
+            `${API_URL}/auth/refresh`,
+            { refresh_token: refresh },
+            { headers: { "Content-Type": "application/json" } }
+          );
+          storeAccessToken(data.data.access_token);
           cfg.headers.Authorization = `Bearer ${data.data.access_token}`;
           return api.request(cfg);
         } catch {
           logger.auth("refresh_failed");
-          Cookies.remove("access_token");
-          Cookies.remove("refresh_token");
+          clearTokens();
           logger.auth("redirect_login");
-          window.location.href = "/login";
+          if (typeof window !== "undefined") window.location.href = "/login";
         }
       } else {
         logger.auth("redirect_login", "no refresh token");
-        window.location.href = "/login";
+        clearTokens();
+        if (typeof window !== "undefined") window.location.href = "/login";
       }
     }
 
@@ -104,7 +130,9 @@ export const getStudentAttendance = (student_id: number) =>
 
 // Notifications
 export const getNotifications = () => api.get("/api/v1/notifications");
+export const getNotificationUnreadCount = () => api.get("/api/v1/notifications/unread-count");
 export const markNotificationRead = (id: number) => api.post(`/api/v1/notifications/${id}/read`);
+export const markAllNotificationsRead = () => api.post("/api/v1/notifications/read-all");
 
 // Messages
 export const getInbox = (params?: object) => api.get("/api/v1/messages/inbox", { params });

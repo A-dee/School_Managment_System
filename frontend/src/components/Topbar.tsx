@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Bell, Menu } from "lucide-react";
 import { useEffect, useState } from "react";
-import api from "@/lib/api";
+import { getNotificationUnreadCount } from "@/lib/api";
 import { getRole } from "@/lib/auth";
 
 const routeLabels: Record<string, string> = {
@@ -87,9 +87,8 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
   }, []);
 
   useEffect(() => {
-    api.get("/api/v1/notifications").then(r => {
-      const items: any[] = r.data.data || [];
-      setUnread(items.filter(n => !n.is_read).length);
+    getNotificationUnreadCount().then(r => {
+      setUnread(r.data.data?.unread || 0);
     }).catch(() => {});
   }, [pathname]);
 

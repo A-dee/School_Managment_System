@@ -35,11 +35,12 @@ interface BroadcastGroup {
 }
 
 const roleLabel: Record<string, string> = {
-  SUPER_ADMIN:        "Proprietor",
-  PRINCIPAL:          "Vice Principal",
-  ADMIN:              "Principal",
+  SUPER_ADMIN:        "Super Admin",
+  PRINCIPAL:          "Principal",
+  ADMIN:              "Admin",
   TEACHER:            "Teacher",
   PARENT:             "Parent",
+  STUDENT:            "Student",
   NON_TEACHING_STAFF: "Staff",
 };
 

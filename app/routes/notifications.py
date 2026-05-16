@@ -20,6 +20,15 @@ def my_notifications(db: Session = Depends(get_db), current_user=Depends(get_cur
     } for n in notifications])
 
 
+@router.get("/unread-count")
+def unread_count(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    count = db.query(Notification).filter(
+        Notification.recipient_user_id == current_user.id,
+        Notification.is_read == 0,
+    ).count()
+    return success_response({"unread": count})
+
+
 @router.post("/{notification_id}/read")
 def mark_read(notification_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     n = db.query(Notification).filter(
@@ -30,6 +39,18 @@ def mark_read(notification_id: int, db: Session = Depends(get_db), current_user=
         n.is_read = 1
         db.commit()
     return success_response(None, "Marked as read")
+
+
+@router.post("/read-all")
+def mark_all_read(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    unread_items = db.query(Notification).filter(
+        Notification.recipient_user_id == current_user.id,
+        Notification.is_read == 0,
+    ).all()
+    for item in unread_items:
+        item.is_read = 1
+    db.commit()
+    return success_response({"marked": len(unread_items)}, "All notifications marked as read")
 
 
 def send_notification(db: Session, user_id: int, title: str, message: str, channel: str = "IN_APP"):
@@ -44,3 +65,10 @@ def send_notification(db: Session, user_id: int, title: str, message: str, chann
     db.add(n)
     db.flush()
     return n
+
+
+def send_bulk_notifications(db: Session, user_ids: list[int] | set[int], title: str, message: str, channel: str = "IN_APP"):
+    sent: list[Notification] = []
+    for user_id in sorted({uid for uid in user_ids if uid}):
+        sent.append(send_notification(db, user_id, title, message, channel))
+    return sent

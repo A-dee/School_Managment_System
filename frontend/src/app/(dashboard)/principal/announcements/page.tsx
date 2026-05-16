@@ -13,6 +13,17 @@ const TYPE_META: Record<AnnType, { label: string; color: string; bg: string; Ico
   HOLIDAY: { label: "Holiday", color: "#22c55e", bg: "rgba(34,197,94,0.1)",   Icon: Palmtree   },
 };
 
+const AUDIENCE_LABELS: Record<string, string> = {
+  ALL: "Everyone",
+  STUDENT: "Students",
+  TEACHER: "Staff only",
+  PARENT: "Parents only",
+  "STUDENT,PARENT": "Students & Parents",
+  "STUDENT,TEACHER": "Students & Staff",
+  "TEACHER,PARENT": "Staff & Parents",
+  "STUDENT,TEACHER,PARENT": "Students, Staff & Parents",
+};
+
 const blank = { title: "", message: "", type: "NOTICE" as AnnType, event_date: "", target_roles: "ALL" };
 
 export default function AnnouncementsPage() {
@@ -25,7 +36,7 @@ export default function AnnouncementsPage() {
 
   const load = async () => {
     setLoading(true);
-    try { const r = await api.get("/api/v1/announcements"); setList(r.data.data || []); }
+    try { const r = await api.get("/api/v1/announcements", { params: { include_all: true } }); setList(r.data.data || []); }
     catch { toast.error("Failed to load announcements"); }
     setLoading(false);
   };
@@ -34,6 +45,7 @@ export default function AnnouncementsPage() {
 
   const save = async () => {
     if (!form.title.trim() || !form.message.trim()) { toast.error("Title and message are required"); return; }
+    if (needsDate && !form.event_date) { toast.error("Select an event date"); return; }
     setSaving(true);
     try {
       const body: any = {
@@ -179,7 +191,7 @@ export default function AnnouncementsPage() {
                       background: meta.bg, color: meta.color }}>{meta.label}</span>
                     <span style={{ padding: "1px 9px", borderRadius: 20, fontSize: "0.68rem",
                       background: "var(--accent-light)", color: "var(--accent)" }}>
-                      {a.target_roles === "ALL" ? "Everyone" : a.target_roles === "STUDENT,TEACHER" ? "Students & Staff" : a.target_roles === "STUDENT" ? "Students" : "Staff"}
+                      {AUDIENCE_LABELS[a.target_roles] || a.target_roles}
                     </span>
                   </div>
                   <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", lineHeight: 1.55, marginBottom: 4 }}>{a.message}</p>

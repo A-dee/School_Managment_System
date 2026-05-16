@@ -91,16 +91,51 @@ def _get_allowed_recipient_ids(db: Session, current_user: User) -> set[int] | No
         }
         return teacher_user_ids | principal_ids
 
+    if role == UserRole.STUDENT:
+        from app.models.student import Student
+        from app.models.class_ import Class
+        from app.models.staff import Staff
+
+        student = db.query(Student).filter(Student.user_id == current_user.id).first()
+        if not student:
+            return set()
+
+        allowed_ids: set[int] = set()
+        if student.current_class_id:
+            cls = db.query(Class).filter(Class.id == student.current_class_id).first()
+            if cls and cls.class_teacher_id:
+                teacher = db.query(Staff).filter(Staff.id == cls.class_teacher_id).first()
+                if teacher and teacher.user_id:
+                    allowed_ids.add(teacher.user_id)
+
+        admin_ids = {
+            u.id for u in db.query(User).filter(
+                User.role.in_([UserRole.ADMIN, UserRole.PRINCIPAL, UserRole.SUPER_ADMIN]),
+                User.is_active == True,
+            ).all()
+        }
+        return allowed_ids | admin_ids
+
     # TEACHER, ADMIN, NON_TEACHING_STAFF → can only message PRINCIPAL
     if role in (UserRole.TEACHER, UserRole.ADMIN, UserRole.NON_TEACHING_STAFF):
         principal_ids = {
             u.id for u in db.query(User).filter(
-                User.role == UserRole.PRINCIPAL, User.is_active == True
+                User.role.in_([UserRole.PRINCIPAL, UserRole.SUPER_ADMIN]), User.is_active == True
             ).all()
         }
         return principal_ids
 
-    return set()  # STUDENT and unknown roles cannot initiate messages
+    return set()
+
+
+def _get_thread_root(db: Session, message_id: int) -> Message | None:
+    # Thread views always anchor on the top-level message so replies stay grouped together.
+    msg = db.query(Message).filter(Message.id == message_id).first()
+    if not msg:
+        return None
+    if msg.parent_message_id:
+        return db.query(Message).filter(Message.id == msg.parent_message_id).first()
+    return msg
 
 
 @router.get("/contacts")
@@ -141,6 +176,8 @@ def send_message(request: Request, data: MessageCreate, db: Session = Depends(ge
     allowed_ids = _get_allowed_recipient_ids(db, current_user)
     if allowed_ids is not None and data.recipient_user_id not in allowed_ids:
         raise HTTPException(status_code=403, detail="You are not allowed to message this person")
+    if data.recipient_user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="You cannot message yourself")
 
     recipient = db.query(User).filter(User.id == data.recipient_user_id).first()
     if not recipient:
@@ -175,6 +212,7 @@ def inbox(skip: int = 0, limit: int = 30, db: Session = Depends(get_db), current
 def sent(skip: int = 0, limit: int = 30, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     q = db.query(Message).filter(
         Message.sender_user_id == current_user.id,
+        Message.parent_message_id == None,
     ).order_by(Message.created_at.desc())
     total = q.count()
     msgs = q.offset(skip).limit(limit).all()
@@ -192,7 +230,7 @@ def unread_count(db: Session = Depends(get_db), current_user=Depends(get_current
 
 @router.get("/{message_id}")
 def get_message(message_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    msg = db.query(Message).filter(Message.id == message_id).first()
+    msg = _get_thread_root(db, message_id)
     if not msg:
         raise HTTPException(status_code=404, detail="Message not found")
     if msg.recipient_user_id != current_user.id and msg.sender_user_id != current_user.id:
@@ -200,27 +238,31 @@ def get_message(message_id: int, db: Session = Depends(get_db), current_user=Dep
     if msg.recipient_user_id == current_user.id and not msg.is_read:
         msg.is_read = True
         db.commit()
-    replies = db.query(Message).filter(Message.parent_message_id == message_id).order_by(Message.created_at).all()
+    replies = db.query(Message).filter(Message.parent_message_id == msg.id).order_by(Message.created_at).all()
     return success_response({**_fmt(msg), "replies": [_fmt(r) for r in replies]})
 
 
 @router.post("/{message_id}/reply")
 def reply(message_id: int, data: MessageCreate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    original = db.query(Message).filter(Message.id == message_id).first()
+    original = _get_thread_root(db, message_id)
     if not original:
         raise HTTPException(status_code=404, detail="Message not found")
     if original.recipient_user_id != current_user.id and original.sender_user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied")
+    # Replies should always go back to the other participant in the thread, never to an arbitrary user id.
+    recipient_user_id = original.sender_user_id if original.recipient_user_id == current_user.id else original.recipient_user_id
+    if recipient_user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Invalid reply recipient")
     reply_msg = Message(
         sender_user_id=current_user.id,
-        recipient_user_id=data.recipient_user_id,
+        recipient_user_id=recipient_user_id,
         subject=f"Re: {original.subject}",
         body=data.body,
-        parent_message_id=message_id,
+        parent_message_id=original.id,
     )
     db.add(reply_msg)
     db.flush()
-    send_notification(db, data.recipient_user_id, f"Reply: {original.subject}", data.body[:100])
+    send_notification(db, recipient_user_id, f"Reply: {original.subject}", data.body[:100])
     db.commit()
     return success_response(_fmt(reply_msg), "Reply sent")
 

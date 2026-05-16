@@ -290,14 +290,14 @@ export default function LoginPage() {
               <>
                 <h3 style={{ fontWeight: 800, fontSize: "1.1rem", color: "#0f172a", marginBottom: 10 }}>Check your email</h3>
                 <p style={{ color: "#475569", fontSize: "0.875rem", marginBottom: 20 }}>
-                  If an account exists for <strong>{forgotEmail}</strong>, a password reset link has been sent. Check your inbox (and spam folder).
+                  If an account exists for <strong>{forgotEmail}</strong>, a password reset email has been sent with a one-time token and reset link. Check your inbox and spam folder.
                 </p>
                 <button onClick={() => setForgotOpen(false)} className="login-btn">Done</button>
               </>
             ) : (
               <>
                 <h3 style={{ fontWeight: 800, fontSize: "1.1rem", color: "#0f172a", marginBottom: 6 }}>Reset Password</h3>
-                <p style={{ color: "#64748b", fontSize: "0.8125rem", marginBottom: 18 }}>Enter your email and we&apos;ll send a reset link.</p>
+                <p style={{ color: "#64748b", fontSize: "0.8125rem", marginBottom: 18 }}>Enter your email and we&apos;ll send a one-time reset token and a reset link.</p>
                 <input
                   type="email"
                   placeholder="your@email.com"
@@ -309,7 +309,7 @@ export default function LoginPage() {
                 />
                 <div style={{ display: "flex", gap: 8 }}>
                   <button onClick={sendForgot} disabled={forgotSending} className="login-btn" style={{ flex: 1, borderRadius: 12 }}>
-                    {forgotSending ? "Sending..." : "Send Reset Link"}
+                    {forgotSending ? "Sending..." : "Send Reset Email"}
                   </button>
                   <button onClick={() => setForgotOpen(false)} style={{ padding: "10px 16px", borderRadius: 12, background: "rgba(241,245,249,0.8)", color: "#475569", fontWeight: 600, border: "1.5px solid rgba(203,213,225,0.8)", cursor: "pointer" }}>
                     Cancel

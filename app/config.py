@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
 
+    @property
+    def frontend_url_normalized(self) -> str:
+        # Email links should not depend on whether FRONTEND_URL was configured with a trailing slash.
+        return self.FRONTEND_URL.rstrip("/")
+
 
 @lru_cache()
 def get_settings() -> Settings:
