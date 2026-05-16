@@ -9,8 +9,25 @@ from app.utils.rbac import is_principal_or_above, is_teacher_or_above
 from app.utils.auth import get_current_user
 from app.utils.response import success_response
 from app.crud.staff import get_staff_by_user_id
+from app.models.class_ import Class
 
 router = APIRouter(prefix="/discipline", tags=["Discipline"])
+
+
+def _assert_teacher_can_access_student(db: Session, current_user, student_id: int):
+    if current_user.role != UserRole.TEACHER:
+        return
+    from app.models.student import Student
+    from app.models.class_ import Class
+    staff = get_staff_by_user_id(db, current_user.id)
+    if not staff:
+        raise HTTPException(status_code=403, detail="No staff profile found")
+    student = db.query(Student).filter(Student.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    cls = db.query(Class).filter(Class.id == student.current_class_id, Class.class_teacher_id == staff.id).first()
+    if not cls:
+        raise HTTPException(status_code=403, detail="You can only access discipline records for your own class")
 
 
 @router.post("/")
@@ -18,6 +35,7 @@ def create_record(data: DisciplineCreate, db: Session = Depends(get_db), current
     staff = get_staff_by_user_id(db, current_user.id)
     if not staff:
         raise HTTPException(status_code=403, detail="No staff profile found")
+    _assert_teacher_can_access_student(db, current_user, data.student_id)
     record = Discipline(
         student_id=data.student_id,
         incident=data.incident,
@@ -37,7 +55,15 @@ def list_records(
     db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above)
 ):
     q = db.query(Discipline)
+    if current_user.role == UserRole.TEACHER:
+        staff = get_staff_by_user_id(db, current_user.id)
+        if not staff:
+            raise HTTPException(status_code=403, detail="No staff profile found")
+        from app.models.student import Student
+        q = q.join(Student, Student.id == Discipline.student_id).filter(Student.current_class_id.is_not(None))
+        q = q.join(Class, Class.id == Student.current_class_id).filter(Class.class_teacher_id == staff.id)
     if student_id:
+        _assert_teacher_can_access_student(db, current_user, student_id)
         q = q.filter(Discipline.student_id == student_id)
     records = q.all()
     return success_response([DisciplineOut.model_validate(r).model_dump() for r in records])
@@ -48,6 +74,12 @@ def student_discipline(
     student_id: int,
     db: Session = Depends(get_db), current_user=Depends(get_current_user)
 ):
+    _assert_teacher_can_access_student(db, current_user, student_id)
+    if current_user.role == UserRole.STUDENT:
+        from app.models.student import Student
+        student = db.query(Student).filter(Student.id == student_id, Student.user_id == current_user.id).first()
+        if not student:
+            raise HTTPException(status_code=403, detail="You can only access your own discipline records")
     if current_user.role == UserRole.PARENT:
         from app.models.parent import Parent, ParentStudent
         parent = db.query(Parent).filter(Parent.user_id == current_user.id).first()

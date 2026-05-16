@@ -27,6 +27,21 @@ def _assert_class_access(db, current_user, class_id: int):
     return get_staff_by_user_id(db, current_user.id)
 
 
+def _assert_teacher_can_access_student(db, current_user, student_id: int):
+    if current_user.role != UserRole.TEACHER:
+        return
+    staff = get_staff_by_user_id(db, current_user.id)
+    if not staff:
+        raise HTTPException(status_code=403, detail="No staff profile found")
+    from app.models.student import Student
+    student = db.query(Student).filter(Student.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    cls = db.query(Class).filter(Class.id == student.current_class_id, Class.class_teacher_id == staff.id).first()
+    if not cls:
+        raise HTTPException(status_code=403, detail="You can only access attendance for your own class")
+
+
 @router.post("/")
 def mark_attendance(data: AttendanceCreate, db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above)):
     staff = _assert_class_access(db, current_user, data.class_id)
@@ -79,6 +94,12 @@ def student_attendance(
     student_id: int,
     db: Session = Depends(get_db), current_user=Depends(get_current_user)
 ):
+    _assert_teacher_can_access_student(db, current_user, student_id)
+    if current_user.role == UserRole.STUDENT:
+        from app.models.student import Student
+        student = db.query(Student).filter(Student.id == student_id, Student.user_id == current_user.id).first()
+        if not student:
+            raise HTTPException(status_code=403, detail="You can only access your own attendance")
     if current_user.role == UserRole.PARENT:
         from app.models.parent import Parent, ParentStudent
         parent = db.query(Parent).filter(Parent.user_id == current_user.id).first()

@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 
 export default function DisciplinePage() {
   const [records, setRecords] = useState<any[]>([]);
+  const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ student_id: "", incident: "", action_taken: "", date: new Date().toISOString().split("T")[0] });
@@ -19,6 +20,26 @@ export default function DisciplinePage() {
   };
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    const loadStudents = async () => {
+      try {
+        const staffRes = await api.get("/api/v1/staff/me");
+        const staff = staffRes.data.data;
+        const classRes = await api.get("/api/v1/classes/", { params: { class_teacher_id: staff.id, limit: 1 } });
+        const cls = (classRes.data.data || [])[0];
+        if (!cls) {
+          setStudents([]);
+          return;
+        }
+        const stuRes = await api.get("/api/v1/students/", { params: { class_id: cls.id, limit: 200 } });
+        setStudents(stuRes.data.data || []);
+      } catch {
+        setStudents([]);
+      }
+    };
+    loadStudents();
+  }, []);
 
   const save = async () => {
     if (!form.student_id || !form.incident) { toast.error("Fill required fields"); return; }
@@ -44,7 +65,17 @@ export default function DisciplinePage() {
         <div className="t-card mb-5 max-w-lg">
           <h2 className="font-semibold t-text-primary mb-4">New Discipline Record</h2>
           <div className="space-y-3">
-            <div><label className="t-label">Student ID *</label><input className="t-input" type="number" value={form.student_id} onChange={e => setForm(p => ({ ...p, student_id: e.target.value }))} /></div>
+            <div>
+              <label className="t-label">Student *</label>
+              <select className="t-input" value={form.student_id} onChange={e => setForm(p => ({ ...p, student_id: e.target.value }))}>
+                <option value="">Select student</option>
+                {students.map((student: any) => (
+                  <option key={student.id} value={student.id}>
+                    {student.first_name} {student.last_name} ({student.admission_number})
+                  </option>
+                ))}
+              </select>
+            </div>
             <div><label className="t-label">Incident *</label><textarea className="t-input" rows={3} placeholder="Describe the incident..." value={form.incident} onChange={e => setForm(p => ({ ...p, incident: e.target.value }))} /></div>
             <div><label className="t-label">Action Taken</label><input className="t-input" placeholder="What action was taken?" value={form.action_taken} onChange={e => setForm(p => ({ ...p, action_taken: e.target.value }))} /></div>
             <div><label className="t-label">Date</label><input className="t-input" type="date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} /></div>

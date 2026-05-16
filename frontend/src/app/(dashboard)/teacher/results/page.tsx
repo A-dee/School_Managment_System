@@ -212,7 +212,7 @@ export default function TeacherResultsPage() {
     for (const a of myAssignments) {
       try {
         await api.post("/api/v1/results/submit", null, {
-          params: { class_id: a.class_id, subject_id: a.subject_id, term_id: Number(selTerm) },
+          params: { class_id: a.class_id, subject_id: a.subject_id, term_id: Number(selTerm), session_id: Number(selSession) },
         });
         ok++;
       } catch { fail++; }

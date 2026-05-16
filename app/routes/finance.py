@@ -2,6 +2,7 @@ import os
 import uuid
 from typing import Optional
 from datetime import date
+from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -27,8 +28,26 @@ from app.utils.auth import get_current_user
 from app.utils.response import success_response, paginated_response
 from app.utils.audit import log_action
 from app.config import settings
+from app.models.user import UserRole
+from app.crud.staff import get_staff_by_user_id
 
 router = APIRouter(prefix="/finance", tags=["Finance"])
+
+
+def _assert_teacher_can_access_student_finance(db: Session, current_user, student_id: int):
+    if current_user.role != UserRole.TEACHER:
+        return
+    from app.models.student import Student
+    from app.models.class_ import Class
+    staff = get_staff_by_user_id(db, current_user.id)
+    if not staff:
+        raise HTTPException(status_code=403, detail="Staff profile not found")
+    student = db.query(Student).filter(Student.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    cls = db.query(Class).filter(Class.id == student.current_class_id, Class.class_teacher_id == staff.id).first()
+    if not cls:
+        raise HTTPException(status_code=403, detail="You can only access finance records for students in your own class")
 
 
 # --- Fee Structures ---
@@ -120,7 +139,12 @@ def my_invoices(db: Session = Depends(get_db), current_user=Depends(get_current_
 
 @router.get("/invoices/student/{student_id}")
 def student_invoices(student_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    from app.models.user import UserRole
+    _assert_teacher_can_access_student_finance(db, current_user, student_id)
+    if current_user.role == UserRole.STUDENT:
+        from app.models.student import Student
+        student = db.query(Student).filter(Student.id == student_id, Student.user_id == current_user.id).first()
+        if not student:
+            raise HTTPException(status_code=403, detail="You can only access your own invoices")
     if current_user.role == UserRole.PARENT:
         from app.models.parent import Parent, ParentStudent
         parent = db.query(Parent).filter(Parent.user_id == current_user.id).first()
@@ -190,7 +214,7 @@ def list_expenditures(db: Session = Depends(get_db), current_user=Depends(is_adm
 
 
 @router.post("/expenditures/{expense_id}/approve")
-def approve_expense(expense_id: int, db: Session = Depends(get_db), current_user=Depends(is_admin_or_above)):
+def approve_expense(expense_id: int, db: Session = Depends(get_db), current_user=Depends(is_vp_or_above)):
     expense = db.query(Expenditure).filter(Expenditure.id == expense_id).first()
     if not expense:
         raise HTTPException(status_code=404, detail="Expenditure not found")
@@ -201,7 +225,7 @@ def approve_expense(expense_id: int, db: Session = Depends(get_db), current_user
 
 
 @router.post("/expenditures/{expense_id}/reject")
-def reject_expense(expense_id: int, db: Session = Depends(get_db), current_user=Depends(is_admin_or_above)):
+def reject_expense(expense_id: int, db: Session = Depends(get_db), current_user=Depends(is_vp_or_above)):
     expense = db.query(Expenditure).filter(Expenditure.id == expense_id).first()
     if not expense:
         raise HTTPException(status_code=404, detail="Expenditure not found")
@@ -330,11 +354,11 @@ def confirm_declaration(
     invoice = db.query(Invoice).filter(Invoice.id == decl.invoice_id).first()
     if invoice:
         from app.models.finance import InvoiceStatus
-        invoice.paid_amount = float(invoice.paid_amount) + float(data.confirmed_amount)
-        invoice.balance = float(invoice.total_fee) - float(invoice.paid_amount)
+        invoice.paid_amount = (invoice.paid_amount or 0) + data.confirmed_amount
+        invoice.balance = invoice.total_fee - invoice.paid_amount
         if invoice.balance <= 0:
             invoice.status = InvoiceStatus.PAID
-            invoice.balance = 0
+            invoice.balance = Decimal("0")
         else:
             invoice.status = InvoiceStatus.PARTIAL
     log_action(db, "CONFIRM_DECLARATION", "PaymentDeclaration", current_user.id,

@@ -9,6 +9,7 @@ from app.utils.rbac import is_principal_or_above, is_admin_or_above
 from app.utils.pdf import generate_report_card_pdf, generate_receipt_pdf, generate_payslip_pdf
 from app.crud.student import get_student_by_id
 from app.crud.staff import get_staff_by_id
+from app.models.user import UserRole
 
 router = APIRouter(prefix="/pdfs", tags=["PDFs"])
 
@@ -22,10 +23,33 @@ def report_card_pdf(
     from app.models.subject import Subject
     from app.models.attendance import Attendance, AttendanceStatus
     from app.models.student import Student
+    from app.models.class_ import Class
 
     student = get_student_by_id(db, student_id)
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
+    if current_user.role == UserRole.STUDENT and student.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only access your own report card")
+    if current_user.role == UserRole.PARENT:
+        from app.models.parent import Parent, ParentStudent
+        parent = db.query(Parent).filter(Parent.user_id == current_user.id).first()
+        if not parent:
+            raise HTTPException(status_code=403, detail="Parent profile not found")
+        link = db.query(ParentStudent).filter(
+            ParentStudent.parent_id == parent.id,
+            ParentStudent.student_id == student_id,
+        ).first()
+        if not link:
+            raise HTTPException(status_code=403, detail="Not your child")
+    if current_user.role == UserRole.TEACHER:
+        from app.models.class_ import Class
+        from app.crud.staff import get_staff_by_user_id
+        staff = get_staff_by_user_id(db, current_user.id)
+        if not staff:
+            raise HTTPException(status_code=403, detail="Staff profile not found")
+        own_class = db.query(Class).filter(Class.id == student.current_class_id, Class.class_teacher_id == staff.id).first()
+        if not own_class:
+            raise HTTPException(status_code=403, detail="You can only access report cards for your own class")
 
     results = db.query(Result).filter(
         Result.student_id == student_id,
@@ -53,11 +77,16 @@ def report_card_pdf(
         "remarks": r.remarks or "",
     } for r in results]
 
-    # Attendance for this student in their class
-    att_records = db.query(Attendance).filter(
+    report_class_id = results[0].class_id if results else student.current_class_id
+
+    # Attendance for this student in the requested term/session/class
+    att_query = db.query(Attendance).filter(
         Attendance.student_id == student_id,
-        Attendance.class_id == student.current_class_id,
-    ).all() if student.current_class_id else []
+        Attendance.class_id == report_class_id,
+    ) if report_class_id else None
+    if att_query is not None and term:
+        att_query = att_query.filter(Attendance.date >= term.start_date, Attendance.date <= term.end_date)
+    att_records = att_query.all() if att_query is not None else []
     attendance = {
         "days_present": sum(1 for a in att_records if a.status == AttendanceStatus.PRESENT),
         "days_absent": sum(1 for a in att_records if a.status == AttendanceStatus.ABSENT),
@@ -66,15 +95,17 @@ def report_card_pdf(
 
     # Class size
     class_size = (
-        db.query(Student).filter(Student.current_class_id == student.current_class_id).count()
-        if student.current_class_id else None
+        db.query(Student).filter(Student.current_class_id == report_class_id).count()
+        if report_class_id else None
     )
+
+    class_obj = db.query(Class).filter(Class.id == report_class_id).first() if report_class_id else None
 
     student_dict = {
         "first_name": student.first_name,
         "last_name": student.last_name,
         "admission_number": student.admission_number,
-        "class_name": student.current_class.name if student.current_class else "",
+        "class_name": class_obj.name if class_obj else "",
         "class_position": results[0].class_position if results else None,
         "class_size": class_size,
     }

@@ -7,7 +7,7 @@ from app.schemas.result import ResultCreate, ResultOut, ResultUpdate
 from app.crud.result import (
     create_result, get_result, get_results_by_class_term,
     get_student_results, submit_results, approve_results,
-    publish_results, compute_class_positions
+    publish_results, compute_class_positions, apply_grade_fields
 )
 from app.utils.rbac import is_principal_or_above, is_teacher_or_above
 from app.utils.auth import get_current_user
@@ -49,6 +49,34 @@ def verify_teacher_assignment(db, teacher_id, subject_id, class_id):
         raise HTTPException(status_code=403, detail="You are not assigned to teach this subject in this class")
 
 
+def _assert_teacher_can_access_class_results(db: Session, current_user, class_id: int):
+    if current_user.role != UserRole.TEACHER:
+        return
+    staff = get_staff_by_user_id(db, current_user.id)
+    if not staff:
+        raise HTTPException(status_code=403, detail="No staff profile found")
+    from app.models.class_ import Class
+    cls = db.query(Class).filter(Class.id == class_id, Class.class_teacher_id == staff.id).first()
+    if not cls:
+        raise HTTPException(status_code=403, detail="You can only access records for your own class")
+
+
+def _assert_teacher_can_access_student_results(db: Session, current_user, student_id: int):
+    if current_user.role != UserRole.TEACHER:
+        return
+    staff = get_staff_by_user_id(db, current_user.id)
+    if not staff:
+        raise HTTPException(status_code=403, detail="No staff profile found")
+    from app.models.class_ import Class
+    from app.models.student import Student
+    student = db.query(Student).filter(Student.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    cls = db.query(Class).filter(Class.id == student.current_class_id, Class.class_teacher_id == staff.id).first()
+    if not cls:
+        raise HTTPException(status_code=403, detail="You can only access records for students in your own class")
+
+
 @router.post("/")
 def upload_result(data: ResultCreate, db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above)):
     staff = get_staff_by_user_id(db, current_user.id)
@@ -82,17 +110,7 @@ def update_result(
     if data.remarks is not None:
         result.remarks = data.remarks
     result.total_score = result.ca_score + result.exam_score
-    total = float(result.total_score)
-    if total >= 70:
-        result.grade = "A"
-    elif total >= 60:
-        result.grade = "B"
-    elif total >= 50:
-        result.grade = "C"
-    elif total >= 40:
-        result.grade = "D"
-    else:
-        result.grade = "F"
+    apply_grade_fields(result)
     db.commit()
     return success_response(ResultOut.model_validate(result).model_dump(), "Result updated")
 
@@ -102,6 +120,7 @@ def class_results(
     class_id: int, term_id: int, session_id: int,
     db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above)
 ):
+    _assert_teacher_can_access_class_results(db, current_user, class_id)
     results = get_results_by_class_term(db, class_id, term_id, session_id)
     return success_response(_enrich(db, results))
 
@@ -111,6 +130,12 @@ def student_results(
     student_id: int, session_id: int, term_id: int,
     db: Session = Depends(get_db), current_user=Depends(get_current_user)
 ):
+    _assert_teacher_can_access_student_results(db, current_user, student_id)
+    if current_user.role == UserRole.STUDENT:
+        from app.models.student import Student
+        student = db.query(Student).filter(Student.id == student_id, Student.user_id == current_user.id).first()
+        if not student:
+            raise HTTPException(status_code=403, detail="You can only access your own results")
     if current_user.role == UserRole.PARENT:
         from app.models.parent import Parent, ParentStudent
         parent = db.query(Parent).filter(Parent.user_id == current_user.id).first()
@@ -140,28 +165,30 @@ def my_results(
 
 
 @router.post("/submit")
-def submit(class_id: int, subject_id: int, term_id: int, db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above)):
+def submit(class_id: int, subject_id: int, term_id: int, session_id: int, db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above)):
     staff = get_staff_by_user_id(db, current_user.id)
     if not staff:
         raise HTTPException(status_code=403, detail="No staff profile")
-    submit_results(db, class_id, subject_id, term_id, staff.id)
+    if current_user.role == UserRole.TEACHER:
+        verify_teacher_assignment(db, staff.id, subject_id, class_id)
+    submit_results(db, class_id, subject_id, term_id, session_id, staff.id)
     db.commit()
     return success_response(None, "Results submitted for approval")
 
 
 @router.post("/approve")
-def approve(class_id: int, term_id: int, db: Session = Depends(get_db), current_user=Depends(is_principal_or_above)):
-    approve_results(db, class_id, term_id)
-    log_action(db, "APPROVE_RESULTS", "Result", current_user.id, new_value={"class_id": class_id, "term_id": term_id})
+def approve(class_id: int, term_id: int, session_id: int, db: Session = Depends(get_db), current_user=Depends(is_principal_or_above)):
+    approve_results(db, class_id, term_id, session_id)
+    log_action(db, "APPROVE_RESULTS", "Result", current_user.id, new_value={"class_id": class_id, "term_id": term_id, "session_id": session_id})
     db.commit()
     return success_response(None, "Results approved")
 
 
 @router.post("/publish")
-def publish(class_id: int, term_id: int, db: Session = Depends(get_db), current_user=Depends(is_principal_or_above)):
-    compute_class_positions(db, class_id, term_id, 0)
-    publish_results(db, class_id, term_id)
-    log_action(db, "PUBLISH_RESULTS", "Result", current_user.id, new_value={"class_id": class_id, "term_id": term_id})
+def publish(class_id: int, term_id: int, session_id: int, db: Session = Depends(get_db), current_user=Depends(is_principal_or_above)):
+    compute_class_positions(db, class_id, term_id, session_id)
+    publish_results(db, class_id, term_id, session_id)
+    log_action(db, "PUBLISH_RESULTS", "Result", current_user.id, new_value={"class_id": class_id, "term_id": term_id, "session_id": session_id})
     db.commit()
     return success_response(None, "Results published")
 

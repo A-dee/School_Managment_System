@@ -42,9 +42,14 @@ def create_parent(data: ParentCreate, db: Session = Depends(get_db), current_use
 
 
 @router.get("/")
-def list_parents(db: Session = Depends(get_db), current_user=Depends(is_admin_or_above)):
+def list_parents(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user=Depends(is_admin_or_above),
+):
     from app.models.student import Student
-    parents = db.query(Parent).all()
+    parents = db.query(Parent).offset(skip).limit(limit).all()
     result = []
     for p in parents:
         links = db.query(ParentStudent).filter(ParentStudent.parent_id == p.id).all()

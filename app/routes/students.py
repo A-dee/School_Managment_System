@@ -24,12 +24,37 @@ UPLOAD_DIR = "uploads/students"
 router = APIRouter(prefix="/students", tags=["Students"])
 
 
+def _get_teacher_staff_and_class_id(db: Session, current_user):
+    from app.models.user import UserRole
+    from app.models.staff import Staff
+    from app.models.class_ import Class
+
+    if current_user.role != UserRole.TEACHER:
+        return None, None
+    staff = db.query(Staff).filter(Staff.user_id == current_user.id).first()
+    if not staff:
+        raise HTTPException(status_code=403, detail="Staff profile not found")
+    cls = db.query(Class).filter(Class.class_teacher_id == staff.id).first()
+    if not cls:
+        raise HTTPException(status_code=403, detail="You are not assigned as a class teacher")
+    return staff, cls.id
+
+
+def _assert_teacher_can_access_student(db: Session, current_user, student):
+    _, allowed_class_id = _get_teacher_staff_and_class_id(db, current_user)
+    if allowed_class_id is None:
+        return
+    if student.current_class_id != allowed_class_id:
+        raise HTTPException(status_code=403, detail="You can only access students in your own class")
+
+
 @router.post("/")
 def add_student(data: StudentCreate, db: Session = Depends(get_db), current_user=Depends(is_admin_or_above)):
     import secrets
     from app.models.user import User, UserRole
     from app.models.parent import Parent, ParentStudent
     from app.utils.auth import hash_password
+    from app.utils.email import send_login_credentials
 
     if get_student_by_admission(db, data.admission_number):
         raise HTTPException(status_code=400, detail="Admission number already exists")
@@ -58,6 +83,7 @@ def add_student(data: StudentCreate, db: Session = Depends(get_db), current_user
         "student_email": student_email,
         "student_password": student_password,
     }
+    parent_created = False
 
     # Auto-create parent account if guardian email provided
     if data.guardian_email:
@@ -79,6 +105,7 @@ def add_student(data: StudentCreate, db: Session = Depends(get_db), current_user
             db.flush()
             credentials["parent_email"] = data.guardian_email
             credentials["parent_password"] = parent_password
+            parent_created = True
 
         parent = db.query(Parent).filter(Parent.user_id == parent_user.id).first()
         if not parent:
@@ -95,6 +122,21 @@ def add_student(data: StudentCreate, db: Session = Depends(get_db), current_user
 
     log_action(db, "CREATE_STUDENT", "Student", current_user.id, entity_id=student.id)
     db.commit()
+    send_login_credentials(
+        db,
+        student_email,
+        f"{student.first_name} {student.last_name}".strip(),
+        student_password,
+        "Student",
+    )
+    if parent_created and credentials.get("parent_email") and credentials.get("parent_password"):
+        send_login_credentials(
+            db,
+            credentials["parent_email"],
+            data.guardian_name or "Parent/Guardian",
+            credentials["parent_password"],
+            "Parent",
+        )
     return success_response(
         {**StudentOut.model_validate(student).model_dump(), "credentials": credentials},
         "Student created",
@@ -140,6 +182,11 @@ def list_students(
     class_id: Optional[int] = None, status: Optional[StudentStatus] = None, search: Optional[str] = None,
     db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above)
 ):
+    _, teacher_class_id = _get_teacher_staff_and_class_id(db, current_user)
+    if teacher_class_id is not None:
+        if class_id is not None and class_id != teacher_class_id:
+            raise HTTPException(status_code=403, detail="You can only view students in your own class")
+        class_id = teacher_class_id
     students, total = get_all_students(db, skip=skip, limit=limit, class_id=class_id, status=status, search=search)
     return paginated_response([StudentOut.model_validate(s).model_dump() for s in students], total, skip // limit + 1, limit)
 
@@ -149,6 +196,7 @@ def get_student(student_id: int, db: Session = Depends(get_db), current_user=Dep
     student = get_student_by_id(db, student_id)
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
+    _assert_teacher_can_access_student(db, current_user, student)
     return success_response(StudentOut.model_validate(student).model_dump())
 
 
@@ -260,48 +308,70 @@ def _upsert(db, model_class, student_id: int, data):
 
 @router.get("/{student_id}/registration")
 def get_registration(student_id: int, db: Session = Depends(get_db), current_user=Depends(is_principal_or_above)):
+    student = get_student_by_id(db, student_id)
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    _assert_teacher_can_access_student(db, current_user, student)
     r = db.query(StudentRegistration).filter(StudentRegistration.student_id == student_id).first()
     return success_response(StudentRegistrationData.model_validate(r).model_dump() if r else None)
 
 
 @router.put("/{student_id}/registration")
 def save_registration(student_id: int, data: StudentRegistrationData, db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above)):
-    if not get_student_by_id(db, student_id):
+    student = get_student_by_id(db, student_id)
+    if not student:
         raise HTTPException(status_code=404, detail="Student not found")
+    _assert_teacher_can_access_student(db, current_user, student)
     _upsert(db, StudentRegistration, student_id, data)
     return success_response(None, "Registration saved")
 
 
 @router.get("/{student_id}/medical")
 def get_medical(student_id: int, db: Session = Depends(get_db), current_user=Depends(is_principal_or_above)):
+    student = get_student_by_id(db, student_id)
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    _assert_teacher_can_access_student(db, current_user, student)
     r = db.query(StudentMedical).filter(StudentMedical.student_id == student_id).first()
     return success_response(StudentMedicalData.model_validate(r).model_dump() if r else None)
 
 
 @router.put("/{student_id}/medical")
 def save_medical(student_id: int, data: StudentMedicalData, db: Session = Depends(get_db), current_user=Depends(is_principal_or_above)):
-    if not get_student_by_id(db, student_id):
+    student = get_student_by_id(db, student_id)
+    if not student:
         raise HTTPException(status_code=404, detail="Student not found")
+    _assert_teacher_can_access_student(db, current_user, student)
     _upsert(db, StudentMedical, student_id, data)
     return success_response(None, "Medical information saved")
 
 
 @router.get("/{student_id}/about-me")
 def get_about_me(student_id: int, db: Session = Depends(get_db), current_user=Depends(is_principal_or_above)):
+    student = get_student_by_id(db, student_id)
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    _assert_teacher_can_access_student(db, current_user, student)
     r = db.query(StudentAboutMe).filter(StudentAboutMe.student_id == student_id).first()
     return success_response(StudentAboutMeData.model_validate(r).model_dump() if r else None)
 
 
 @router.put("/{student_id}/about-me")
 def save_about_me(student_id: int, data: StudentAboutMeData, db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above)):
-    if not get_student_by_id(db, student_id):
+    student = get_student_by_id(db, student_id)
+    if not student:
         raise HTTPException(status_code=404, detail="Student not found")
+    _assert_teacher_can_access_student(db, current_user, student)
     _upsert(db, StudentAboutMe, student_id, data)
     return success_response(None, "About Me information saved")
 
 
 @router.get("/{student_id}/documents")
 def list_documents(student_id: int, db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above)):
+    student = get_student_by_id(db, student_id)
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    _assert_teacher_can_access_student(db, current_user, student)
     docs = db.query(StudentDocument).filter(StudentDocument.student_id == student_id).order_by(StudentDocument.created_at.desc()).all()
     return success_response([{
         "id": d.id, "original_filename": d.original_filename,
@@ -318,8 +388,10 @@ async def upload_document(
     db: Session = Depends(get_db),
     current_user=Depends(is_teacher_or_above),
 ):
-    if not get_student_by_id(db, student_id):
+    student = get_student_by_id(db, student_id)
+    if not student:
         raise HTTPException(status_code=404, detail="Student not found")
+    _assert_teacher_can_access_student(db, current_user, student)
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are accepted")
     content = await file.read()
@@ -349,6 +421,10 @@ async def upload_document(
 
 @router.get("/{student_id}/documents/{doc_id}/file")
 def serve_document(student_id: int, doc_id: int, db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above)):
+    student = get_student_by_id(db, student_id)
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    _assert_teacher_can_access_student(db, current_user, student)
     doc = db.query(StudentDocument).filter(
         StudentDocument.id == doc_id,
         StudentDocument.student_id == student_id,

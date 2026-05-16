@@ -7,6 +7,8 @@ from app.schemas.class_ import ClassCreate, ClassOut, ClassUpdate
 from app.utils.rbac import is_principal_or_above, is_admin_or_above, is_teacher_or_above
 from app.utils.auth import get_current_user
 from app.utils.response import success_response, paginated_response
+from app.models.user import UserRole
+from app.crud.staff import get_staff_by_user_id
 
 router = APIRouter(prefix="/classes", tags=["Classes"])
 
@@ -27,9 +29,14 @@ def list_classes(
     db: Session = Depends(get_db), current_user=Depends(get_current_user)
 ):
     q = db.query(Class)
+    if current_user.role == UserRole.TEACHER:
+        staff = get_staff_by_user_id(db, current_user.id)
+        if not staff:
+            raise HTTPException(status_code=403, detail="Staff profile not found")
+        q = q.filter(Class.class_teacher_id == staff.id)
     if session_id:
         q = q.filter(Class.session_id == session_id)
-    if class_teacher_id is not None:
+    if class_teacher_id is not None and current_user.role != UserRole.TEACHER:
         q = q.filter(Class.class_teacher_id == class_teacher_id)
     total = q.count()
     classes = q.offset(skip).limit(limit).all()
@@ -47,6 +54,10 @@ def get_class(class_id: int, db: Session = Depends(get_db), current_user=Depends
     cls = db.query(Class).filter(Class.id == class_id).first()
     if not cls:
         raise HTTPException(status_code=404, detail="Class not found")
+    if current_user.role == UserRole.TEACHER:
+        staff = get_staff_by_user_id(db, current_user.id)
+        if not staff or cls.class_teacher_id != staff.id:
+            raise HTTPException(status_code=403, detail="You can only access your own class")
     return success_response(ClassOut.model_validate(cls).model_dump())
 
 

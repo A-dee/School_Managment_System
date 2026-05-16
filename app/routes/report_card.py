@@ -10,6 +10,8 @@ from app.schemas.report_card import ReportCardMetaIn, ReportCardMetaOut
 from app.utils.auth import get_current_user
 from app.utils.rbac import is_teacher_or_above, is_super_admin
 from app.utils.response import success_response
+from app.models.user import UserRole
+from app.crud.staff import get_staff_by_user_id
 
 router = APIRouter(prefix="/report-cards", tags=["Report Cards"])
 
@@ -20,6 +22,18 @@ def _get_or_none(db: Session, student_id: int, term_id: int, session_id: int):
         ReportCardMeta.term_id == term_id,
         ReportCardMeta.session_id == session_id,
     ).first()
+
+
+def _assert_teacher_can_access_student(db: Session, current_user, student: Student):
+    if current_user.role != UserRole.TEACHER:
+        return
+    from app.models.class_ import Class
+    staff = get_staff_by_user_id(db, current_user.id)
+    if not staff:
+        raise HTTPException(status_code=403, detail="Staff profile not found")
+    cls = db.query(Class).filter(Class.id == student.current_class_id, Class.class_teacher_id == staff.id).first()
+    if not cls:
+        raise HTTPException(status_code=403, detail="You can only access report cards for your own class")
 
 
 # ── Student-facing endpoint MUST come before /{student_id} ──────────────────
@@ -42,7 +56,14 @@ def get_my_report_card(
     # Enrich with context needed for the print template
     session_obj = db.query(AcademicSession).filter(AcademicSession.id == session_id).first()
     term_obj    = db.query(Term).filter(Term.id == term_id).first()
-    class_obj   = db.query(Class).filter(Class.id == student.current_class_id).first() if student.current_class_id else None
+    from app.models.result import Result
+    result_row = db.query(Result).filter(
+        Result.student_id == student.id,
+        Result.term_id == term_id,
+        Result.session_id == session_id,
+    ).first()
+    class_id = result_row.class_id if result_row else student.current_class_id
+    class_obj = db.query(Class).filter(Class.id == class_id).first() if class_id else None
 
     data = ReportCardMetaOut.model_validate(record).model_dump()
     data["student_name"]      = f"{student.first_name} {student.last_name}"
@@ -60,7 +81,14 @@ def get_class_report_card_status(
     class_id: int, term_id: int, session_id: int,
     db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above),
 ):
-    students = db.query(Student).filter(Student.class_id == class_id).all()
+    if current_user.role == UserRole.TEACHER:
+        staff = get_staff_by_user_id(db, current_user.id)
+        if not staff:
+            raise HTTPException(status_code=403, detail="Staff profile not found")
+        own_class = db.query(Class).filter(Class.id == class_id, Class.class_teacher_id == staff.id).first()
+        if not own_class:
+            raise HTTPException(status_code=403, detail="You can only access report cards for your own class")
+    students = db.query(Student).filter(Student.current_class_id == class_id).all()
     student_ids = [s.id for s in students]
     metas = {
         m.student_id: m
@@ -89,6 +117,10 @@ def get_report_card_meta(
     student_id: int, term_id: int, session_id: int,
     db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above),
 ):
+    student = db.query(Student).filter(Student.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    _assert_teacher_can_access_student(db, current_user, student)
     record = _get_or_none(db, student_id, term_id, session_id)
     return success_response(ReportCardMetaOut.model_validate(record).model_dump() if record else None)
 
@@ -98,6 +130,10 @@ def save_report_card_meta(
     student_id: int, data: ReportCardMetaIn,
     db: Session = Depends(get_db), current_user=Depends(is_teacher_or_above),
 ):
+    student = db.query(Student).filter(Student.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    _assert_teacher_can_access_student(db, current_user, student)
     record = _get_or_none(db, student_id, data.term_id, data.session_id)
     if not record:
         record = ReportCardMeta(
@@ -153,7 +189,7 @@ def approve_all_class_report_cards(
         ReportCardMeta.term_id == term_id,
         ReportCardMeta.session_id == session_id,
     ).join(Student, Student.id == ReportCardMeta.student_id).filter(
-        Student.class_id == class_id,
+        Student.current_class_id == class_id,
     ).all()
     for r in records:
         r.approved = True

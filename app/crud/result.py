@@ -21,6 +21,13 @@ def compute_grade(total: Decimal) -> tuple[str, str]:
         return "F", "Fail"
 
 
+def apply_grade_fields(result: Result) -> Result:
+    grade, remarks = compute_grade(result.total_score)
+    result.grade = grade
+    result.remarks = remarks
+    return result
+
+
 def create_result(db: Session, data, teacher_id: int) -> Result:
     total = data.ca_score + data.exam_score
     grade, remarks = compute_grade(total)
@@ -65,30 +72,33 @@ def get_student_results(db: Session, student_id: int, session_id: int, term_id: 
     ).all()
 
 
-def submit_results(db: Session, class_id: int, subject_id: int, term_id: int, teacher_id: int):
+def submit_results(db: Session, class_id: int, subject_id: int, term_id: int, session_id: int, teacher_id: int):
     db.query(Result).filter(
         Result.class_id == class_id,
         Result.subject_id == subject_id,
         Result.term_id == term_id,
+        Result.session_id == session_id,
         Result.teacher_id == teacher_id,
         Result.status == ResultStatus.DRAFT,
     ).update({"status": ResultStatus.SUBMITTED}, synchronize_session=False)
     db.flush()
 
 
-def approve_results(db: Session, class_id: int, term_id: int):
+def approve_results(db: Session, class_id: int, term_id: int, session_id: int):
     db.query(Result).filter(
         Result.class_id == class_id,
         Result.term_id == term_id,
+        Result.session_id == session_id,
         Result.status == ResultStatus.SUBMITTED,
     ).update({"status": ResultStatus.APPROVED}, synchronize_session=False)
     db.flush()
 
 
-def publish_results(db: Session, class_id: int, term_id: int):
+def publish_results(db: Session, class_id: int, term_id: int, session_id: int):
     db.query(Result).filter(
         Result.class_id == class_id,
         Result.term_id == term_id,
+        Result.session_id == session_id,
         Result.status == ResultStatus.APPROVED,
     ).update({"status": ResultStatus.PUBLISHED}, synchronize_session=False)
     db.flush()
