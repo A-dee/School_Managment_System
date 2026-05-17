@@ -1,15 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { getNotifications, markAllNotificationsRead, markNotificationRead } from "@/lib/api";
-import api from "@/lib/api";
-import { Bell, CheckCheck, CheckCircle, Megaphone, CalendarDays, Palmtree } from "lucide-react";
-
-const ANN_META: Record<string, { label: string; color: string; bg: string; Icon: any }> = {
-  NOTICE:  { label: "Notice",  color: "#6366f1", bg: "rgba(99,102,241,0.12)",  Icon: Bell },
-  EVENT:   { label: "Event",   color: "#f59e0b", bg: "rgba(245,158,11,0.12)",  Icon: CalendarDays },
-  HOLIDAY: { label: "Holiday", color: "#22c55e", bg: "rgba(34,197,94,0.12)",   Icon: Palmtree },
-};
+import { getAnnouncements, getNotifications, markAllNotificationsRead, markNotificationRead } from "@/lib/api";
+import { ANNOUNCEMENT_META, AnnouncementType } from "@/lib/announcements";
+import { Bell, CheckCheck, CheckCircle, Megaphone, CalendarDays } from "lucide-react";
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -21,7 +15,7 @@ export default function NotificationsPage() {
     try {
       const [notifRes, annRes] = await Promise.allSettled([
         getNotifications(),
-        api.get("/api/v1/announcements"),
+        getAnnouncements(),
       ]);
       if (notifRes.status === "fulfilled") setNotifications(notifRes.value.data.data || []);
       if (annRes.status === "fulfilled")   setAnnouncements(annRes.value.data.data || []);
@@ -77,7 +71,7 @@ export default function NotificationsPage() {
                   <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
                 </div>
                 {announcements.map((a: any) => {
-                  const meta = ANN_META[a.type] ?? ANN_META.NOTICE;
+                  const meta = ANNOUNCEMENT_META[a.type as AnnouncementType] ?? ANNOUNCEMENT_META.NOTICE;
                   const AIcon = meta.Icon;
                   return (
                     <div key={`ann-${a.id}`} className="t-card animate-fade-in"
@@ -96,7 +90,7 @@ export default function NotificationsPage() {
                         <p className="t-text-secondary" style={{ fontSize: "0.8125rem", lineHeight: 1.5, marginBottom: 4 }}>{a.message}</p>
                         <div style={{ display: "flex", gap: 12, fontSize: "0.7rem", color: "var(--text-secondary)" }}>
                           {a.event_date && (
-                            <span>📅 {new Date(a.event_date).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</span>
+                            <span style={{ display: "flex", alignItems: "center", gap: 4 }}><CalendarDays size={12} /> {new Date(a.event_date).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</span>
                           )}
                           <span>{new Date(a.created_at).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
                         </div>

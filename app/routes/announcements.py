@@ -1,12 +1,10 @@
-from datetime import date as date_type
-from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.announcement import Announcement, AnnouncementType
 from app.models.user import UserRole
-from app.utils.rbac import is_principal_or_above
+from app.schemas.announcement import AnnouncementIn, AnnouncementOut
+from app.utils.rbac import is_vp_or_above
 from app.utils.auth import get_current_user
 from app.utils.response import success_response
 from app.routes.notifications import send_bulk_notifications
@@ -37,14 +35,6 @@ _VALID_AUDIENCE_SETS = {
 }
 
 
-class AnnouncementIn(BaseModel):
-    title:        str = Field(min_length=1, max_length=200)
-    message:      str = Field(min_length=1, max_length=2000)
-    type:         AnnouncementType = AnnouncementType.NOTICE
-    event_date:   Optional[date_type] = None
-    target_roles: str = Field(default="ALL", max_length=50)
-
-
 def _normalize_target_roles(raw: str) -> str:
     # Store audience selections in one normalized format so filtering stays predictable.
     roles = [part.strip().upper() for part in raw.split(",") if part.strip()]
@@ -59,18 +49,27 @@ def _normalize_target_roles(raw: str) -> str:
     return ",".join(normalized_roles)
 
 
+def _visible_target_roles_for_user(current_user_role: UserRole) -> set[str]:
+    role_tag = _ROLE_ALIASES.get(current_user_role, "TEACHER")
+    visible = {"ALL"}
+    for role_set in _VALID_AUDIENCE_SETS:
+        if role_tag in role_set:
+            visible.add(",".join(role for role in _AUDIENCE_ORDER if role in role_set))
+    return visible
+
+
 def _serialize(a: Announcement) -> dict:
-    return {
-        "id":           a.id,
-        "title":        a.title,
-        "message":      a.message,
-        "type":         a.type.value,
-        "event_date":   str(a.event_date) if a.event_date else None,
-        "target_roles": a.target_roles,
-        "created_by":   a.created_by,
-        "creator_name": a.creator.email if a.creator else None,
-        "created_at":   str(a.created_at),
-    }
+    return AnnouncementOut(
+        id=a.id,
+        title=a.title,
+        message=a.message,
+        type=a.type,
+        event_date=a.event_date,
+        target_roles=a.target_roles,
+        created_by=a.created_by,
+        creator_name=a.creator.email if a.creator else None,
+        created_at=a.created_at,
+    ).model_dump(mode="json")
 
 
 def _get_announcement_recipient_ids(db: Session, target_roles: str) -> set[int]:
@@ -94,26 +93,29 @@ def _get_announcement_recipient_ids(db: Session, target_roles: str) -> set[int]:
 def create_announcement(
     data: AnnouncementIn,
     db: Session = Depends(get_db),
-    current_user=Depends(is_principal_or_above),
+    current_user=Depends(is_vp_or_above),
 ):
     target_roles = _normalize_target_roles(data.target_roles)
     if data.type in {AnnouncementType.EVENT, AnnouncementType.HOLIDAY} and not data.event_date:
         raise HTTPException(status_code=422, detail="event_date is required for events and holidays")
+    event_date = data.event_date if data.type in {AnnouncementType.EVENT, AnnouncementType.HOLIDAY} else None
 
     ann = Announcement(
         title=data.title,
         message=data.message,
         type=data.type,
-        event_date=data.event_date,
+        event_date=event_date,
         target_roles=target_roles,
         created_by=current_user.id,
     )
     db.add(ann)
+    db.flush()
+    message = data.message[:180] if len(data.message) > 180 else data.message
+    recipients = _get_announcement_recipient_ids(db, target_roles)
+    recipients.discard(current_user.id)
+    send_bulk_notifications(db, recipients, f"Announcement: {data.title}", message)
     db.commit()
     db.refresh(ann)
-    message = data.message[:180] if len(data.message) > 180 else data.message
-    send_bulk_notifications(db, _get_announcement_recipient_ids(db, target_roles), f"Announcement: {data.title}", message)
-    db.commit()
     return success_response(_serialize(ann), "Announcement created")
 
 
@@ -136,13 +138,10 @@ def list_announcements(
         )
         return success_response([_serialize(a) for a in anns])
 
-    role_tag = _ROLE_ALIASES.get(current_user.role, "TEACHER")
+    visible_targets = _visible_target_roles_for_user(current_user.role)
     anns = (
         db.query(Announcement)
-        .filter(
-            (Announcement.target_roles == "ALL")
-            | Announcement.target_roles.contains(role_tag)
-        )
+        .filter(Announcement.target_roles.in_(visible_targets))
         .order_by(Announcement.created_at.desc())
         .limit(100)
         .all()
@@ -154,7 +153,7 @@ def list_announcements(
 def delete_announcement(
     ann_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(is_principal_or_above),
+    current_user=Depends(is_vp_or_above),
 ):
     ann = db.query(Announcement).filter(Announcement.id == ann_id).first()
     if not ann:
