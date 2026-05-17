@@ -74,6 +74,8 @@ def _get_student_finance_recipient_ids(db: Session, student_id: int) -> set[int]
 
 
 def _assert_user_can_access_invoice(db: Session, current_user, invoice: Invoice):
+    # Paystack routes, manual declarations, and invoice views all rely on this
+    # shared guard so role checks stay consistent across finance entry points.
     if current_user.role in {UserRole.ADMIN, UserRole.PRINCIPAL, UserRole.SUPER_ADMIN}:
         return
     if current_user.role == UserRole.STUDENT:
@@ -107,6 +109,7 @@ def _get_paystack_callback_path(current_user) -> str:
 
 
 def _minor_units(amount: Decimal) -> int:
+    # Paystack amounts are sent in Kobo, so NGN 5000.00 becomes 500000.
     return int((Decimal(str(amount)) * 100).quantize(Decimal("1")))
 
 
@@ -581,6 +584,8 @@ def initialize_paystack(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
+    # This creates a local transaction record first, then hands the payer over to
+    # Paystack. The invoice itself is only settled after verify/webhook succeeds.
     if not paystack_is_configured():
         raise HTTPException(status_code=503, detail="Paystack is not configured yet")
 
@@ -651,6 +656,8 @@ def verify_paystack(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
+    # The redirect back from Paystack hits this route so the UI can refresh the
+    # invoice immediately, even if the webhook is still in flight.
     if not paystack_is_configured():
         raise HTTPException(status_code=503, detail="Paystack is not configured yet")
 
@@ -680,6 +687,8 @@ async def paystack_webhook(
     x_paystack_signature: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
+    # Webhooks are the durable source of truth for completed charges. They let us
+    # reconcile payments even when the browser never returns from checkout.
     if not paystack_is_configured():
         raise HTTPException(status_code=503, detail="Paystack is not configured yet")
 

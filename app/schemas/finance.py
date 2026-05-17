@@ -258,6 +258,8 @@ class PaystackInitializeIn(BaseModel):
 
 
 class PaystackInitializeOut(BaseModel):
+    # This is the small payload the frontend needs to launch checkout and keep a
+    # local reference it can later verify after the redirect returns.
     reference: str
     authorization_url: str
     access_code: str
@@ -267,6 +269,8 @@ class PaystackInitializeOut(BaseModel):
 
 
 class PaystackTransactionOut(BaseModel):
+    # Expose the normalized local transaction state without returning the full raw
+    # Paystack responses that are only useful for backend audit/debug work.
     id: int
     invoice_id: int
     student_id: int

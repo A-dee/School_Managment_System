@@ -35,10 +35,14 @@ class Settings(BaseSettings):
 
     @property
     def paystack_base_url_normalized(self) -> str:
+        # Accept env values with or without a trailing slash so request builders
+        # do not accidentally produce double slashes.
         return self.PAYSTACK_BASE_URL.rstrip("/")
 
     @property
     def paystack_callback_url_normalized(self) -> str:
+        # Optional because some deployments prefer constructing callback URLs from
+        # the logged-in role instead of using one fixed callback for everyone.
         return self.PAYSTACK_CALLBACK_URL.rstrip("/")
 
 

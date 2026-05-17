@@ -27,6 +27,8 @@ export default function StudentFeesPage() {
     const reference = typeof window !== "undefined"
       ? new URLSearchParams(window.location.search).get("reference")
       : null;
+    // Students use the same redirect/verify pattern as parents so either role can
+    // complete checkout and reconcile the returned Paystack reference.
     if (!reference || verifyingRef === reference) return;
     setVerifyingRef(reference);
     verifyPaystackPayment(reference)

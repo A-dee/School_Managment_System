@@ -63,6 +63,8 @@ export default function ParentFeesPage() {
     const reference = typeof window !== "undefined"
       ? new URLSearchParams(window.location.search).get("reference")
       : null;
+    // Paystack returns the reference in the URL after checkout, so verifying here
+    // lets the parent land on an already-refreshed fee balance.
     if (!reference || !selected || verifyingRef === reference) return;
     setVerifyingRef(reference);
     verifyPaystackPayment(reference)

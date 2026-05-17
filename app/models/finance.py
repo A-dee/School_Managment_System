@@ -90,6 +90,8 @@ class Payment(Base):
 
     invoice = relationship("Invoice", back_populates="payments")
     recorded_by = relationship("User")
+    # Keep the gateway link available for audit trails without forcing the rest of
+    # the finance module to depend directly on Paystack-specific fields.
     paystack_transactions = relationship("PaystackTransaction", back_populates="payment")
 
 
@@ -171,6 +173,8 @@ class OptionalFee(Base):
 class PaystackTransaction(Base):
     __tablename__ = "paystack_transactions"
 
+    # Tracks the provider-side payment journey before it is reconciled into the
+    # normal Payment table used everywhere else in the app.
     id = Column(Integer, primary_key=True, index=True)
     invoice_id = Column(Integer, ForeignKey("invoices.id"), nullable=False)
     student_id = Column(Integer, ForeignKey("students.id"), nullable=False)

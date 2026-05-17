@@ -116,7 +116,8 @@ def _get_allowed_recipient_ids(db: Session, current_user: User) -> set[int] | No
         }
         return allowed_ids | admin_ids
 
-    # TEACHER, ADMIN, NON_TEACHING_STAFF → can only message PRINCIPAL
+    # Teachers and other non-parent staff route conversations through school
+    # leadership instead of opening unrestricted direct messaging.
     if role in (UserRole.TEACHER, UserRole.ADMIN, UserRole.NON_TEACHING_STAFF):
         principal_ids = {
             u.id for u in db.query(User).filter(

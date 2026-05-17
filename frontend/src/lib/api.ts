@@ -9,15 +9,26 @@ function normalizeBaseUrl(raw?: string): string {
   // Accept either the backend origin or an already-suffixed API path from env config.
   if (base.endsWith("/api/v1")) base = base.slice(0, -"/api/v1".length);
 
-  const isLocalhost =
-    base.startsWith("http://localhost") ||
-    base.startsWith("http://127.0.0.1") ||
-    base.startsWith("https://localhost") ||
-    base.startsWith("https://127.0.0.1");
+  try {
+    const url = new URL(base);
+    const isLocalhost = url.hostname === "localhost" || url.hostname === "127.0.0.1";
 
-  if (typeof window !== "undefined" && window.location.protocol === "https:" && !isLocalhost && base.startsWith("http://")) {
-    // Prevent mixed-content failures when a deployed HTTPS frontend is pointed at an HTTP backend origin.
-    base = `https://${base.slice("http://".length)}`;
+    if (!isLocalhost && url.protocol === "http:") {
+      // Production frontends should never call a non-local API over plain HTTP.
+      // Upgrading here protects the app even when NEXT_PUBLIC_API_URL was set badly.
+      url.protocol = "https:";
+      base = url.toString().replace(/\/$/, "");
+    }
+  } catch {
+    const isLocalhost =
+      base.startsWith("http://localhost") ||
+      base.startsWith("http://127.0.0.1") ||
+      base.startsWith("https://localhost") ||
+      base.startsWith("https://127.0.0.1");
+
+    if (!isLocalhost && base.startsWith("http://")) {
+      base = `https://${base.slice("http://".length)}`;
+    }
   }
 
   return base;
