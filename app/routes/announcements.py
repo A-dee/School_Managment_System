@@ -7,7 +7,7 @@ from app.schemas.announcement import AnnouncementIn, AnnouncementOut
 from app.utils.rbac import is_vp_or_above
 from app.utils.auth import get_current_user
 from app.utils.response import success_response
-from app.routes.notifications import send_bulk_notifications
+from app.routes.notifications import send_bulk_notifications, send_notification
 
 router = APIRouter(prefix="/announcements", tags=["Announcements"])
 
@@ -113,10 +113,26 @@ def create_announcement(
     message = data.message[:180] if len(data.message) > 180 else data.message
     recipients = _get_announcement_recipient_ids(db, target_roles)
     recipients.discard(current_user.id)
+    recipient_count = len(recipients)
     send_bulk_notifications(db, recipients, f"Announcement: {data.title}", message)
+    # Give the sender a positive confirmation entry so SUPER_ADMIN / PRINCIPAL users
+    # can verify that the announcement was dispatched even though they are excluded
+    # from the audience notification blast itself.
+    send_notification(
+        db,
+        current_user.id,
+        "Announcement sent",
+        f"'{data.title}' was sent to {recipient_count} recipient{'s' if recipient_count != 1 else ''}.",
+    )
     db.commit()
     db.refresh(ann)
-    return success_response(_serialize(ann), "Announcement created")
+    return success_response(
+        {
+            "announcement": _serialize(ann),
+            "recipient_count": recipient_count,
+        },
+        f"Announcement sent to {recipient_count} recipient{'s' if recipient_count != 1 else ''}",
+    )
 
 
 @router.get("/")

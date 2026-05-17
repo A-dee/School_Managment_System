@@ -66,8 +66,8 @@ export default function AnnouncementsPage() {
         target_roles: form.target_roles,
       };
       if (form.event_date) body.event_date = form.event_date;
-      await api.post("/api/v1/announcements", body);
-      toast.success("Announcement sent");
+      const response = await api.post("/api/v1/announcements", body);
+      toast.success(response.data?.message || "Announcement sent");
       setShow(false);
       setForm(blank);
       await load();
