@@ -30,6 +30,18 @@ export function getRole(): string | undefined {
   return Cookies.get("user_role");
 }
 
+export function getAccessToken(): string | undefined {
+  return Cookies.get("access_token");
+}
+
+export function getRefreshToken(): string | undefined {
+  return Cookies.get("refresh_token");
+}
+
+export function hasSession(): boolean {
+  return Boolean(getRole() && (getAccessToken() || getRefreshToken()));
+}
+
 export function setRole(role: string) {
   Cookies.set("user_role", role, cookieOptions(7));
 }

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getRole, getDashboardPath } from "@/lib/auth";
+import { getRole, getDashboardPath, hasSession, clearTokens } from "@/lib/auth";
 import Link from "next/link";
 
 const SCHOOL = {
@@ -35,7 +35,8 @@ export default function Home() {
 
   useEffect(() => {
     const role = getRole();
-    if (role) { router.replace(getDashboardPath(role)); return; }
+    if (role && hasSession()) { router.replace(getDashboardPath(role)); return; }
+    if (role) clearTokens();
     setMounted(true);
     const t = setTimeout(() => setVisible(true), 60);
     return () => clearTimeout(t);

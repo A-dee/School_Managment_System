@@ -1,11 +1,47 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import ErrorBoundary from "./ErrorBoundary";
+import { getMe } from "@/lib/api";
+import { clearTokens, hasSession } from "@/lib/auth";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    async function verifySession() {
+      if (!hasSession()) {
+        clearTokens();
+        router.replace("/login");
+        return;
+      }
+
+      try {
+        await getMe();
+        if (active) setAuthReady(true);
+      } catch {
+        clearTokens();
+        if (active) router.replace("/login");
+      }
+    }
+
+    verifySession();
+    return () => { active = false; };
+  }, [router]);
+
+  if (!authReady) {
+    return (
+      <div className="flex h-screen items-center justify-center theme-root" style={{ background: "var(--bg-page)" }}>
+        <div style={{ color: "var(--text-muted)", fontWeight: 700 }}>Checking your session...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen overflow-hidden theme-root">
