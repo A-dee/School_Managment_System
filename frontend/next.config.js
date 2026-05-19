@@ -1,5 +1,9 @@
 function normalizeApiTarget(raw) {
-  let target = (raw || "http://localhost:8000").trim();
+  const fallbackTarget =
+    process.env.NODE_ENV === "production"
+      ? "https://schoolmanagmentsystem-production.up.railway.app"
+      : "http://localhost:8000";
+  let target = (raw || fallbackTarget).trim();
   // Vercel stores only the value, but these guards handle accidentally pasted
   // KEY=value strings or quoted values without breaking production builds.
   if (target.includes("=") && !target.startsWith("http")) {

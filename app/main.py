@@ -96,3 +96,9 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "healthy"}
+
+
+@app.get(f"{API_PREFIX}/health")
+def api_health():
+    # This mirrors /health so the Vercel /api/v1/* rewrite can be tested directly.
+    return {"status": "healthy"}
