@@ -14,6 +14,10 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
+  if (typeof config.url === "string" && config.url.startsWith("http://")) {
+    // Defensive production guard: old env/build values must not create mixed-content XHRs.
+    config.url = `https://${config.url.slice("http://".length)}`;
+  }
   const token = Cookies.get("access_token");
   if (token) config.headers.Authorization = `Bearer ${token}`;
   // Attach request timestamp for response timing.

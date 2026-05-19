@@ -21,6 +21,19 @@ function normalizeApiTarget(raw) {
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: "upgrade-insecure-requests",
+          },
+        ],
+      },
+    ];
+  },
   async rewrites() {
     const target = normalizeApiTarget(process.env.API_PROXY_TARGET);
     return [
