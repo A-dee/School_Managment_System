@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { getProfitLoss } from "@/lib/api";
+import { getPaystackTransactions, getProfitLoss, verifyPaystackPayment } from "@/lib/api";
 import api from "@/lib/api";
 import toast from "react-hot-toast";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
@@ -10,7 +10,7 @@ import { TrendingUp, TrendingDown, DollarSign, Users, Receipt, BarChart2, AlertT
 const fmt = (n: number) =>
   `₦${n.toLocaleString("en-NG", { minimumFractionDigits: 0 })}`;
 
-type Tab = "overview" | "debtors" | "declarations" | "ledger";
+type Tab = "overview" | "debtors" | "declarations" | "ledger" | "online";
 
 export default function FinancePage() {
   const [tab, setTab] = useState<Tab>("overview");
@@ -35,6 +35,10 @@ export default function FinancePage() {
   // ledger
   const [ledger,     setLedger]     = useState<any[]>([]);
   const [ledgerLoad, setLedgerLoad] = useState(false);
+
+  // online payments
+  const [onlineTxs, setOnlineTxs] = useState<any[]>([]);
+  const [onlineLoad, setOnlineLoad] = useState(false);
 
   // declaration confirm/reject
   const [confirmModal, setConfirmModal] = useState<any | null>(null);
@@ -64,6 +68,13 @@ export default function FinancePage() {
         .then(r => setLedger(r.data.data || []))
         .catch(() => {})
         .finally(() => setLedgerLoad(false));
+    }
+    if (tab === "online") {
+      setOnlineLoad(true);
+      getPaystackTransactions({ limit: 200 })
+        .then(r => setOnlineTxs(r.data.data || []))
+        .catch(() => {})
+        .finally(() => setOnlineLoad(false));
     }
   }, [tab]);
 
@@ -155,6 +166,7 @@ export default function FinancePage() {
           { id: "debtors",       label: "Fee Debtors" },
           { id: "declarations",  label: "Declarations" },
           { id: "ledger",        label: "Ledger" },
+          { id: "online",        label: "Online Payments" },
         ] as { id: Tab; label: string }[]).map(({ id, label }) => (
           <button key={id} style={tabStyle(tab === id)} onClick={() => setTab(id)}>
             {label}
@@ -261,6 +273,80 @@ export default function FinancePage() {
                 </div>
               </div>
             )}
+          </>
+        )
+      )}
+
+      {/* ONLINE PAYMENTS TAB */}
+      {tab === "online" && (
+        onlineLoad ? (
+          <div className="flex justify-center py-20"><div className="t-spinner" /></div>
+        ) : (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))", gap: 12, marginBottom: 18 }}>
+              {[
+                { label: "Transactions", value: onlineTxs.length, color: "#6366f1" },
+                { label: "Successful", value: onlineTxs.filter(t => t.status === "SUCCESS").length, color: "#22c55e" },
+                { label: "Pending", value: onlineTxs.filter(t => t.status === "PENDING" || t.status === "INITIALIZED").length, color: "#f59e0b" },
+                { label: "Failed", value: onlineTxs.filter(t => t.status === "FAILED").length, color: "#ef4444" },
+              ].map(({ label, value, color }) => (
+                <div key={label} className="t-card">
+                  <div style={{ fontSize: "1.15rem", fontWeight: 700, color }}>{value}</div>
+                  <div style={{ fontSize: "0.72rem", color: "var(--text-secondary)", marginTop: 3 }}>{label}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="t-card overflow-x-auto">
+              <table className="t-table">
+                <thead>
+                  <tr>
+                    <th>Student</th>
+                    <th>Reference</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Invoice</th>
+                    <th>Initiated By</th>
+                    <th>Created</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {onlineTxs.length === 0 ? (
+                    <tr><td colSpan={8} style={{ textAlign: "center", padding: "18px", color: "var(--text-secondary)" }}>No Paystack transactions yet.</td></tr>
+                  ) : onlineTxs.map((tx: any) => (
+                    <tr key={tx.reference}>
+                      <td>{tx.student_name || "—"}</td>
+                      <td style={{ fontSize: "0.78rem" }}>{tx.reference}</td>
+                      <td>{fmt((Number(tx.amount_minor || 0) / 100))}</td>
+                      <td><span className={tx.status === "SUCCESS" ? "badge-green" : tx.status === "FAILED" ? "badge-red" : tx.status === "PENDING" ? "badge-yellow" : "badge-blue"}>{tx.status}</span></td>
+                      <td>{tx.invoice_id}{tx.invoice_status ? ` · ${tx.invoice_status}` : ""}</td>
+                      <td>{tx.initiated_by_email || "—"}</td>
+                      <td>{new Date(tx.created_at).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</td>
+                      <td>
+                        {(tx.status === "INITIALIZED" || tx.status === "PENDING") && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                await verifyPaystackPayment(tx.reference);
+                                toast.success("Transaction reverified");
+                                const r = await getPaystackTransactions({ limit: 200 });
+                                setOnlineTxs(r.data.data || []);
+                              } catch (e: any) {
+                                toast.error(e?.response?.data?.detail || "Failed to reverify transaction");
+                              }
+                            }}
+                            style={{ padding: "5px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--accent-light)", color: "var(--accent)", cursor: "pointer", fontSize: "0.72rem", fontWeight: 600 }}
+                          >
+                            Verify
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </>
         )
       )}

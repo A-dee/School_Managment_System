@@ -152,6 +152,7 @@ class PaymentDeclarationIn(BaseModel):
     payment_method: str = Field(default="BANK_TRANSFER", max_length=50)
     reference:      Optional[str] = Field(None, max_length=200)
     note:           Optional[str] = Field(None, max_length=500)
+    payment_option: Optional[int] = Field(default=None)
 
 
 class PaymentDeclarationConfirm(BaseModel):
@@ -255,6 +256,7 @@ class OptionalFeeOut(BaseModel):
 
 class PaystackInitializeIn(BaseModel):
     invoice_id: int = Field(gt=0)
+    payment_option: int = Field(default=100)
 
 
 class PaystackInitializeOut(BaseModel):
@@ -289,3 +291,10 @@ class PaystackTransactionOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class PaystackTransactionListItem(PaystackTransactionOut):
+    invoice_status: Optional[InvoiceStatus] = None
+    invoice_balance: Optional[Decimal] = None
+    student_name: Optional[str] = None
+    initiated_by_email: Optional[str] = None

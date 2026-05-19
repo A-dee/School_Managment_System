@@ -3,43 +3,12 @@ import Cookies from "js-cookie";
 import { logger } from "@/lib/logger";
 import { clearTokens, storeAccessToken } from "@/lib/auth";
 
-function normalizeBaseUrl(raw?: string): string {
-  let base = (raw || "http://localhost:8000").trim();
-  if (base.endsWith("/")) base = base.slice(0, -1);
-  // Accept either the backend origin or an already-suffixed API path from env config.
-  if (base.endsWith("/api/v1")) base = base.slice(0, -"/api/v1".length);
-
-  try {
-    const url = new URL(base);
-    const isLocalhost = url.hostname === "localhost" || url.hostname === "127.0.0.1";
-
-    if (!isLocalhost && url.protocol === "http:") {
-      // Production frontends should never call a non-local API over plain HTTP.
-      // Upgrading here protects the app even when NEXT_PUBLIC_API_URL was set badly.
-      url.protocol = "https:";
-      base = url.toString().replace(/\/$/, "");
-    }
-  } catch {
-    const isLocalhost =
-      base.startsWith("http://localhost") ||
-      base.startsWith("http://127.0.0.1") ||
-      base.startsWith("https://localhost") ||
-      base.startsWith("https://127.0.0.1");
-
-    if (!isLocalhost && base.startsWith("http://")) {
-      base = `https://${base.slice("http://".length)}`;
-    }
-  }
-
-  return base;
-}
-// Upgrade http → https when running in a secure browser context (prevents Mixed Content errors)
-// Shared API root for all frontend requests.
-const BASE = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_URL);
-const API_URL = `${BASE}/api/v1`;
+const API_URL = "/api/v1";
 
 const api = axios.create({
-  baseURL: BASE,
+  // Keep browser traffic same-origin. Vercel/Next proxies /api/v1/* to FastAPI
+  // via frontend/next.config.js, so backend hosts and payment secrets stay server-side.
+  baseURL: "",
   headers: { "Content-Type": "application/json" },
   withCredentials: true,
 });
@@ -47,7 +16,7 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   const token = Cookies.get("access_token");
   if (token) config.headers.Authorization = `Bearer ${token}`;
-  // Attach request timestamp for response timing
+  // Attach request timestamp for response timing.
   (config as any)._t = Date.now();
   logger.request(config.method || "GET", config.url || "");
   return config;
@@ -130,10 +99,14 @@ export const getDebtors = (session_id: number, term_id: number) =>
   api.get("/api/v1/finance/invoices/debtors", { params: { session_id, term_id } });
 export const getProfitLoss = (params?: object) =>
   api.get("/api/v1/finance/reports/profit-loss", { params });
-export const initializePaystackPayment = (invoice_id: number) =>
-  api.post("/api/v1/finance/paystack/initialize", { invoice_id });
+export const initializePaystackPayment = (invoice_id: number, payment_option: 50 | 100 = 100) =>
+  api.post("/api/v1/finance/paystack/initialize", { invoice_id, payment_option });
 export const verifyPaystackPayment = (reference: string) =>
   api.get(`/api/v1/finance/paystack/verify/${reference}`);
+export const getPaystackTransactions = (params?: object) =>
+  api.get("/api/v1/finance/paystack/transactions", { params });
+export const getMyPaystackTransactions = (params?: object) =>
+  api.get("/api/v1/finance/paystack/transactions/mine", { params });
 
 // Results
 export const getResults = (class_id: number, term_id: number, session_id: number) =>

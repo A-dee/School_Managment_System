@@ -15,7 +15,7 @@ from app.schemas.finance import (
     PaymentDeclarationConfirm, PaymentDeclarationReject,
     DirectPaymentCreate,
     OptionalFeeCreate, OptionalFeeUpdate, OptionalFeeOut,
-    PaystackInitializeIn, PaystackInitializeOut, PaystackTransactionOut,
+    PaystackInitializeIn, PaystackInitializeOut, PaystackTransactionListItem, PaystackTransactionOut,
 )
 from app.crud.finance import (
     create_fee_structure, generate_invoices_for_term, get_invoice,
@@ -23,7 +23,7 @@ from app.crud.finance import (
     create_expenditure, approve_expenditure, reject_expenditure,
     create_payroll, mark_payroll_paid, get_profit_loss,
     list_optional_fees, create_optional_fee, update_optional_fee, delete_optional_fee,
-    get_paystack_transaction_by_reference,
+    get_paystack_transaction_by_reference, list_paystack_transactions,
 )
 from app.utils.rbac import is_principal_or_above, is_admin_or_above, is_vp_or_above
 from app.utils.auth import get_current_user
@@ -37,6 +37,7 @@ from app.utils.paystack import (
     initialize_paystack_transaction, verify_paystack_signature,
     verify_paystack_transaction, paystack_is_configured,
 )
+from app.utils.student_portal import student_requires_parent_portal
 
 router = APIRouter(prefix="/finance", tags=["Finance"])
 
@@ -71,6 +72,13 @@ def _get_student_finance_recipient_ids(db: Session, student_id: int) -> set[int]
         parents = db.query(Parent).filter(Parent.id.in_([link.parent_id for link in links])).all()
         recipient_ids.update(parent.user_id for parent in parents if parent.user_id)
     return recipient_ids
+
+
+def _get_management_finance_recipient_ids(db: Session) -> set[int]:
+    from app.models.user import User
+
+    managers = db.query(User).filter(User.role.in_([UserRole.ADMIN, UserRole.PRINCIPAL, UserRole.SUPER_ADMIN])).all()
+    return {user.id for user in managers if user.is_active}
 
 
 def _assert_user_can_access_invoice(db: Session, current_user, invoice: Invoice):
@@ -113,6 +121,48 @@ def _minor_units(amount: Decimal) -> int:
     return int((Decimal(str(amount)) * 100).quantize(Decimal("1")))
 
 
+def _rounded_money(amount: Decimal) -> Decimal:
+    return Decimal(str(amount)).quantize(Decimal("0.01"))
+
+
+def _allowed_parent_payment_amounts(invoice: Invoice) -> dict[int, Decimal]:
+    total_fee = _rounded_money(Decimal(str(invoice.total_fee or 0)))
+    balance = _rounded_money(Decimal(str(invoice.balance or 0)))
+    paid_amount = _rounded_money(Decimal(str(invoice.paid_amount or 0)))
+    allowed: dict[int, Decimal] = {}
+    if balance <= 0:
+        return allowed
+    # The parent-facing schedule is intentionally simple: an unpaid invoice can
+    # be settled at 50% now or in full, while a partially paid invoice must be
+    # cleared with the remaining 100% balance.
+    if paid_amount <= 0:
+        half = _rounded_money(total_fee * Decimal("0.50"))
+        if half > 0:
+            allowed[50] = half
+    allowed[100] = balance
+    return allowed
+
+
+def _resolve_parent_payment_amount(invoice: Invoice, payment_option: Optional[int]) -> Decimal:
+    allowed = _allowed_parent_payment_amounts(invoice)
+    option = payment_option or 100
+    if option not in allowed:
+        raise HTTPException(
+            status_code=400,
+            detail="Only 50% and 100% payment options are allowed for this invoice.",
+        )
+    return allowed[option]
+
+
+def _assert_parent_declared_amount_matches_schedule(invoice: Invoice, declared_amount: Decimal, payment_option: Optional[int]):
+    expected_amount = _resolve_parent_payment_amount(invoice, payment_option)
+    if _rounded_money(declared_amount) != expected_amount:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Declared amount must match the allowed schedule amount of NGN {expected_amount:,.2f}.",
+        )
+
+
 def _sync_paystack_transaction(db: Session, transaction: PaystackTransaction, verify_response: dict):
     data = verify_response.get("data") or {}
     status = data.get("status")
@@ -133,23 +183,36 @@ def _sync_paystack_transaction(db: Session, transaction: PaystackTransaction, ve
             # Only create one internal payment per Paystack reference even if verify/webhook run more than once.
             amount_paid = Decimal(str(data.get("amount", 0))) / Decimal("100")
             payment_date = transaction.paid_at.date() if transaction.paid_at else date.today()
-            payment = record_payment(
-                db,
-                PaymentCreate(
-                    invoice_id=transaction.invoice_id,
-                    amount_paid=amount_paid,
-                    payment_method="ONLINE",
-                    receipt_number=transaction.reference,
-                    payment_date=payment_date,
-                ),
-                transaction.initiated_by_user_id,
-            )
-            transaction.payment_id = payment.id
+            try:
+                payment = record_payment(
+                    db,
+                    PaymentCreate(
+                        invoice_id=transaction.invoice_id,
+                        amount_paid=amount_paid,
+                        payment_method="ONLINE",
+                        receipt_number=transaction.reference,
+                        payment_date=payment_date,
+                    ),
+                    transaction.initiated_by_user_id,
+                )
+                transaction.payment_id = payment.id
+            except ValueError:
+                # A successful provider transaction may arrive after an admin has
+                # already settled the invoice; keep the gateway audit row without
+                # forcing a duplicate internal payment.
+                payment = None
             send_bulk_notifications(
                 db,
                 _get_student_finance_recipient_ids(db, transaction.student_id),
                 "Paystack payment confirmed",
                 f"An online payment of NGN {amount_paid:,.2f} has been confirmed for your school fees.",
+            )
+            student_name = f"{transaction.student.first_name} {transaction.student.last_name}".strip() if transaction.student else f"Student #{transaction.student_id}"
+            send_bulk_notifications(
+                db,
+                _get_management_finance_recipient_ids(db),
+                "Online school fees payment received",
+                f"{student_name} completed an online school fees payment of NGN {amount_paid:,.2f}.",
             )
     elif status in {"failed", "reversed"}:
         transaction.status = PaystackTransactionStatus.FAILED
@@ -159,6 +222,19 @@ def _sync_paystack_transaction(db: Session, transaction: PaystackTransaction, ve
 
 def _serialize_paystack_transaction(transaction: PaystackTransaction) -> dict:
     return PaystackTransactionOut.model_validate(transaction).model_dump()
+
+
+def _serialize_paystack_transaction_list_item(transaction: PaystackTransaction) -> dict:
+    student_name = None
+    if transaction.student:
+        student_name = f"{transaction.student.first_name} {transaction.student.last_name}".strip()
+    return PaystackTransactionListItem(
+        **PaystackTransactionOut.model_validate(transaction).model_dump(),
+        invoice_status=transaction.invoice.status if transaction.invoice else None,
+        invoice_balance=transaction.invoice.balance if transaction.invoice else None,
+        student_name=student_name,
+        initiated_by_email=transaction.initiated_by.email if transaction.initiated_by else None,
+    ).model_dump(mode="json")
 
 
 # --- Fee Structures ---
@@ -244,6 +320,8 @@ def my_invoices(db: Session = Depends(get_db), current_user=Depends(get_current_
     student = db.query(Student).filter(Student.user_id == current_user.id).first()
     if not student:
         raise HTTPException(status_code=404, detail="Student profile not found")
+    if student_requires_parent_portal(db, student):
+        raise HTTPException(status_code=403, detail="This class uses parent-only fee access")
     invoices = get_student_invoices(db, student.id)
     return success_response([InvoiceOut.model_validate(i).model_dump() for i in invoices])
 
@@ -256,6 +334,8 @@ def student_invoices(student_id: int, db: Session = Depends(get_db), current_use
         student = db.query(Student).filter(Student.id == student_id, Student.user_id == current_user.id).first()
         if not student:
             raise HTTPException(status_code=403, detail="You can only access your own invoices")
+        if student_requires_parent_portal(db, student):
+            raise HTTPException(status_code=403, detail="This class uses parent-only fee access")
     if current_user.role == UserRole.PARENT:
         from app.models.parent import Parent, ParentStudent
         parent = db.query(Parent).filter(Parent.user_id == current_user.id).first()
@@ -275,7 +355,10 @@ def student_invoices(student_id: int, db: Session = Depends(get_db), current_use
 # --- Payments ---
 @router.post("/payments")
 def add_payment(data: PaymentCreate, db: Session = Depends(get_db), current_user=Depends(is_admin_or_above)):
-    payment = record_payment(db, data, current_user.id)
+    try:
+        payment = record_payment(db, data, current_user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     invoice = db.query(Invoice).filter(Invoice.id == data.invoice_id).first()
     if invoice:
         send_bulk_notifications(
@@ -394,19 +477,20 @@ def list_payroll(
 def declare_payment(data: PaymentDeclarationIn, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     from app.models.user import UserRole
     from app.models.parent import Parent, ParentStudent
+    invoice = db.query(Invoice).filter(Invoice.id == data.invoice_id).first()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
     if current_user.role == UserRole.PARENT:
         parent = db.query(Parent).filter(Parent.user_id == current_user.id).first()
         if not parent:
             raise HTTPException(status_code=403, detail="Parent profile not found")
-        invoice = db.query(Invoice).filter(Invoice.id == data.invoice_id).first()
-        if not invoice:
-            raise HTTPException(status_code=404, detail="Invoice not found")
         link = db.query(ParentStudent).filter(
             ParentStudent.parent_id == parent.id,
             ParentStudent.student_id == invoice.student_id
         ).first()
         if not link:
             raise HTTPException(status_code=403, detail="Not your child's invoice")
+        _assert_parent_declared_amount_matches_schedule(invoice, data.declared_amount, data.payment_option)
     decl = PaymentDeclaration(
         invoice_id=data.invoice_id,
         declared_amount=data.declared_amount,
@@ -566,7 +650,10 @@ def direct_payment(
         receipt_number=data.receipt_number,
         payment_date=data.payment_date,
     )
-    payment = record_payment(db, pdata, current_user.id)
+    try:
+        payment = record_payment(db, pdata, current_user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     log_action(db, "DIRECT_PAYMENT", "Payment", current_user.id, entity_id=payment.id,
                new_value={"student_id": data.student_id, "amount": float(data.amount_paid)})
     db.commit()
@@ -592,11 +679,17 @@ def initialize_paystack(
     invoice = db.query(Invoice).filter(Invoice.id == data.invoice_id).first()
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
+    if current_user.role == UserRole.STUDENT and student_requires_parent_portal(db, invoice.student):
+        raise HTTPException(
+            status_code=403,
+            detail="Online payment for this class must be completed from the parent account.",
+        )
     _assert_user_can_access_invoice(db, current_user, invoice)
     if invoice.status == InvoiceStatus.PAID or Decimal(str(invoice.balance)) <= 0:
         raise HTTPException(status_code=400, detail="This invoice has already been paid")
 
-    amount_minor = _minor_units(Decimal(str(invoice.balance)))
+    amount_to_charge = _resolve_parent_payment_amount(invoice, data.payment_option)
+    amount_minor = _minor_units(amount_to_charge)
     reference = f"SMS-PSTK-{invoice.id}-{uuid.uuid4().hex[:10].upper()}"
     callback_url = (
         settings.paystack_callback_url_normalized
@@ -613,6 +706,8 @@ def initialize_paystack(
             "session_id": invoice.session_id,
             "term_id": invoice.term_id,
             "initiated_by_user_id": current_user.id,
+            "payment_option": data.payment_option,
+            "scheduled_amount": str(amount_to_charge),
         },
         "currency": "NGN",
     }
@@ -668,6 +763,11 @@ def verify_paystack(
     invoice = db.query(Invoice).filter(Invoice.id == transaction.invoice_id).first()
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
+    if current_user.role == UserRole.STUDENT and student_requires_parent_portal(db, invoice.student):
+        raise HTTPException(
+            status_code=403,
+            detail="Online payment for this class must be verified from the parent account.",
+        )
     _assert_user_can_access_invoice(db, current_user, invoice)
 
     try:
@@ -679,6 +779,76 @@ def verify_paystack(
     db.commit()
     db.refresh(transaction)
     return success_response(_serialize_paystack_transaction(transaction), "Paystack transaction verified")
+
+
+@router.get("/paystack/transactions")
+def paystack_transactions(
+    status: Optional[PaystackTransactionStatus] = None,
+    invoice_id: Optional[int] = None,
+    student_id: Optional[int] = None,
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user=Depends(is_admin_or_above),
+):
+    rows, total = list_paystack_transactions(
+        db,
+        status=status,
+        invoice_id=invoice_id,
+        student_id=student_id,
+        skip=skip,
+        limit=limit,
+    )
+    return paginated_response(
+        [_serialize_paystack_transaction_list_item(row) for row in rows],
+        total,
+        skip // limit + 1,
+        limit,
+    )
+
+
+@router.get("/paystack/transactions/mine")
+def my_paystack_transactions(
+    student_id: Optional[int] = None,
+    status: Optional[PaystackTransactionStatus] = None,
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    filters: dict = {"status": status, "skip": skip, "limit": limit}
+    if current_user.role == UserRole.STUDENT:
+        from app.models.student import Student
+
+        student = db.query(Student).filter(Student.user_id == current_user.id).first()
+        if not student:
+            raise HTTPException(status_code=404, detail="Student profile not found")
+        if student_requires_parent_portal(db, student):
+            raise HTTPException(status_code=403, detail="This class uses parent-only online payments")
+        filters["student_id"] = student.id
+    elif current_user.role == UserRole.PARENT:
+        from app.models.parent import Parent, ParentStudent
+
+        parent = db.query(Parent).filter(Parent.user_id == current_user.id).first()
+        if not parent:
+            raise HTTPException(status_code=404, detail="Parent profile not found")
+        linked_ids = [
+            link.student_id
+            for link in db.query(ParentStudent).filter(ParentStudent.parent_id == parent.id).all()
+        ]
+        if student_id and student_id not in linked_ids:
+            raise HTTPException(status_code=403, detail="Not your child's transaction")
+        filters["student_ids"] = [student_id] if student_id else linked_ids
+    else:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    rows, total = list_paystack_transactions(db, **filters)
+    return paginated_response(
+        [_serialize_paystack_transaction_list_item(row) for row in rows],
+        total,
+        skip // limit + 1,
+        limit,
+    )
 
 
 @router.post("/paystack/webhook")

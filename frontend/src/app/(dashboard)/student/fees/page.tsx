@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { initializePaystackPayment, verifyPaystackPayment } from "@/lib/api";
+import { getMyPaystackTransactions, initializePaystackPayment, verifyPaystackPayment } from "@/lib/api";
 import api from "@/lib/api";
 import toast from "react-hot-toast";
 import { CreditCard } from "lucide-react";
@@ -11,13 +11,28 @@ const fmt = (n: number | string) =>
 
 export default function StudentFeesPage() {
   const [invoices, setInvoices] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [verifyingRef, setVerifyingRef] = useState("");
 
+  const txBadge: Record<string, string> = {
+    INITIALIZED: "badge-blue",
+    PENDING: "badge-yellow",
+    SUCCESS: "badge-green",
+    FAILED: "badge-red",
+  };
+
   const loadInvoices = () =>
-    api.get("/api/v1/finance/invoices/my").then((r) => {
+    Promise.all([
+      api.get("/api/v1/finance/invoices/my"),
+      getMyPaystackTransactions({ limit: 100 }),
+    ]).then(([r, txR]) => {
       setInvoices(r.data.data || []);
+      setTransactions(txR.data.data || []);
     });
+
+  const invoiceTransactions = (invoiceId: number) =>
+    transactions.filter((tx) => tx.invoice_id === invoiceId);
 
   useEffect(() => {
     loadInvoices().catch(() => {}).finally(() => setLoading(false));
@@ -112,7 +127,25 @@ export default function StudentFeesPage() {
                               <CreditCard size={12} /> Paystack
                             </button>
                           )}
+                          {invoiceTransactions(inv.id)[0] && (
+                            <span className={txBadge[invoiceTransactions(inv.id)[0].status] || "badge-blue"}>
+                              {invoiceTransactions(inv.id)[0].status}
+                            </span>
+                          )}
                         </div>
+                        {invoiceTransactions(inv.id).slice(0, 1).map((tx: any) => (
+                          <div key={tx.reference} style={{ marginTop: 6, fontSize: "0.72rem", color: "var(--text-secondary)" }}>
+                            Ref: {tx.reference}
+                            {(tx.status === "INITIALIZED" || tx.status === "PENDING") && (
+                              <button
+                                onClick={() => verifyPaystackPayment(tx.reference).then(() => loadInvoices())}
+                                style={{ marginLeft: 8, padding: "3px 8px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--accent-light)", color: "var(--accent)", cursor: "pointer", fontSize: "0.7rem", fontWeight: 600 }}
+                              >
+                                Verify
+                              </button>
+                            )}
+                          </div>
+                        ))}
                       </td>
                     </tr>
                   ))}

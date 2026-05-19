@@ -11,6 +11,7 @@ from app.utils.auth import (
 from app.utils.response import success_response
 from app.utils.limiter import limiter
 from app.crud.user import get_user_by_email, set_reset_token, reset_password
+from app.utils.student_portal import student_requires_parent_portal_by_user_id
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -21,6 +22,11 @@ def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
     user = get_user_by_email(db, data.email)
     if not user or not verify_password(data.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    if user.role.value == "STUDENT" and student_requires_parent_portal_by_user_id(db, user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Student portal is disabled for this class. Please sign in with the parent account.",
+        )
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is deactivated")
 
@@ -38,6 +44,8 @@ def refresh_token(request: Request, data: RefreshRequest, db: Session = Depends(
     user = get_user_by_id(db, int(user_id))
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found or deactivated")
+    if user.role.value == "STUDENT" and student_requires_parent_portal_by_user_id(db, user.id):
+        raise HTTPException(status_code=403, detail="Student portal is disabled for this class")
     access_token = create_access_token({"sub": str(user.id), "role": user.role.value})
     return success_response({"access_token": access_token, "token_type": "bearer"})
 

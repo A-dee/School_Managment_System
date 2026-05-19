@@ -66,6 +66,14 @@ const blankAbout = {
 
 type YNValue = boolean | null;
 
+const PARENT_MANAGED_LEVEL_KEYWORDS = ["CRECHE", "CRÈCHE", "NURSERY", "PRESCHOOL", "KINDERGARTEN", "PRIMARY", "GRADE", "BASIC"];
+
+function isParentManagedLevel(level?: string | null) {
+  if (!level) return false;
+  const upper = level.trim().toUpperCase();
+  return PARENT_MANAGED_LEVEL_KEYWORDS.some((keyword) => upper.includes(keyword));
+}
+
 function YesNo({ label, value, onChange }: { label: string; value: YNValue; onChange: (v: boolean) => void }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -105,6 +113,8 @@ export default function StudentRegistrationModal({ studentId, classId, classes, 
   const [reg, setReg] = useState(blankReg);
   const [med, setMed] = useState(blankMed);
   const [about, setAbout] = useState(blankAbout);
+  const selectedClass = classes.find((c: any) => String(c.id) === basic.current_class_id);
+  const parentManagedPortal = isParentManagedLevel(selectedClass?.level);
 
   const loadDocuments = async (sid: number) => {
     try {
@@ -323,11 +333,11 @@ export default function StudentRegistrationModal({ studentId, classId, classes, 
             </p>
           </div>
 
-          <div style={{ marginBottom: 20 }}>
+          {credentials.student_email && <div style={{ marginBottom: 20 }}>
             <p style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--text-secondary)", marginBottom: 10 }}>Student Account</p>
             <Row label="Email / Username" value={credentials.student_email} />
             <Row label="Password" value={credentials.student_password} />
-          </div>
+          </div>}
 
           {(credentials.parent_email) && (
             <div style={{ marginBottom: 20 }}>
@@ -343,8 +353,12 @@ export default function StudentRegistrationModal({ studentId, classId, classes, 
           <div style={{ display: "flex", gap: 8 }}>
             <button
               onClick={() => {
-                const txt = `STUDENT LOGIN\nEmail: ${credentials.student_email}\nPassword: ${credentials.student_password}` +
-                  (credentials.parent_email ? `\n\nPARENT LOGIN\nEmail: ${credentials.parent_email}\nPassword: ${credentials.parent_password || "(existing account)"}` : "");
+                const txt = (credentials.student_email
+                  ? `STUDENT LOGIN\nEmail: ${credentials.student_email}\nPassword: ${credentials.student_password}`
+                  : "") +
+                  (credentials.parent_email
+                    ? `${credentials.student_email ? "\n\n" : ""}PARENT LOGIN\nEmail: ${credentials.parent_email}\nPassword: ${credentials.parent_password || "(existing account)"}`
+                    : "");
                 copy(txt);
               }}
               style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "none", background: "var(--accent)", color: "var(--btn-primary-text)", fontWeight: 700, fontSize: "0.8125rem", cursor: "pointer" }}
@@ -492,14 +506,21 @@ export default function StudentRegistrationModal({ studentId, classId, classes, 
                   <SectionTitle>Portal Access</SectionTitle>
                   <div style={{ padding: "12px 14px", borderRadius: 9, background: "var(--accent-light)", border: "1px solid var(--border)", marginBottom: 12 }}>
                     <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", lineHeight: 1.6 }}>
-                      A <b>student login account</b> is automatically created on enrolment. Enter the parent's email below to also create a <b>parent account</b> so they can log in and view their child's results, fees, and attendance.
+                      {parentManagedPortal
+                        ? "This class uses a parent-only portal. Add the parent's email below so the guardian can log in, track fees, and complete online payments."
+                        : "A student login account is automatically created on enrolment. Enter the parent's email below to also create a parent account so they can log in and view their child's results, fees, and attendance."}
                     </p>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     <div>
-                      <label className="t-label">Guardian / Parent Email</label>
+                      <label className="t-label">Guardian / Parent Email{parentManagedPortal ? " *" : ""}</label>
                       <input className="t-input" type="email" placeholder="parent@email.com"
                         value={basic.guardian_email} onChange={e => setB("guardian_email", e.target.value)} />
+                      {parentManagedPortal && (
+                        <p style={{ fontSize: "0.72rem", color: "var(--text-secondary)", marginTop: 4 }}>
+                          Required for parent-only portal access.
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="t-label">Guardian Name</label>

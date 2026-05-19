@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from app.models.finance import FeeStructure, Invoice, Payment, Expenditure, Payroll, InvoiceStatus, ExpenseApprovalStatus, PayrollStatus, OptionalFee, PaystackTransaction
+from app.models.finance import FeeStructure, Invoice, Payment, Expenditure, Payroll, InvoiceStatus, ExpenseApprovalStatus, PayrollStatus, OptionalFee, PaystackTransaction, PaystackTransactionStatus
 from app.models.student import Student, StudentStatus
 
 
@@ -71,14 +71,57 @@ def get_paystack_transaction_by_reference(db: Session, reference: str) -> Option
     return db.query(PaystackTransaction).filter(PaystackTransaction.reference == reference).first()
 
 
+def list_paystack_transactions(
+    db: Session,
+    *,
+    status: Optional[PaystackTransactionStatus] = None,
+    invoice_id: Optional[int] = None,
+    student_id: Optional[int] = None,
+    initiated_by_user_id: Optional[int] = None,
+    student_ids: Optional[list[int]] = None,
+    skip: int = 0,
+    limit: int = 100,
+):
+    query = db.query(PaystackTransaction)
+    if status:
+        query = query.filter(PaystackTransaction.status == status)
+    if invoice_id:
+        query = query.filter(PaystackTransaction.invoice_id == invoice_id)
+    if student_id:
+        query = query.filter(PaystackTransaction.student_id == student_id)
+    if initiated_by_user_id:
+        query = query.filter(PaystackTransaction.initiated_by_user_id == initiated_by_user_id)
+    if student_ids:
+        query = query.filter(PaystackTransaction.student_id.in_(student_ids))
+    total = query.count()
+    rows = (
+        query.order_by(PaystackTransaction.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+    return rows, total
+
+
 def record_payment(db: Session, data, admin_user_id: int) -> Payment:
     invoice = get_invoice(db, data.invoice_id)
     if not invoice:
         raise ValueError("Invoice not found")
+    amount_paid = Decimal(str(data.amount_paid)).quantize(Decimal("0.01"))
+    balance = Decimal(str(invoice.balance or 0)).quantize(Decimal("0.01"))
+    if amount_paid <= 0:
+        raise ValueError("Payment amount must be greater than zero")
+    if balance <= 0 or invoice.status == InvoiceStatus.PAID:
+        raise ValueError("Invoice has already been fully paid")
+    if amount_paid > balance:
+        raise ValueError("Payment amount cannot exceed the invoice balance")
+    existing_receipt = db.query(Payment).filter(Payment.receipt_number == data.receipt_number).first()
+    if existing_receipt:
+        raise ValueError("Receipt number already exists")
 
     payment = Payment(
         invoice_id=data.invoice_id,
-        amount_paid=data.amount_paid,
+        amount_paid=amount_paid,
         payment_method=data.payment_method,
         receipt_number=data.receipt_number,
         proof_file_url=data.proof_file_url,
@@ -87,8 +130,8 @@ def record_payment(db: Session, data, admin_user_id: int) -> Payment:
     )
     db.add(payment)
 
-    invoice.paid_amount = (invoice.paid_amount or Decimal("0")) + data.amount_paid
-    invoice.balance = invoice.total_fee - invoice.paid_amount
+    invoice.paid_amount = (invoice.paid_amount or Decimal("0")) + amount_paid
+    invoice.balance = Decimal(str(invoice.total_fee)) - Decimal(str(invoice.paid_amount))
     if invoice.balance <= 0:
         invoice.status = InvoiceStatus.PAID
         invoice.balance = Decimal("0")

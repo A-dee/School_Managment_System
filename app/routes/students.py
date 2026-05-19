@@ -18,10 +18,25 @@ from app.crud.student import (
 from app.utils.rbac import is_principal_or_above, is_admin_or_above, is_teacher_or_above
 from app.utils.response import success_response, paginated_response
 from app.utils.audit import log_action
+from app.utils.student_portal import (
+    is_parent_managed_class_id,
+    student_has_parent_portal_link,
+    sync_student_portal_access,
+)
 
 UPLOAD_DIR = "uploads/students"
 
 router = APIRouter(prefix="/students", tags=["Students"])
+
+
+def _ensure_parent_portal_ready(db: Session, student_id: int, class_id: Optional[int]):
+    if not is_parent_managed_class_id(db, class_id):
+        return
+    if not student_has_parent_portal_link(db, student_id):
+        raise HTTPException(
+            status_code=400,
+            detail="This class is parent-managed. Link a parent account before assigning the student here.",
+        )
 
 
 def _get_teacher_staff_and_class_id(db: Session, current_user):
@@ -61,29 +76,38 @@ def add_student(data: StudentCreate, db: Session = Depends(get_db), current_user
 
     student = create_student(db, data)
 
-    # Auto-create student login account
-    student_email = (
-        data.admission_number.lower()
-        .replace("/", ".").replace(" ", "")
-        + "@student.portal"
-    )
-    student_password = secrets.token_urlsafe(8)
-    student_user = User(
-        email=student_email,
-        hashed_password=hash_password(student_password),
-        role=UserRole.STUDENT,
-        is_active=True,
-        is_verified=True,
-    )
-    db.add(student_user)
-    db.flush()
-    student.user_id = student_user.id
+    parent_managed_class = is_parent_managed_class_id(db, data.current_class_id)
+    if parent_managed_class and not data.guardian_email:
+        raise HTTPException(
+            status_code=400,
+            detail="Parent email is required because this class uses parent-only portal access.",
+        )
 
     credentials: dict = {
-        "student_email": student_email,
-        "student_password": student_password,
+        "portal_mode": "PARENT_ONLY" if parent_managed_class else "STUDENT_AND_PARENT",
     }
     parent_created = False
+
+    if not parent_managed_class:
+        # Student logins stay enabled only for classes that are not parent-managed.
+        student_email = (
+            data.admission_number.lower()
+            .replace("/", ".").replace(" ", "")
+            + "@student.portal"
+        )
+        student_password = secrets.token_urlsafe(8)
+        student_user = User(
+            email=student_email,
+            hashed_password=hash_password(student_password),
+            role=UserRole.STUDENT,
+            is_active=True,
+            is_verified=True,
+        )
+        db.add(student_user)
+        db.flush()
+        student.user_id = student_user.id
+        credentials["student_email"] = student_email
+        credentials["student_password"] = student_password
 
     # Auto-create parent account if guardian email provided
     if data.guardian_email:
@@ -122,13 +146,14 @@ def add_student(data: StudentCreate, db: Session = Depends(get_db), current_user
 
     log_action(db, "CREATE_STUDENT", "Student", current_user.id, entity_id=student.id)
     db.commit()
-    send_login_credentials(
-        db,
-        student_email,
-        f"{student.first_name} {student.last_name}".strip(),
-        student_password,
-        "Student",
-    )
+    if credentials.get("student_email") and credentials.get("student_password"):
+        send_login_credentials(
+            db,
+            credentials["student_email"],
+            f"{student.first_name} {student.last_name}".strip(),
+            credentials["student_password"],
+            "Student",
+        )
     if parent_created and credentials.get("parent_email") and credentials.get("parent_password"):
         send_login_credentials(
             db,
@@ -169,7 +194,9 @@ def assign_student_to_class(
         if not cls:
             raise HTTPException(status_code=403, detail="You can only enroll students into your own class")
 
+    _ensure_parent_portal_ready(db, student.id, class_id)
     student.current_class_id = class_id
+    sync_student_portal_access(db, student)
     log_action(db, "ASSIGN_CLASS", "Student", current_user.id, entity_id=student_id,
                new_value={"class_id": class_id})
     db.commit()
@@ -226,7 +253,10 @@ def update_student_info(
     student = get_student_by_id(db, student_id)
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
+    target_class_id = data.current_class_id if data.current_class_id is not None else student.current_class_id
+    _ensure_parent_portal_ready(db, student.id, target_class_id)
     updated = update_student(db, student, data)
+    sync_student_portal_access(db, updated)
     db.commit()
     return success_response(StudentOut.model_validate(updated).model_dump(), "Student updated")
 
@@ -262,7 +292,9 @@ def transfer(
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
     old_class = student.current_class_id
+    _ensure_parent_portal_ready(db, student.id, data.new_class_id)
     transfer_student(db, student, data.new_class_id)
+    sync_student_portal_access(db, student)
     log_action(db, "TRANSFER_STUDENT", "Student", current_user.id, entity_id=student_id,
                old_value={"class_id": old_class}, new_value={"class_id": data.new_class_id})
     db.commit()
@@ -288,7 +320,13 @@ def delete_student_record(student_id: int, db: Session = Depends(get_db), curren
 
 @router.post("/bulk-promote")
 def bulk_promotion(data: BulkPromotion, db: Session = Depends(get_db), current_user=Depends(is_principal_or_above)):
+    for student_id in data.student_ids:
+        _ensure_parent_portal_ready(db, student_id, data.to_class_id)
     count = bulk_promote(db, data.student_ids, data.to_class_id)
+    for student_id in data.student_ids:
+        student = get_student_by_id(db, student_id)
+        if student:
+            sync_student_portal_access(db, student)
     log_action(db, "BULK_PROMOTE", "Student", current_user.id, new_value={"count": count, "to_class_id": data.to_class_id})
     db.commit()
     return success_response({"promoted_count": count}, f"{count} students promoted")

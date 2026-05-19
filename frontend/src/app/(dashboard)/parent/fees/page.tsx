@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import api from "@/lib/api";
-import { initializePaystackPayment, verifyPaystackPayment } from "@/lib/api";
+import { getMyPaystackTransactions, initializePaystackPayment, verifyPaystackPayment } from "@/lib/api";
 import toast from "react-hot-toast";
 import { X, Send, Clock, CheckCircle, XCircle, CreditCard } from "lucide-react";
 
@@ -19,8 +19,15 @@ const declBadge: Record<string, { cls: string; icon: any }> = {
   REJECTED:  { cls: "badge-red",    icon: XCircle },
 };
 
+const txBadge: Record<string, string> = {
+  INITIALIZED: "badge-blue",
+  PENDING: "badge-yellow",
+  SUCCESS: "badge-green",
+  FAILED: "badge-red",
+};
+
 const blankDecl = {
-  declared_amount: "", payment_method: "BANK_TRANSFER", reference: "", note: "",
+  declared_amount: "", payment_method: "BANK_TRANSFER", reference: "", note: "", payment_option: 50 as 50 | 100,
 };
 
 export default function ParentFeesPage() {
@@ -28,6 +35,7 @@ export default function ParentFeesPage() {
   const [selected,  setSelected]  = useState<any>(null);
   const [invoices,  setInvoices]  = useState<any[]>([]);
   const [decls,     setDecls]     = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<any[]>([]);
   const [loading,   setLoading]   = useState(false);
 
   // Declaration modal
@@ -40,9 +48,11 @@ export default function ParentFeesPage() {
     Promise.all([
       api.get(`/api/v1/finance/invoices/student/${studentId}`),
       api.get("/api/v1/finance/payment-declarations/my"),
-    ]).then(([invR, declR]) => {
+      getMyPaystackTransactions({ student_id: studentId, limit: 100 }),
+    ]).then(([invR, declR, txR]) => {
       setInvoices(invR.data.data || []);
       setDecls(declR.data.data || []);
+      setTransactions(txR.data.data || []);
     });
 
   useEffect(() => {
@@ -81,7 +91,9 @@ export default function ParentFeesPage() {
 
   const openDeclare = (inv: any) => {
     setDeclInvoice(inv);
-    setDeclForm({ ...blankDecl, declared_amount: String(Number(inv.balance)) });
+    const defaultOption = Number(inv.paid_amount || 0) > 0 ? 100 : 50;
+    const scheduleAmount = defaultOption === 50 ? Number(inv.total_fee) * 0.5 : Number(inv.balance);
+    setDeclForm({ ...blankDecl, payment_option: defaultOption as 50 | 100, declared_amount: String(scheduleAmount) });
   };
 
   const submitDecl = async () => {
@@ -96,6 +108,7 @@ export default function ParentFeesPage() {
         payment_method:  declForm.payment_method,
         reference:       declForm.reference || null,
         note:            declForm.note || null,
+        payment_option:  declForm.payment_option,
       });
       toast.success("Payment declared — awaiting accountant confirmation");
       setDeclInvoice(null);
@@ -111,9 +124,12 @@ export default function ParentFeesPage() {
   const invoiceDecls = (invId: number) =>
     decls.filter(d => d.invoice_id === invId);
 
-  const payWithPaystack = async (inv: any) => {
+  const invoiceTransactions = (invId: number) =>
+    transactions.filter(t => t.invoice_id === invId);
+
+  const payWithPaystack = async (inv: any, paymentOption: 50 | 100) => {
     try {
-      const r = await initializePaystackPayment(inv.id);
+      const r = await initializePaystackPayment(inv.id, paymentOption);
       const url = r.data.data?.authorization_url;
       if (!url) {
         toast.error("Paystack checkout URL is missing");
@@ -206,17 +222,44 @@ export default function ParentFeesPage() {
                     <span className={statusBadge[inv.status] || "badge-red"}>{inv.status}</span>
                     {Number(inv.balance) > 0 && !hasPending && (
                       <>
-                        <button
-                          onClick={() => payWithPaystack(inv)}
-                          style={{
-                            display: "flex", alignItems: "center", gap: 6,
-                            padding: "6px 14px", borderRadius: 8, border: "1px solid var(--border)",
-                            background: "var(--accent-light)", color: "var(--accent)",
-                            fontWeight: 600, fontSize: "0.78rem", cursor: "pointer",
-                          }}
-                        >
-                          <CreditCard size={13} /> Pay with Paystack
-                        </button>
+                        {Number(inv.paid_amount || 0) <= 0 ? (
+                          <>
+                            <button
+                              onClick={() => payWithPaystack(inv, 50)}
+                              style={{
+                                display: "flex", alignItems: "center", gap: 6,
+                                padding: "6px 14px", borderRadius: 8, border: "1px solid var(--border)",
+                                background: "var(--accent-light)", color: "var(--accent)",
+                                fontWeight: 600, fontSize: "0.78rem", cursor: "pointer",
+                              }}
+                            >
+                              <CreditCard size={13} /> Pay 50%
+                            </button>
+                            <button
+                              onClick={() => payWithPaystack(inv, 100)}
+                              style={{
+                                display: "flex", alignItems: "center", gap: 6,
+                                padding: "6px 14px", borderRadius: 8, border: "1px solid var(--border)",
+                                background: "var(--accent-light)", color: "var(--accent)",
+                                fontWeight: 600, fontSize: "0.78rem", cursor: "pointer",
+                              }}
+                            >
+                              <CreditCard size={13} /> Pay 100%
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => payWithPaystack(inv, 100)}
+                            style={{
+                              display: "flex", alignItems: "center", gap: 6,
+                              padding: "6px 14px", borderRadius: 8, border: "1px solid var(--border)",
+                              background: "var(--accent-light)", color: "var(--accent)",
+                              fontWeight: 600, fontSize: "0.78rem", cursor: "pointer",
+                            }}
+                          >
+                            <CreditCard size={13} /> Pay Balance
+                          </button>
+                        )}
                         <button
                           onClick={() => openDeclare(inv)}
                           style={{
@@ -299,6 +342,37 @@ export default function ParentFeesPage() {
                     </div>
                   </div>
                 )}
+
+                {invoiceTransactions(inv.id).length > 0 && (
+                  <div style={{ marginTop: 12 }}>
+                    <p style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+                      Online Payment Attempts
+                    </p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {invoiceTransactions(inv.id).slice(0, 3).map((tx: any) => (
+                        <div key={tx.reference} style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)" }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                              <span className={txBadge[tx.status] || "badge-blue"}>{tx.status}</span>
+                              <span style={{ fontSize: "0.76rem", color: "var(--text-primary)", fontWeight: 600 }}>Ref: {tx.reference}</span>
+                            </div>
+                            <p style={{ fontSize: "0.7rem", color: "var(--text-secondary)", marginTop: 3 }}>
+                              {new Date(tx.created_at).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                            </p>
+                          </div>
+                          {(tx.status === "INITIALIZED" || tx.status === "PENDING") && (
+                            <button
+                              onClick={() => verifyPaystackPayment(tx.reference).then(() => loadSelectedData(selected.id))}
+                              style={{ padding: "5px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--accent-light)", color: "var(--accent)", cursor: "pointer", fontSize: "0.72rem", fontWeight: 600 }}
+                            >
+                              Verify
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -326,13 +400,30 @@ export default function ParentFeesPage() {
 
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div>
-                <label className="t-label">Amount You Have Paid (₦) *</label>
-                <input
-                  className="t-input" type="number" min="1"
-                  placeholder={`Max: ${Number(declInvoice.balance)}`}
-                  value={declForm.declared_amount}
-                  onChange={e => setDeclForm(p => ({ ...p, declared_amount: e.target.value }))}
-                />
+                <label className="t-label">Payment Schedule *</label>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  {Number(declInvoice.paid_amount || 0) <= 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setDeclForm(p => ({ ...p, payment_option: 50, declared_amount: String(Number(declInvoice.total_fee) * 0.5) }))}
+                      className={declForm.payment_option === 50 ? "t-btn-primary" : "t-btn-secondary"}
+                      style={{ fontSize: "0.78rem" }}
+                    >
+                      50% - {fmt(Number(declInvoice.total_fee) * 0.5)}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setDeclForm(p => ({ ...p, payment_option: 100, declared_amount: String(Number(declInvoice.balance)) }))}
+                    className={declForm.payment_option === 100 ? "t-btn-primary" : "t-btn-secondary"}
+                    style={{ fontSize: "0.78rem" }}
+                  >
+                    100% - {fmt(declInvoice.balance)}
+                  </button>
+                </div>
+                <p style={{ fontSize: "0.72rem", color: "var(--text-secondary)", marginTop: 8 }}>
+                  Parents can only choose 50% first or clear the full balance.
+                </p>
               </div>
               <div>
                 <label className="t-label">Payment Method</label>
