@@ -77,9 +77,11 @@ Frontend: http://localhost:3000
 
 Production notes:
 
-- Set `API_PROXY_TARGET` to your backend origin only, for example `https://schoolmanagmentsystem-production.up.railway.app`
-- Set `FRONTEND_URL` to your frontend origin, for example `https://school-managment-system-dye9.vercel.app`
-- Add your deployed frontend domains to `ALLOWED_ORIGINS`
+- Browser API calls stay same-origin at `/api/v1/*`; the Next.js server route proxies them to FastAPI.
+- On Vercel, optionally set `API_PROXY_TARGET` to your Railway backend origin only, for example `https://schoolmanagmentsystem-production.up.railway.app`. Do not include `/api/v1`, do not use `http://`, and do not create a `NEXT_PUBLIC_*` API URL.
+- On Railway, set `FRONTEND_URL` to your production frontend origin, for example `https://school-managment-system-dye9.vercel.app`
+- On Railway, add deployed frontend domains to `ALLOWED_ORIGINS` if you call the backend directly from a browser.
+- On Railway, set `DATABASE_URL` from the Postgres service `DATABASE_URL` value or a Railway variable reference to it. Do not use placeholder text.
 - For Paystack prep, set `PAYSTACK_SECRET_KEY`, `PAYSTACK_PUBLIC_KEY`, and `PAYSTACK_WEBHOOK_SECRET`
 - Optionally set `PAYSTACK_CALLBACK_URL`; otherwise the app falls back to the relevant fees page after checkout
 
