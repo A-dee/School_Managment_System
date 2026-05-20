@@ -24,6 +24,7 @@ function normalizeApiTarget(raw?: string) {
 
 const HOP_BY_HOP_HEADERS = new Set([
   "connection",
+  "content-encoding",
   "content-length",
   "host",
   "keep-alive",
@@ -51,12 +52,20 @@ async function proxy(request: NextRequest, context: { params: { path?: string[] 
   const method = request.method.toUpperCase();
   const body = method === "GET" || method === "HEAD" ? undefined : await request.arrayBuffer();
 
-  const response = await fetch(upstream, {
-    method,
-    headers: forwardedHeaders(request),
-    body,
-    cache: "no-store",
-  });
+  let response: Response;
+  try {
+    response = await fetch(upstream, {
+      method,
+      headers: forwardedHeaders(request),
+      body,
+      cache: "no-store",
+    });
+  } catch {
+    return NextResponse.json(
+      { status: "error", message: "Backend API is unavailable", data: null },
+      { status: 502 }
+    );
+  }
 
   const responseHeaders = new Headers();
   response.headers.forEach((value, key) => {
@@ -71,6 +80,7 @@ async function proxy(request: NextRequest, context: { params: { path?: string[] 
 }
 
 export const GET = proxy;
+export const HEAD = proxy;
 export const POST = proxy;
 export const PUT = proxy;
 export const PATCH = proxy;

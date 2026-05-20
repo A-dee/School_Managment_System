@@ -6,8 +6,8 @@ import { clearTokens, storeAccessToken } from "@/lib/auth";
 const API_URL = "/api/v1";
 
 const api = axios.create({
-  // Keep browser traffic same-origin. Vercel/Next proxies /api/v1/* to FastAPI
-  // via frontend/next.config.js, so backend hosts and payment secrets stay server-side.
+  // Keep browser traffic same-origin. The Next /api/v1/* route proxies to FastAPI
+  // server-side, so backend hosts and payment secrets stay out of client bundles.
   baseURL: "",
   headers: { "Content-Type": "application/json" },
   withCredentials: true,
