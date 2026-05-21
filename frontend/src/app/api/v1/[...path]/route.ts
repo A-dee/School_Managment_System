@@ -41,6 +41,14 @@ function forwardedHeaders(request: NextRequest) {
   request.headers.forEach((value, key) => {
     if (!HOP_BY_HOP_HEADERS.has(key.toLowerCase())) headers.set(key, value);
   });
+  const authorization = request.headers.get("authorization");
+  const accessToken = request.cookies.get("access_token")?.value;
+
+  if (authorization) {
+    headers.set("authorization", authorization);
+  } else if (accessToken) {
+    headers.set("authorization", `Bearer ${accessToken}`);
+  }
   return headers;
 }
 
