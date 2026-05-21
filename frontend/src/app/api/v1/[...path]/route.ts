@@ -34,6 +34,8 @@ const HOP_BY_HOP_HEADERS = new Set([
   "trailer",
   "transfer-encoding",
   "upgrade",
+  "origin",
+  "referer",
 ]);
 
 function forwardedHeaders(request: NextRequest) {
@@ -49,6 +51,8 @@ function forwardedHeaders(request: NextRequest) {
   } else if (accessToken) {
     headers.set("authorization", `Bearer ${accessToken}`);
   }
+  headers.set("x-forwarded-host", request.headers.get("host") || "");
+  headers.set("x-forwarded-proto", request.nextUrl.protocol.replace(":", ""));
   return headers;
 }
 

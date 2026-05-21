@@ -82,8 +82,8 @@ export default function InvoicesPage() {
     Promise.all([
       api.get("/api/v1/academic/sessions"),
       api.get("/api/v1/academic/terms"),
-      api.get("/api/v1/classes"),
-      api.get("/api/v1/students?limit=1000&status=ACTIVE"),
+      api.get("/api/v1/classes/"),
+      api.get("/api/v1/students/?limit=1000&status=ACTIVE"),
       api.get("/api/v1/finance/fee-structures"),
     ]).then(([s, t, c, st, fs]) => {
       setSessions(s.data.data  || []);

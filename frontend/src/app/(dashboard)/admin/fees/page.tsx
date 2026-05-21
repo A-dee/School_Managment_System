@@ -281,7 +281,7 @@ export default function FeesPage() {
     setInvoiceMap({});
     try {
       const [studR, invR] = await Promise.all([
-        api.get("/api/v1/students?limit=500&status=ACTIVE"),
+        api.get("/api/v1/students/?limit=500&status=ACTIVE"),
         sessionId && termId
           ? api.get(`/api/v1/finance/invoices?session_id=${sessionId}&term_id=${termId}&limit=500`)
           : Promise.resolve(null),

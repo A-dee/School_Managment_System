@@ -27,8 +27,8 @@ export default function ParentsPage() {
     setLoading(true);
     try {
       const [pRes, cRes] = await Promise.all([
-        api.get("/api/v1/parents", { params: { limit: 500 } }),
-        api.get("/api/v1/classes", { params: { limit: 200 } }),
+        api.get("/api/v1/parents/", { params: { limit: 500 } }),
+        api.get("/api/v1/classes/", { params: { limit: 200 } }),
       ]);
       setParents(pRes.data.data || []);
       setClasses(cRes.data.data || []);
@@ -50,7 +50,7 @@ export default function ParentsPage() {
     const t = setTimeout(async () => {
       setStuLoading(true);
       try {
-        const r = await api.get(`/api/v1/students?search=${encodeURIComponent(studentSearch)}&limit=20`);
+        const r = await api.get(`/api/v1/students/?search=${encodeURIComponent(studentSearch)}&limit=20`);
         setStudents(r.data.data || []);
       } catch {} finally { setStuLoading(false); }
     }, 350);

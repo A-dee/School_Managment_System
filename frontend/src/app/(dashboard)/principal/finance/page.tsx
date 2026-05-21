@@ -84,7 +84,7 @@ export default function FinancePage() {
     try {
       const [invR, studR] = await Promise.all([
         api.get(`/api/v1/finance/invoices/debtors?session_id=${sessionId}&term_id=${termId}`),
-        api.get("/api/v1/students?limit=500&status=ACTIVE"),
+        api.get("/api/v1/students/?limit=500&status=ACTIVE"),
       ]);
       setDebtors(invR.data.data || []);
       const map: Record<number, any> = {};

@@ -66,7 +66,7 @@ export default function ExpensesPage() {
 
   /* load staff names once for lookup */
   useEffect(() => {
-    api.get("/api/v1/staff?limit=500").then(r => {
+    api.get("/api/v1/staff/?limit=500").then(r => {
       const map: Record<number, string> = {};
       (r.data.data || []).forEach((s: any) => { map[s.id] = s.full_name; });
       setStaffMap(map);
