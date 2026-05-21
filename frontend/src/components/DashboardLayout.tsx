@@ -6,11 +6,17 @@ import Topbar from "./Topbar";
 import ErrorBoundary from "./ErrorBoundary";
 import { getMe } from "@/lib/api";
 import { clearTokens, hasSession } from "@/lib/auth";
+import { DashboardShellProvider, useDashboardShell } from "@/contexts/DashboardShellContext";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const insideManagedShell = useDashboardShell();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [authReady, setAuthReady] = useState(false);
+
+  if (insideManagedShell) {
+    return <>{children}</>;
+  }
 
   useEffect(() => {
     let active = true;
@@ -44,21 +50,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex h-screen overflow-hidden theme-root">
-      {sidebarOpen && (
-        <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />
-      )}
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        <Topbar onMenuClick={() => setSidebarOpen(v => !v)} />
-        <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg-page)" }}>
-          <div className="main-content animate-fade-in">
-            <ErrorBoundary>
-              {children}
-            </ErrorBoundary>
-          </div>
-        </main>
+    <DashboardShellProvider value={true}>
+      <div className="flex h-screen overflow-hidden theme-root">
+        {sidebarOpen && (
+          <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />
+        )}
+        <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+          <Topbar onMenuClick={() => setSidebarOpen(v => !v)} />
+          <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg-page)" }}>
+            <div className="main-content animate-fade-in">
+              <ErrorBoundary>
+                {children}
+              </ErrorBoundary>
+            </div>
+          </main>
+        </div>
       </div>
-    </div>
+    </DashboardShellProvider>
   );
 }
