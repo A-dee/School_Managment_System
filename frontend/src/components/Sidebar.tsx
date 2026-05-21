@@ -51,6 +51,8 @@ const roleNavItems: Record<string, { label: string; href: string; icon: any; sec
     { label: "Report Cards",         href: "/principal/report-cards", icon: BookMarked },
     { label: "Performance Analytics",href: "/principal/analytics",    icon: TrendingUp },
     { label: "Finance",              href: "/principal/finance",      icon: DollarSign,     section: "Admin" },
+    { label: "Invoices",             href: "/admin/invoices",         icon: CreditCard },
+    { label: "Payments",             href: "/admin/payments",         icon: DollarSign },
     { label: "School Fees",          href: "/admin/fees",             icon: BookOpen },
     { label: "Salary & Payroll",     href: "/admin/payroll",          icon: Users },
     { label: "Expenses",             href: "/admin/expenses",         icon: ClipboardList },

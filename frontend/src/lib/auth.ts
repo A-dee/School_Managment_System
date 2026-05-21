@@ -50,6 +50,11 @@ export function storeAccessToken(accessToken: string) {
   Cookies.set("access_token", accessToken, cookieOptions(1));
 }
 
+export function storeSession(accessToken: string, refreshToken: string, role: string) {
+  setTokens(accessToken, refreshToken);
+  setRole(role);
+}
+
 export function getDashboardPath(role: string): string {
   const paths: Record<string, string> = {
     SUPER_ADMIN: "/principal/dashboard",

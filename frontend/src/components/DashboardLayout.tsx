@@ -5,7 +5,7 @@ import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import ErrorBoundary from "./ErrorBoundary";
 import { getMe } from "@/lib/api";
-import { clearTokens, hasSession } from "@/lib/auth";
+import { clearTokens, hasSession, setRole } from "@/lib/auth";
 import { DashboardShellProvider, useDashboardShell } from "@/contexts/DashboardShellContext";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -29,7 +29,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }
 
       try {
-        await getMe();
+        const res = await getMe();
+        const currentRole = res?.data?.data?.role;
+        if (currentRole) setRole(currentRole);
         if (active) setAuthReady(true);
       } catch {
         clearTokens();

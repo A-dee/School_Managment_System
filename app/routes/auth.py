@@ -47,7 +47,7 @@ def refresh_token(request: Request, data: RefreshRequest, db: Session = Depends(
     if user.role.value == "STUDENT" and student_requires_parent_portal_by_user_id(db, user.id):
         raise HTTPException(status_code=403, detail="Student portal is disabled for this class")
     access_token = create_access_token({"sub": str(user.id), "role": user.role.value})
-    return success_response({"access_token": access_token, "token_type": "bearer"})
+    return success_response({"access_token": access_token, "token_type": "bearer", "role": user.role.value})
 
 
 @router.post("/forgot-password")

@@ -1,7 +1,7 @@
 import axios from "axios";
 import Cookies from "js-cookie";
 import { logger } from "@/lib/logger";
-import { clearTokens, storeAccessToken } from "@/lib/auth";
+import { clearTokens, setRole, storeAccessToken } from "@/lib/auth";
 
 const API_URL = "/api/v1";
 
@@ -52,6 +52,7 @@ api.interceptors.response.use(
             { headers: { "Content-Type": "application/json" } }
           );
           storeAccessToken(data.data.access_token);
+          if (data.data.role) setRole(data.data.role);
           cfg.headers.Authorization = `Bearer ${data.data.access_token}`;
           return api.request(cfg);
         } catch {
