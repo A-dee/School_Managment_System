@@ -1,0 +1,16 @@
+[Unit]
+Description=SMS Next.js frontend
+After=network.target sms-backend.service
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/var/www/sms/frontend
+EnvironmentFile=/etc/sms/frontend.env
+ExecStart=/usr/bin/npm run start
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
