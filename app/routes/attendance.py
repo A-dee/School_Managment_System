@@ -6,6 +6,7 @@ from app.database import get_db
 from app.models.attendance import Attendance, AttendanceStatus
 from app.models.class_ import Class
 from app.models.user import UserRole
+from app.models.academic import Term
 from app.schemas.attendance import AttendanceCreate, AttendanceOut, BulkAttendanceCreate
 from app.utils.rbac import is_principal_or_above, is_teacher_or_above
 from app.utils.auth import get_current_user
@@ -122,7 +123,6 @@ def student_attendance(
 
     query = db.query(Attendance).filter(Attendance.student_id == student_id)
     if term_id:
-        query = query.filter(Attendance.date >= term.start_date, Attendance.date <= term.end_date) if False else query
         term = db.query(Term).filter(Term.id == term_id).first()
         if term:
             query = query.filter(Attendance.date >= term.start_date, Attendance.date <= term.end_date)
