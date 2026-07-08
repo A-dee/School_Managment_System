@@ -24,9 +24,29 @@ export default function ParentResultsPage() {
     ]).then(([c, t, s]) => {
       const ch = c.data.data || [];
       setChildren(ch);
-      if (ch.length > 0) setSelected(ch[0]);
-      setTerms(t.data.data || []);
-      setSessions(s.data.data || []);
+      const activeChild = ch[0] || null;
+      if (activeChild) setSelected(activeChild);
+      const termList = t.data.data || [];
+      const sessionList = s.data.data || [];
+      setTerms(termList);
+      setSessions(sessionList);
+
+      const currentSession = sessionList.find((x: any) => x.is_current);
+      const currentTerm = termList.find((x: any) => x.is_current);
+      if (activeChild && currentSession && currentTerm) {
+        setFilter({
+          session_id: String(currentSession.id),
+          term_id: String(currentTerm.id),
+        });
+        setLoading(true);
+        Promise.all([
+          api.get(`/api/v1/results/student/${activeChild.id}`, { params: { session_id: currentSession.id, term_id: currentTerm.id } }),
+          api.get(`/api/v1/attendance/student/${activeChild.id}`, { params: { term_id: currentTerm.id } }),
+        ]).then(([resRes, attRes]) => {
+          setResults(resRes.data.data || []);
+          setAttendance(attRes.data.data?.summary || null);
+        }).catch(() => {}).finally(() => setLoading(false));
+      }
     }).catch(() => {});
   }, []);
 
