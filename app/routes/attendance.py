@@ -99,6 +99,7 @@ def class_attendance(
 @router.get("/student/{student_id}")
 def student_attendance(
     student_id: int,
+    term_id: Optional[int] = None,
     db: Session = Depends(get_db), current_user=Depends(get_current_user)
 ):
     _assert_teacher_can_access_student(db, current_user, student_id)
@@ -119,13 +120,46 @@ def student_attendance(
         if not link:
             raise HTTPException(status_code=403, detail="Not your child")
 
-    records = db.query(Attendance).filter(Attendance.student_id == student_id).all()
+    query = db.query(Attendance).filter(Attendance.student_id == student_id)
+    if term_id:
+        query = query.filter(Attendance.date >= term.start_date, Attendance.date <= term.end_date) if False else query
+        term = db.query(Term).filter(Term.id == term_id).first()
+        if term:
+            query = query.filter(Attendance.date >= term.start_date, Attendance.date <= term.end_date)
+
+    records = query.all()
     total = len(records)
-    present = sum(1 for r in records if r.status.value == "PRESENT")
-    absent = sum(1 for r in records if r.status.value == "ABSENT")
-    late = sum(1 for r in records if r.status.value == "LATE")
+    present = sum(1 for r in records if r.status == AttendanceStatus.PRESENT)
+    absent = sum(1 for r in records if r.status == AttendanceStatus.ABSENT)
+    late = sum(1 for r in records if r.status == AttendanceStatus.LATE)
     return success_response({
         "records": [AttendanceOut.model_validate(r).model_dump() for r in records],
+        "summary": {"total": total, "present": present, "absent": absent, "late": late}
+    })
+
+
+@router.get("/my")
+def my_attendance(
+    term_id: Optional[int] = None,
+    db: Session = Depends(get_db), current_user=Depends(get_current_user)
+):
+    from app.models.student import Student
+    student = db.query(Student).filter(Student.user_id == current_user.id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student profile not found")
+
+    query = db.query(Attendance).filter(Attendance.student_id == student.id)
+    if term_id:
+        term = db.query(Term).filter(Term.id == term_id).first()
+        if term:
+            query = query.filter(Attendance.date >= term.start_date, Attendance.date <= term.end_date)
+
+    records = query.all()
+    total = len(records)
+    present = sum(1 for r in records if r.status == AttendanceStatus.PRESENT)
+    absent = sum(1 for r in records if r.status == AttendanceStatus.ABSENT)
+    late = sum(1 for r in records if r.status == AttendanceStatus.LATE)
+    return success_response({
         "summary": {"total": total, "present": present, "absent": absent, "late": late}
     })
 

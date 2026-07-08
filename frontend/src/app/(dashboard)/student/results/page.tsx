@@ -9,6 +9,7 @@ export default function StudentResultsPage() {
   const [terms, setTerms] = useState<any[]>([]);
   const [filter, setFilter] = useState({ session_id: "", term_id: "" });
   const [results, setResults] = useState<any[]>([]);
+  const [attendance, setAttendance] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [me, setMe] = useState<any>(null);
 
@@ -37,8 +38,12 @@ export default function StudentResultsPage() {
     if (!filter.session_id || !filter.term_id) { toast.error("Select session and term"); return; }
     setLoading(true);
     try {
-      const r = await api.get(`/api/v1/results/my`, { params: filter });
-      setResults(r.data.data || []);
+      const [resRes, attRes] = await Promise.all([
+        api.get(`/api/v1/results/my`, { params: filter }),
+        api.get(`/api/v1/attendance/my`, { params: { term_id: filter.term_id } }),
+      ]);
+      setResults(resRes.data.data || []);
+      setAttendance(attRes.data.data?.summary || null);
     } catch { toast.error("Failed to load results"); }
     setLoading(false);
   };
@@ -76,6 +81,14 @@ export default function StudentResultsPage() {
             <div className="t-card text-center"><p className="t-text-secondary text-sm">Average</p><p className="text-xl font-bold t-text-primary">{avg.toFixed(1)}</p></div>
             <div className="t-card text-center"><p className="t-text-secondary text-sm">Class Position</p><p className="text-xl font-bold t-text-primary">{results[0]?.class_position || "—"}</p></div>
           </div>
+
+          {attendance && (
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              <div className="t-card text-center"><p className="t-text-secondary text-xs">Times Present</p><p className="text-lg font-bold t-text-primary">{attendance.present}</p></div>
+              <div className="t-card text-center"><p className="t-text-secondary text-xs">Times Late</p><p className="text-lg font-bold t-text-primary">{attendance.late}</p></div>
+              <div className="t-card text-center"><p className="t-text-secondary text-xs">Times School Opened</p><p className="text-lg font-bold t-text-primary">{attendance.total}</p></div>
+            </div>
+          )}
 
           <div className="t-card overflow-x-auto">
             <table className="w-full text-sm">

@@ -99,7 +99,7 @@ def publish_results(db: Session, class_id: int, term_id: int, session_id: int):
         Result.class_id == class_id,
         Result.term_id == term_id,
         Result.session_id == session_id,
-        Result.status == ResultStatus.APPROVED,
+        Result.status.in_([ResultStatus.APPROVED, ResultStatus.SUBMITTED]),
     ).update({"status": ResultStatus.PUBLISHED}, synchronize_session=False)
     db.flush()
 

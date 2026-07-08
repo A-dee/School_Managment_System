@@ -12,6 +12,7 @@ export default function ParentResultsPage() {
   const [sessions, setSessions] = useState<any[]>([]);
   const [filter, setFilter] = useState({ session_id: "", term_id: "" });
   const [results, setResults] = useState<any[]>([]);
+  const [attendance, setAttendance] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
@@ -33,8 +34,12 @@ export default function ParentResultsPage() {
     if (!selected || !filter.session_id || !filter.term_id) { toast.error("Select session and term"); return; }
     setLoading(true);
     try {
-      const r = await api.get(`/api/v1/results/student/${selected.id}`, { params: filter });
-      setResults(r.data.data || []);
+      const [resRes, attRes] = await Promise.all([
+        api.get(`/api/v1/results/student/${selected.id}`, { params: filter }),
+        api.get(`/api/v1/attendance/student/${selected.id}`, { params: { term_id: filter.term_id } }),
+      ]);
+      setResults(resRes.data.data || []);
+      setAttendance(attRes.data.data?.summary || null);
     } catch { toast.error("Failed to load results"); }
     setLoading(false);
   };
@@ -129,6 +134,23 @@ export default function ParentResultsPage() {
               <p className="text-2xl font-bold t-text-primary">{results[0]?.class_position || "—"}</p>
             </div>
           </div>
+
+          {attendance && (
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              <div className="t-card text-center">
+                <p className="t-text-secondary text-xs mb-1">Times Present</p>
+                <p className="text-xl font-bold t-text-primary">{attendance.present}</p>
+              </div>
+              <div className="t-card text-center">
+                <p className="t-text-secondary text-xs mb-1">Times Late</p>
+                <p className="text-xl font-bold t-text-primary">{attendance.late}</p>
+              </div>
+              <div className="t-card text-center">
+                <p className="t-text-secondary text-xs mb-1">Times School Opened</p>
+                <p className="text-xl font-bold t-text-primary">{attendance.total}</p>
+              </div>
+            </div>
+          )}
 
           <div className="t-card overflow-x-auto">
             <table className="w-full text-sm">

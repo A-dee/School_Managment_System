@@ -25,6 +25,38 @@ def _get_or_none(db: Session, student_id: int, term_id: int, session_id: int):
     ).first()
 
 
+def _compute_attendance_stats(db: Session, student_id: int, term_id: int):
+    from app.models.attendance import Attendance, AttendanceStatus
+    from app.models.academic import Term
+    from app.models.student import Student
+
+    student = db.query(Student).filter(Student.id == student_id).first()
+    term = db.query(Term).filter(Term.id == term_id).first()
+    if not student or not term:
+        return 0, 0, 0
+
+    class_id = student.current_class_id
+    if not class_id:
+        return 0, 0, 0
+
+    att_records = db.query(Attendance).filter(
+        Attendance.student_id == student_id,
+        Attendance.class_id == class_id,
+        Attendance.date >= term.start_date,
+        Attendance.date <= term.end_date
+    ).all()
+
+    days_present = sum(1 for a in att_records if a.status == AttendanceStatus.PRESENT)
+    days_absent = sum(1 for a in att_records if a.status == AttendanceStatus.ABSENT)
+    days_late = sum(1 for a in att_records if a.status == AttendanceStatus.LATE)
+
+    times_school_opened = days_present + days_absent + days_late
+    times_present = days_present + days_late
+    times_late = days_late
+
+    return times_school_opened, times_present, times_late
+
+
 def _assert_teacher_can_access_student(db: Session, current_user, student: Student):
     if current_user.role != UserRole.TEACHER:
         return
@@ -82,6 +114,15 @@ def get_my_report_card(
     class_obj = db.query(Class).filter(Class.id == class_id).first() if class_id else None
 
     data = ReportCardMetaOut.model_validate(record).model_dump()
+    if data.get("times_school_opened") is None or data.get("times_present") is None or data.get("times_late") is None:
+        times_school_opened, times_present, times_late = _compute_attendance_stats(db, student.id, term_id)
+        if data.get("times_school_opened") is None:
+            data["times_school_opened"] = times_school_opened
+        if data.get("times_present") is None:
+            data["times_present"] = times_present
+        if data.get("times_late") is None:
+            data["times_late"] = times_late
+
     data["student_name"]      = f"{student.first_name} {student.last_name}"
     data["admission_number"]  = student.admission_number
     data["class_name"]        = class_obj.name if class_obj else ""
@@ -138,7 +179,29 @@ def get_report_card_meta(
         raise HTTPException(status_code=404, detail="Student not found")
     _assert_teacher_can_access_student(db, current_user, student)
     record = _get_or_none(db, student_id, term_id, session_id)
-    return success_response(ReportCardMetaOut.model_validate(record).model_dump() if record else None)
+    if record:
+        data = ReportCardMetaOut.model_validate(record).model_dump()
+        if data.get("times_school_opened") is None or data.get("times_present") is None or data.get("times_late") is None:
+            times_school_opened, times_present, times_late = _compute_attendance_stats(db, student_id, term_id)
+            if data.get("times_school_opened") is None:
+                data["times_school_opened"] = times_school_opened
+            if data.get("times_present") is None:
+                data["times_present"] = times_present
+            if data.get("times_late") is None:
+                data["times_late"] = times_late
+        return success_response(data)
+    else:
+        times_school_opened, times_present, times_late = _compute_attendance_stats(db, student_id, term_id)
+        return success_response({
+            "student_id": student_id,
+            "term_id": term_id,
+            "session_id": session_id,
+            "times_school_opened": times_school_opened,
+            "times_present": times_present,
+            "times_late": times_late,
+            "approved": False,
+            "approved_at": None,
+        })
 
 
 @router.put("/{student_id}")
