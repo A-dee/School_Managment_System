@@ -88,9 +88,11 @@ export default function StudentsPage() {
           <h1 className="t-page-title">Students</h1>
           <p className="t-page-subtitle">{total} total enrolled students</p>
         </div>
-        <button className="t-btn-primary" onClick={() => setModal({ open: true, studentId: null })}>
-          + Enrol Student
-        </button>
+        {!isTeacher && (
+          <button className="t-btn-primary" onClick={() => setModal({ open: true, studentId: null })}>
+            + Enrol Student
+          </button>
+        )}
       </div>
 
       {/* Filters */}
