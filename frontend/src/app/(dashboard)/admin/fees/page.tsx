@@ -217,6 +217,7 @@ export default function FeesPage() {
     setEditForm({ class_id: String(fs.class_id), session_id: String(fs.session_id), term_id: String(fs.term_id), target_group: fs.target_group || "ALL" });
     const parsed = Object.entries(fs.fee_breakdown).map(([name, amount]) => ({ name, amount: String(amount) }));
     setEditItems(parsed.length > 0 ? parsed : [blankItem()]);
+    getTerms(String(fs.session_id)).then(setEditTerms);
     setEditingFs(fs);
   };
 
@@ -439,23 +440,72 @@ export default function FeesPage() {
           </div>
 
           {invList.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
-              {[
-                { icon: <DollarSign size={16} />, label: "Total Fees Due",  value: fmt(totalFees),          color: "text-[var(--accent)]" },
-                { icon: <CheckCircle size={16} />,label: "Total Collected", value: fmt(totalPaid),          color: "text-[var(--success)]" },
-                { icon: <AlertTriangle size={16} />,label: "Outstanding",   value: fmt(totalFees - totalPaid), color: "text-[var(--danger)]" },
-                { icon: <Users size={16} />,      label: "Fully Paid",      value: paidCount,               color: "text-emerald-500" },
-                { icon: <CreditCard size={16} />, label: "Still Owing",     value: unpaidCount,             color: "text-[var(--warn)]" },
-              ].map(({ icon, label, value, color }) => (
-                <div key={label} className="t-card p-4 flex flex-col justify-between">
-                  <div className={`${color} mb-2`}>{icon}</div>
-                  <div>
-                    <div className="text-lg font-bold t-text-primary">{value}</div>
-                    <div className="text-[10px] uppercase tracking-wider t-text-secondary mt-1">{label}</div>
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
+                {[
+                  { icon: <DollarSign size={16} />, label: "Total Fees Due",  value: fmt(totalFees),          color: "text-[var(--accent)]" },
+                  { icon: <CheckCircle size={16} />,label: "Total Collected", value: fmt(totalPaid),          color: "text-[var(--success)]" },
+                  { icon: <AlertTriangle size={16} />,label: "Outstanding",   value: fmt(totalFees - totalPaid), color: "text-[var(--danger)]" },
+                  { icon: <Users size={16} />,      label: "Fully Paid",      value: paidCount,               color: "text-emerald-500" },
+                  { icon: <CreditCard size={16} />, label: "Still Owing",     value: unpaidCount,             color: "text-[var(--warn)]" },
+                ].map(({ icon, label, value, color }) => (
+                  <div key={label} className="t-card p-4 flex flex-col justify-between">
+                    <div className={`${color} mb-2`}>{icon}</div>
+                    <div>
+                      <div className="text-lg font-bold t-text-primary">{value}</div>
+                      <div className="text-[10px] uppercase tracking-wider t-text-secondary mt-1">{label}</div>
+                    </div>
                   </div>
+                ))}
+              </div>
+
+              <div className="t-card p-4 mb-6">
+                <div className="border-b t-border pb-3 mb-3">
+                  <h3 className="font-bold text-sm t-text-primary">Class-by-Class Fee Summary</h3>
+                  <p className="text-[10px] t-text-secondary mt-0.5">Aggregated tuition fees and collection metrics for the loaded term</p>
                 </div>
-              ))}
-            </div>
+                <div className="overflow-x-auto">
+                  <table className="t-table text-xs">
+                    <thead>
+                      <tr>
+                        <th className="text-left font-semibold py-2">Class</th>
+                        <th className="text-right font-semibold py-2">Billed Amount</th>
+                        <th className="text-right font-semibold py-2">Collected Amount</th>
+                        <th className="text-right font-semibold py-2">Outstanding Balance</th>
+                        <th className="text-center font-semibold py-2">Payment Rate</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {classes.map((cls: any) => {
+                        const classInvoices = invList.filter((i: any) => i.class_id === cls.id);
+                        if (classInvoices.length === 0) return null;
+                        
+                        const billed = classInvoices.reduce((s, i) => s + Number(i.total_fee || 0), 0);
+                        const paid = classInvoices.reduce((s, i) => s + Number(i.paid_amount || 0), 0);
+                        const bal = classInvoices.reduce((s, i) => s + Number(i.balance || 0), 0);
+                        const pct = billed > 0 ? Math.round((paid / billed) * 100) : 0;
+                        
+                        return (
+                          <tr key={cls.id} className="hover:bg-black/5 dark:hover:bg-white/5">
+                            <td className="py-2 font-semibold t-text-primary">{cls.name}</td>
+                            <td className="py-2 text-right t-text-secondary">{fmt(billed)}</td>
+                            <td className="py-2 text-right font-bold text-[var(--success)]">{fmt(paid)}</td>
+                            <td className="py-2 text-right font-bold text-[var(--danger)]">{fmt(bal)}</td>
+                            <td className="py-2 text-center">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                pct >= 80 ? "bg-green-500/10 text-[var(--success)]" : pct >= 40 ? "bg-amber-500/10 text-[var(--warn)]" : "bg-red-500/10 text-[var(--danger)]"
+                              }`}>
+                                {pct}%
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
           )}
 
           <div className="flex flex-col lg:flex-row gap-4 min-h-[500px]">
