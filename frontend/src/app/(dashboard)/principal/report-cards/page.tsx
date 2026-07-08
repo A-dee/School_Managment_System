@@ -195,16 +195,10 @@ function PrintCard({ student, className, sessionName, termName, results, subject
         </tbody>
       </table>
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ borderTop: "1px solid #000", width: 140, paddingTop: 3, fontSize: 9 }}>Class Teacher&apos;s Signature</div>
-        </div>
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", marginTop: 8 }}>
         <div>
           <b>Next Term Begins:</b>{" "}
           <span style={{ borderBottom: "1px solid #000", display: "inline-block", minWidth: 100, paddingBottom: 1 }}>{formatDisplayDate(meta.next_term_begins)}</span>
-        </div>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ borderTop: "1px solid #000", width: 140, paddingTop: 3, fontSize: 9 }}>Head Teacher&apos;s Signature</div>
         </div>
       </div>
       <div style={{ marginTop: 14, borderTop: "1px solid #e0e0e0", paddingTop: 5, textAlign: "center", fontSize: 8, color: "#999" }}>

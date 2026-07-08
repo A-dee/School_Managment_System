@@ -188,16 +188,10 @@ function PrintTemplate({ card, results }: { card: any; results: any[] }) {
       </table>
 
       {/* Signatures + Next term */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ borderTop: "1px solid #000", width: 140, paddingTop: 3, fontSize: 9 }}>Class Teacher&apos;s Signature</div>
-        </div>
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", marginTop: 8 }}>
         <div>
           <b>Next Term Begins:</b>{" "}
           <span style={{ borderBottom: "1px solid #000", display: "inline-block", minWidth: 100, paddingBottom: 1 }}>{formatDisplayDate(card.next_term_begins)}</span>
-        </div>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ borderTop: "1px solid #000", width: 140, paddingTop: 3, fontSize: 9 }}>Head Teacher&apos;s Signature</div>
         </div>
       </div>
 

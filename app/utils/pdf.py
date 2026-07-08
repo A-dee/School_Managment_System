@@ -375,7 +375,6 @@ def _build_comment_block(comment: dict, title: str, styles, show_signature_image
     body = [
         [Paragraph(title, styles["comment_title"])],
         [Paragraph(_fmt_text(comment.get("text"), fallback="No comment supplied."), styles["comment_body"])],
-        [signature_cell],
         [info_line],
     ]
     table = Table(body, colWidths=[3.35 * inch])
