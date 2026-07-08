@@ -4,7 +4,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import api from "@/lib/api";
 import toast from "react-hot-toast";
 import { getRole } from "@/lib/auth";
-import { Mail, Eye, EyeOff, Users, KeyRound, CheckCircle, AlertCircle, XCircle, Server } from "lucide-react";
+import { Mail, Eye, EyeOff, Users, KeyRound, CheckCircle, AlertCircle, XCircle, Server, Plus, Trash2 } from "lucide-react";
 
 const roleColors: Record<string, string> = {
   SUPER_ADMIN: "badge-green", PRINCIPAL: "badge-yellow", ADMIN: "badge-blue",
@@ -302,6 +302,8 @@ export default function SettingsPage() {
           </div>
         )}
 
+        <GradeScaleConfigCard />
+
         <div className="t-card mt-4">
           <h2 className="font-semibold t-text-primary mb-3">Auto Email Triggers</h2>
           <div className="space-y-2 text-sm">
@@ -367,6 +369,119 @@ function ComposeEmailCard() {
           {sending ? "Sending..." : "Send Email"}
         </button>
       </div>
+    </div>
+  );
+}
+
+
+function GradeScaleConfigCard() {
+  const [scales, setScales] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const loadScales = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get("/api/v1/results/grade-scales");
+      setScales(res.data.data || []);
+    } catch {
+      toast.error("Failed to load grading scale");
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadScales();
+  }, []);
+
+  const addRow = () => {
+    setScales(prev => [...prev, { grade: "", min_score: "", remark: "" }]);
+  };
+
+  const removeRow = (index: number) => {
+    setScales(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const updateRow = (index: number, field: string, value: any) => {
+    setScales(prev => prev.map((row, i) => i === index ? { ...row, [field]: value } : row));
+  };
+
+  const save = async () => {
+    const invalid = scales.some(s => !s.grade.trim() || s.min_score === "" || isNaN(Number(s.min_score)) || !s.remark.trim());
+    if (invalid) {
+      toast.error("Please fill in all fields with valid values");
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload = scales.map(s => ({
+        grade: s.grade.trim().toUpperCase(),
+        min_score: Number(s.min_score),
+        remark: s.remark.trim()
+      })).sort((a, b) => b.min_score - a.min_score);
+      
+      await api.post("/api/v1/results/grade-scales", payload);
+      toast.success("Grading scale saved successfully");
+      loadScales();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || "Failed to save grading scale");
+    }
+    setSaving(false);
+  };
+
+  return (
+    <div className="t-card mt-4">
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <h2 className="font-semibold t-text-primary">Grading System & Ranges</h2>
+          <p className="text-xs t-text-secondary mt-1">Configure minimum score boundaries for each letter grade.</p>
+        </div>
+        <button className="t-btn-secondary py-1 px-3 text-xs flex items-center gap-1" onClick={addRow}>
+          <Plus size={12} /> Add Grade
+        </button>
+      </div>
+
+      {loading ? (
+        <p className="text-xs t-text-secondary">Loading...</p>
+      ) : (
+        <div className="space-y-3">
+          <div className="hidden sm:grid grid-cols-4 gap-3 text-xs font-semibold t-text-secondary border-b pb-2">
+            <div>Grade Letter</div>
+            <div>Min Score Required</div>
+            <div>Remark</div>
+            <div>Action</div>
+          </div>
+          
+          {scales.length === 0 ? (
+            <p className="text-xs t-text-secondary text-center py-4">No grading rules defined. Click "Add Grade" to start.</p>
+          ) : (
+            <div className="space-y-2">
+              {scales.map((s, index) => (
+                <div key={index} className="grid grid-cols-1 sm:grid-cols-4 gap-2 sm:items-center">
+                  <div>
+                    <input className="t-input w-full" placeholder="e.g. A" value={s.grade} onChange={e => updateRow(index, "grade", e.target.value)} />
+                  </div>
+                  <div>
+                    <input className="t-input w-full" type="number" min={0} max={100} placeholder="e.g. 70" value={s.min_score} onChange={e => updateRow(index, "min_score", e.target.value)} />
+                  </div>
+                  <div>
+                    <input className="t-input w-full" placeholder="e.g. Excellent" value={s.remark} onChange={e => updateRow(index, "remark", e.target.value)} />
+                  </div>
+                  <div>
+                    <button className="p-2 rounded-lg bg-red-500/10 border-none text-[var(--danger)] hover:bg-red-500/20 cursor-pointer flex items-center gap-1 text-xs" onClick={() => removeRow(index)}>
+                      <Trash2 size={13} /> Remove
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <button className="t-btn-primary w-full mt-4" onClick={save} disabled={saving}>
+            {saving ? "Saving..." : "Save Grading Scale"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

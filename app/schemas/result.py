@@ -73,3 +73,20 @@ class ResultOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class GradeScaleCreate(BaseModel):
+    grade: str
+    min_score: Decimal
+    remark: str
+
+
+class GradeScaleOut(BaseModel):
+    id: int
+    grade: str
+    min_score: Decimal
+    remark: str
+
+    class Config:
+        from_attributes = True
+

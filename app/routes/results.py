@@ -4,13 +4,13 @@ from app.database import get_db
 from app.models.user import UserRole
 from app.models.subject import TeacherSubjectClass
 from app.models.result import ResultStatus
-from app.schemas.result import ResultCreate, ResultOut, ResultUpdate
+from app.schemas.result import ResultCreate, ResultOut, ResultUpdate, GradeScaleCreate
 from app.crud.result import (
     create_result, get_result, get_results_by_class_term,
     get_student_results, submit_results, approve_results,
     publish_results, compute_class_positions, apply_grade_fields
 )
-from app.utils.rbac import is_principal_or_above, is_teacher_or_above
+from app.utils.rbac import is_principal_or_above, is_teacher_or_above, is_admin_or_above
 from app.utils.auth import get_current_user
 from app.utils.response import success_response
 from app.utils.audit import log_action
@@ -133,7 +133,7 @@ def update_result(
     if data.remarks is not None:
         result.remarks = data.remarks
     result.total_score = result.ca_score + result.exam_score
-    apply_grade_fields(result)
+    apply_grade_fields(db, result)
     db.commit()
     return success_response(ResultOut.model_validate(result).model_dump(), "Result updated")
 
@@ -237,3 +237,20 @@ def compute_positions(
     count = compute_class_positions(db, class_id, term_id, session_id)
     db.commit()
     return success_response({"students_ranked": count}, "Positions computed")
+
+
+@router.get("/grade-scales")
+def list_grade_scales(db: Session = Depends(get_db)):
+    from app.models.result import GradeScale
+    scales = db.query(GradeScale).order_by(GradeScale.min_score.desc()).all()
+    return success_response([{"id": s.id, "grade": s.grade, "min_score": float(s.min_score), "remark": s.remark} for s in scales])
+
+
+@router.post("/grade-scales")
+def save_grade_scales(scales: list[GradeScaleCreate], db: Session = Depends(get_db), current_user=Depends(is_admin_or_above)):
+    from app.models.result import GradeScale
+    db.query(GradeScale).delete()
+    for s in scales:
+        db.add(GradeScale(grade=s.grade, min_score=s.min_score, remark=s.remark))
+    db.commit()
+    return success_response(None, "Grading system updated successfully")

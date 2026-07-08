@@ -18,7 +18,15 @@ from app.utils.rbac import is_admin_or_above
 router = APIRouter(prefix="/pdfs", tags=["PDFs"])
 
 
-def _grade_from_average(score: float) -> str:
+def _grade_from_average(score: float, db: Session | None = None) -> str:
+    if db:
+        from app.models.result import GradeScale
+        try:
+            scale = db.query(GradeScale).filter(GradeScale.min_score <= score).order_by(GradeScale.min_score.desc()).first()
+            if scale:
+                return scale.grade
+        except Exception:
+            pass
     if score >= 80:
         return "A"
     if score >= 70:
@@ -32,7 +40,15 @@ def _grade_from_average(score: float) -> str:
     return "F"
 
 
-def _grade_remark(grade: str) -> str:
+def _grade_remark(grade: str, db: Session | None = None) -> str:
+    if db:
+        from app.models.result import GradeScale
+        try:
+            scale = db.query(GradeScale).filter(GradeScale.grade == grade).first()
+            if scale:
+                return scale.remark
+        except Exception:
+            pass
     return {
         "A": "Excellent",
         "B": "Very Good",
@@ -203,14 +219,14 @@ def report_card_pdf(
         "ca2_score": None,
         "exam_score": float(r.exam_score),
         "total_score": float(r.total_score),
-        "grade": r.grade or _grade_from_average(float(r.total_score or 0)),
-        "remark": r.remarks or _grade_remark(r.grade or _grade_from_average(float(r.total_score or 0))),
+        "grade": r.grade or _grade_from_average(float(r.total_score or 0), db),
+        "remark": r.remarks or _grade_remark(r.grade or _grade_from_average(float(r.total_score or 0), db), db),
         "subject_position": _ordinal(subject_positions.get(r.subject_id, {}).get(student_id)),
     } for r in sorted(results, key=lambda item: subject_map.get(item.subject_id, ""))]
 
     total_score = sum(float(r.total_score or 0) for r in results)
     average_score = (total_score / len(results)) if results else 0.0
-    overall_grade = _grade_from_average(average_score)
+    overall_grade = _grade_from_average(average_score, db)
     class_position = results[0].class_position if results else None
     days_present = report_meta.times_present if report_meta and report_meta.times_present is not None else raw_days_present + raw_days_late
     total_school_days = report_meta.times_school_opened if report_meta and report_meta.times_school_opened is not None else raw_days_present + raw_days_absent + raw_days_late

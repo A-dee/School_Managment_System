@@ -44,3 +44,13 @@ class Result(Base):
     session = relationship("AcademicSession", back_populates="results")
     term = relationship("Term", back_populates="results")
     teacher = relationship("Staff")
+
+
+class GradeScale(Base):
+    __tablename__ = "grade_scales"
+
+    id = Column(Integer, primary_key=True, index=True)
+    grade = Column(String(10), nullable=False)
+    min_score = Column(Numeric(5, 2), nullable=False)
+    remark = Column(String(100), nullable=False)
+

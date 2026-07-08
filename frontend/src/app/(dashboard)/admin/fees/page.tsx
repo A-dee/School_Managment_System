@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import { Search, CheckCircle, CreditCard, Users, DollarSign, AlertTriangle, Plus, Trash2, RefreshCw, CalendarCheck, Pencil, X } from "lucide-react";
 import { useClasses, useSessions, useFeeStructures, useOptionalFees, useActiveStudents, useInvoicesList } from "@/lib/swr-hooks";
 import { useMemo } from "react";
+import TuitionPlannerModal from "@/components/TuitionPlannerModal";
 
 const fmt = (n: number | string) => `₦${Number(n).toLocaleString("en-NG", { minimumFractionDigits: 0 })}`;
 
@@ -64,6 +65,7 @@ export default function FeesPage() {
   const [form,    setForm]    = useState(blankPayment);
   const [saving,  setSaving]  = useState(false);
   const [showPay, setShowPay] = useState(false);
+  const [showPlanner, setShowPlanner] = useState(false);
 
   /* --- direct payment form (no invoice yet) --- */
   const blankDirect = { total_fee: "", amount_paid: "", payment_method: "cash", receipt_number: "", payment_date: new Date().toISOString().split("T")[0] };
@@ -685,14 +687,22 @@ export default function FeesPage() {
                         </div>
                       ))}
                     </div>
-                    {balance > 0 && (
+                    <div className="flex gap-2">
+                      {balance > 0 && (
+                        <button
+                          onClick={() => { setShowPay(v => !v); if (!showPay) setForm(p => ({ ...p, amount_paid: String(balance) })); }}
+                          className="t-btn-primary justify-center py-2"
+                        >
+                          {showPay ? "Cancel" : "+ Record Payment"}
+                        </button>
+                      )}
                       <button
-                        onClick={() => { setShowPay(v => !v); if (!showPay) setForm(p => ({ ...p, amount_paid: String(balance) })); }}
-                        className="t-btn-primary justify-center py-2"
+                        onClick={() => setShowPlanner(true)}
+                        className="t-btn-secondary justify-center py-2"
                       >
-                        {showPay ? "Cancel" : "+ Record Payment"}
+                        Manage Installment Plan
                       </button>
-                    )}
+                    </div>
                     {showPay && balance > 0 && (
                       <div className="mt-4 p-4 bg-[var(--accent-light)] rounded-lg border t-border animate-fade-in">
                         <h4 className="font-semibold text-xs mb-3 t-text-primary">Record Fee Payment</h4>
@@ -1227,6 +1237,20 @@ export default function FeesPage() {
             </div>
           </div>
         </div>
+      )}
+      {showPlanner && inv && (
+        <TuitionPlannerModal
+          invoice={{
+            id: inv.id,
+            total_fee: inv.total_fee,
+            balance: inv.balance
+          }}
+          onClose={() => setShowPlanner(false)}
+          onSuccess={() => {
+            setShowPlanner(false);
+            refreshInvoices();
+          }}
+        />
       )}
     </DashboardLayout>
   );

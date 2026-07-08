@@ -5,7 +5,7 @@ from app.models.student import Student
 from app.models.parent import Parent, ParentStudent
 from app.models.class_ import Class
 from app.models.subject import Subject, TeacherSubjectClass
-from app.models.result import Result
+from app.models.result import Result, GradeScale
 from app.models.attendance import Attendance
 from app.models.discipline import Discipline
 from app.models.finance import FeeStructure, Invoice, Payment, Expenditure, Payroll

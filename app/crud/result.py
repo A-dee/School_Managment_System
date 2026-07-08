@@ -5,8 +5,18 @@ from sqlalchemy import func
 from app.models.result import Result, ResultStatus
 
 
-def compute_grade(total: Decimal) -> tuple[str, str]:
+def compute_grade(db: Session, total: Decimal) -> tuple[str, str]:
+    from app.models.result import GradeScale
     t = float(total)
+    try:
+        scales = db.query(GradeScale).order_by(GradeScale.min_score.desc()).all()
+        for scale in scales:
+            if t >= float(scale.min_score):
+                return scale.grade, scale.remark
+    except Exception:
+        pass
+    
+    # Fallback default
     if t >= 70:
         return "A", "Excellent"
     elif t >= 60:
@@ -21,8 +31,8 @@ def compute_grade(total: Decimal) -> tuple[str, str]:
         return "F", "Fail"
 
 
-def apply_grade_fields(result: Result) -> Result:
-    grade, remarks = compute_grade(result.total_score)
+def apply_grade_fields(db: Session, result: Result) -> Result:
+    grade, remarks = compute_grade(db, result.total_score)
     result.grade = grade
     result.remarks = remarks
     return result
@@ -30,7 +40,7 @@ def apply_grade_fields(result: Result) -> Result:
 
 def create_result(db: Session, data, teacher_id: int) -> Result:
     total = data.ca_score + data.exam_score
-    grade, remarks = compute_grade(total)
+    grade, remarks = compute_grade(db, total)
     result = Result(
         student_id=data.student_id,
         subject_id=data.subject_id,
