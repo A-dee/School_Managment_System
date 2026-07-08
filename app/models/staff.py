@@ -1,5 +1,5 @@
 import enum
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, Date, DateTime, Enum, Numeric, ForeignKey
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -39,8 +39,8 @@ class Staff(Base):
     salary_amount = Column(Numeric(12, 2), default=0)
     staff_type = Column(Enum(StaffType), nullable=False)
     status = Column(Enum(StaffStatus), default=StaffStatus.ACTIVE)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     user = relationship("User", back_populates="staff")
     classes_taught = relationship("Class", back_populates="class_teacher", foreign_keys="Class.class_teacher_id")
@@ -48,3 +48,4 @@ class Staff(Base):
     payrolls = relationship("Payroll", back_populates="staff")
     discipline_records = relationship("Discipline", back_populates="reported_by_teacher")
     attendance_records = relationship("Attendance", back_populates="marked_by_teacher")
+    timetable_slots = relationship("TimetableSlot", back_populates="teacher")

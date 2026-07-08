@@ -1,5 +1,5 @@
 import enum
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, Date, DateTime, Enum, ForeignKey
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -30,12 +30,12 @@ class Student(Base):
     guardian_phone = Column(String, nullable=True)
     guardian_email = Column(String, nullable=True)
     enrollment_date = Column(Date, nullable=True)
-    current_class_id = Column(Integer, ForeignKey("classes.id"), nullable=True)
+    current_class_id = Column(Integer, ForeignKey("classes.id"), nullable=True, index=True)
     status = Column(Enum(StudentStatus), default=StudentStatus.ACTIVE)
     scholarship_percentage = Column(Integer, default=0, nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     current_class = relationship("Class", back_populates="students")
     parents = relationship("ParentStudent", back_populates="student")

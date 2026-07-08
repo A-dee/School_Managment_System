@@ -52,6 +52,8 @@
   --shadow-lg:          0 12px 28px rgba(15,23,42,0.12), 0 4px 8px rgba(15,23,42,0.06);
   --topbar-bg:          rgba(255,255,255,0.72);
   --topbar-border:      rgba(226,232,240,0.6);
+  --shadow-dark:        rgba(15,23,42,0.08);
+  --shadow-light:       #ffffff;
 }
 
 /* ── DARK ───────────────────────────────────────── */
@@ -100,6 +102,8 @@
   --shadow-lg:          0 12px 28px rgba(0,0,0,0.65), 0 4px 8px rgba(0,0,0,0.35);
   --topbar-bg:          rgba(13,17,23,0.88);
   --topbar-border:      rgba(33,38,45,0.80);
+  --shadow-dark:        rgba(0,0,0,0.45);
+  --shadow-light:       rgba(255,255,255,0.04);
 }
 
 /* ── BUSINESS (NAVY + STEEL BLUE) ───────────────── */
@@ -148,6 +152,8 @@
   --shadow-lg:          0 12px 28px rgba(15,32,68,0.14), 0 4px 8px rgba(15,32,68,0.07);
   --topbar-bg:          rgba(255,255,255,0.85);
   --topbar-border:      rgba(221,227,237,0.75);
+  --shadow-dark:        rgba(15,32,68,0.1);
+  --shadow-light:       #ffffff;
 }
 
 /* ── AURORA GLASS ───────────────────────────────── */
@@ -197,6 +203,8 @@
   --shadow-lg:          0 18px 48px rgba(6,16,46,0.18), 0 4px 12px rgba(6,16,46,0.09);
   --topbar-bg:          rgba(255,255,255,0.26);
   --topbar-border:      rgba(255,255,255,0.45);
+  --shadow-dark:        rgba(6,16,46,0.1);
+  --shadow-light:       rgba(255,255,255,0.25);
 }
 
 /* ── NOVA (DARK AURORA) ─────────────────────────── */
@@ -245,6 +253,8 @@
   --shadow-lg:          0 18px 48px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.06);
   --topbar-bg:          rgba(7,4,18,0.75);
   --topbar-border:      rgba(255,255,255,0.08);
+  --shadow-dark:        rgba(0,0,0,0.6);
+  --shadow-light:       rgba(255,255,255,0.03);
 }
 
 /* ── MONO GLASS (SILVER FROST) ──────────────────── */
@@ -293,6 +303,16 @@
   --shadow-lg:          0 18px 48px rgba(10,12,18,0.18), 0 4px 12px rgba(10,12,18,0.09);
   --topbar-bg:          rgba(255,255,255,0.28);
   --topbar-border:      rgba(255,255,255,0.48);
+  --shadow-dark:        rgba(10,12,18,0.11);
+  --shadow-light:       rgba(255,255,255,0.25);
+}
+
+.neumorphic-embossed {
+  box-shadow: 6px 6px 12px var(--shadow-dark), -6px -6px 12px var(--shadow-light);
+}
+
+.neumorphic-debossed {
+  box-shadow: inset 4px 4px 8px var(--shadow-dark), inset -4px -4px 8px var(--shadow-light);
 }
 
 /* ═══════════════════════════════════════════════════

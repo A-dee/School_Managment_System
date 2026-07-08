@@ -26,6 +26,7 @@ from app.crud.student import (
 from app.utils.rbac import is_principal_or_above, is_admin_or_above, is_teacher_or_above
 from app.utils.response import success_response, paginated_response
 from app.utils.audit import log_action
+from app.utils.subscription import require_student_capacity
 from app.utils.student_portal import (
     is_parent_managed_class_id,
     student_has_parent_portal_link,
@@ -149,6 +150,7 @@ def add_student(data: StudentCreate, db: Session = Depends(get_db), current_user
 
     if get_student_by_admission(db, data.admission_number):
         raise HTTPException(status_code=400, detail="Admission number already exists")
+    require_student_capacity(db)
 
     parent_managed_class = is_parent_managed_class_id(db, data.current_class_id)
     if parent_managed_class and data.parent_link_mode == "GUARDIAN_ONLY":
@@ -454,6 +456,8 @@ def update_student_info(
     student = get_student_by_id(db, student_id)
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
+    if data.status == StudentStatus.ACTIVE and student.status != StudentStatus.ACTIVE:
+        require_student_capacity(db)
     target_class_id = data.current_class_id if data.current_class_id is not None else student.current_class_id
     _ensure_parent_portal_ready(db, student.id, target_class_id)
     updated = update_student(db, student, data)

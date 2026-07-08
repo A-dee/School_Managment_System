@@ -1,8 +1,9 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models.attendance import Attendance
+from app.models.attendance import Attendance, AttendanceStatus
 from app.models.class_ import Class
 from app.models.user import UserRole
 from app.schemas.attendance import AttendanceCreate, AttendanceOut, BulkAttendanceCreate
@@ -10,6 +11,10 @@ from app.utils.rbac import is_principal_or_above, is_teacher_or_above
 from app.utils.auth import get_current_user
 from app.utils.response import success_response
 from app.crud.staff import get_staff_by_user_id
+from app.config import settings
+from app.utils.cache import TTLMemoryCache
+
+analytics_cache = TTLMemoryCache(settings.API_CACHE_TTL_SECONDS)
 
 router = APIRouter(prefix="/attendance", tags=["Attendance"])
 
@@ -54,6 +59,7 @@ def mark_attendance(data: AttendanceCreate, db: Session = Depends(get_db), curre
     )
     db.add(record)
     db.commit()
+    analytics_cache.clear_prefix("attendance_summary")
     db.refresh(record)
     return success_response(AttendanceOut.model_validate(record).model_dump(), "Attendance marked")
 
@@ -73,6 +79,7 @@ def bulk_mark(data: BulkAttendanceCreate, db: Session = Depends(get_db), current
         db.add(record)
         records.append(record)
     db.commit()
+    analytics_cache.clear_prefix("attendance_summary")
     return success_response({"count": len(records)}, f"{len(records)} attendance records saved")
 
 
@@ -129,16 +136,25 @@ def attendance_summary(
     current_user=Depends(is_principal_or_above),
 ):
     """School-wide attendance totals for the dashboard."""
-    records = db.query(Attendance).all()
-    total = len(records)
-    present = sum(1 for r in records if r.status.value == "PRESENT")
-    absent  = sum(1 for r in records if r.status.value == "ABSENT")
-    late    = sum(1 for r in records if r.status.value == "LATE")
-    rate    = round((present / total) * 100, 1) if total > 0 else 0
-    return success_response({
-        "total": total,
-        "present": present,
-        "absent": absent,
-        "late": late,
-        "attendance_rate": rate,
-    })
+
+    def build_summary() -> dict:
+        counts = dict(
+            db.query(Attendance.status, func.count(Attendance.id))
+            .group_by(Attendance.status)
+            .all()
+        )
+        present = counts.get(AttendanceStatus.PRESENT, 0)
+        absent = counts.get(AttendanceStatus.ABSENT, 0)
+        late = counts.get(AttendanceStatus.LATE, 0)
+        total = present + absent + late
+        rate = round((present / total) * 100, 1) if total > 0 else 0
+        return {
+            "total": total,
+            "present": present,
+            "absent": absent,
+            "late": late,
+            "attendance_rate": rate,
+        }
+
+    return success_response(analytics_cache.get_or_set(("attendance_summary",), build_summary))
+

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
@@ -88,7 +88,7 @@ def report_card_pdf(
     teacher_signature_url: str | None = None,
     principal_signature_url: str | None = None,
     school_stamp_url: str | None = None,
-    school_logo_url: str | None = "/hope-hills-logo.png",
+    school_logo_url: str | None = "/lenage-logo.png",
     db: Session = Depends(get_db), current_user=Depends(get_current_user)
 ):
     from app.models.attendance import Attendance, AttendanceStatus
@@ -250,15 +250,15 @@ def report_card_pdf(
             "text": report_meta.class_teacher_comment if report_meta and report_meta.class_teacher_comment else "Steady effort this term. Keep improving across all subjects.",
             "name": teacher_name,
             "signature_url": teacher_signature_url,
-            "date": report_meta.updated_at if report_meta else datetime.utcnow(),
+            "date": report_meta.updated_at if report_meta else datetime.now(timezone.utc).replace(tzinfo=None),
         },
         "principal_comment": {
             "text": report_meta.head_teacher_comment if report_meta and report_meta.head_teacher_comment else "A formal review has been completed. Continue building on this result.",
             "name": principal_name,
             "signature_url": principal_signature_url,
-            "date": report_meta.approved_at if report_meta and report_meta.approved_at else datetime.utcnow(),
+            "date": report_meta.approved_at if report_meta and report_meta.approved_at else datetime.now(timezone.utc).replace(tzinfo=None),
         },
-        "date_issued": report_meta.approved_at if report_meta and report_meta.approved_at else datetime.utcnow(),
+        "date_issued": report_meta.approved_at if report_meta and report_meta.approved_at else datetime.now(timezone.utc).replace(tzinfo=None),
     }
 
     pdf_bytes = generate_report_card_pdf(report_payload)

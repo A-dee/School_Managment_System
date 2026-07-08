@@ -1,5 +1,5 @@
 import enum
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, Date, DateTime, Enum, Text, ForeignKey
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -27,7 +27,7 @@ class Announcement(Base):
     priority     = Column(Enum(AnnouncementPriority), default=AnnouncementPriority.NORMAL, nullable=False)
     event_date   = Column(Date, nullable=True)          # for HOLIDAY / EVENT
     target_roles = Column(String, default="ALL")        # "ALL" | "STUDENT" | "TEACHER" | "STUDENT,TEACHER"
-    created_by   = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at   = Column(DateTime, default=datetime.utcnow)
+    created_by   = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    created_at   = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     creator = relationship("User")

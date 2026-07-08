@@ -1,39 +1,33 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
 import AnnouncementPanel from "@/components/AnnouncementPanel";
 import DashboardLayout from "@/components/DashboardLayout";
 import StatCard from "@/components/StatCard";
-import { getAnnouncements, getInvoices, getPaystackTransactions } from "@/lib/api";
-import { Announcement } from "@/lib/announcements";
+import { useAnnouncements, useInvoicesStats, useRecentTransactions } from "@/lib/swr-hooks";
 import { BellRing, CreditCard, Receipt, Wallet } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
 const SLICE_COLORS = ["#22c55e", "#f59e0b", "#ef4444"];
 
 export default function AdminDashboard() {
-  const [stats, setStats] = useState({ invoices: 0, paid: 0, partial: 0, unpaid: 0 });
-  const [onlinePayments, setOnlinePayments] = useState<any[]>([]);
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { invoicesData, invoicesTotal, loading: invLoading } = useInvoicesStats();
+  const { announcements: rawAnnouncements, announcementsLoading: annLoading } = useAnnouncements(true);
+  const { transactions: onlinePayments, transactionsLoading: txLoading } = useRecentTransactions(8);
 
-  useEffect(() => {
-    Promise.all([
-      getInvoices({ limit: 500 }),
-      getAnnouncements({ include_all: true }).catch(() => ({ data: { data: [] } })),
-      getPaystackTransactions({ status: "SUCCESS", limit: 8 }).catch(() => ({ data: { data: [] } })),
-    ]).then(([res, annRes, paystackRes]) => {
-      const invs: any[] = res.data.data || [];
-      setStats({
-        invoices: res.data.pagination?.total || invs.length,
-        paid: invs.filter((i) => i.status === "PAID").length,
-        partial: invs.filter((i) => i.status === "PARTIAL").length,
-        unpaid: invs.filter((i) => i.status === "UNPAID").length,
-      });
-      setAnnouncements((annRes.data.data || []).slice(0, 4));
-      setOnlinePayments(paystackRes.data.data || []);
-    }).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+  const announcements = useMemo(() => rawAnnouncements.slice(0, 4), [rawAnnouncements]);
+
+  const stats = useMemo(() => {
+    const invs = invoicesData || [];
+    return {
+      invoices: invoicesTotal || invs.length,
+      paid: invs.filter((i) => i.status === "PAID").length,
+      partial: invs.filter((i) => i.status === "PARTIAL").length,
+      unpaid: invs.filter((i) => i.status === "UNPAID").length,
+    };
+  }, [invoicesData, invoicesTotal]);
+
+  const loading = invLoading || annLoading || txLoading;
 
   const pieData = [
     { name: "Paid", value: stats.paid },
@@ -42,7 +36,7 @@ export default function AdminDashboard() {
   ].filter((d) => d.value > 0);
 
   const onlineTotal = useMemo(
-    () => onlinePayments.reduce((sum, tx) => sum + Number(tx.amount_minor || 0), 0) / 100,
+    () => onlinePayments.reduce((sum: number, tx: any) => sum + Number(tx.amount_minor || 0), 0) / 100,
     [onlinePayments]
   );
 
@@ -112,7 +106,7 @@ export default function AdminDashboard() {
           </div>
           {onlinePayments.length > 0 ? (
             <div className="space-y-3">
-              {onlinePayments.map((tx) => (
+              {onlinePayments.map((tx: any) => (
                 <div key={tx.reference} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "10px 12px", border: "1px solid var(--border)", borderRadius: 10, alignItems: "center" }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: "0.86rem" }}>{tx.student_name || "Student payment"}</div>

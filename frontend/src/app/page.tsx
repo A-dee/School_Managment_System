@@ -5,11 +5,11 @@ import { getRole, getDashboardPath, hasSession, clearTokens } from "@/lib/auth";
 import Link from "next/link";
 
 const SCHOOL = {
-  name:    "Hope Hills Academy",
-  tagline: "Crèche · Nursery · Primary",
-  mission: "At Hope Hills Academy, we are driven by our vision for excellence — this is what keeps us ahead of our competitors.",
+  name:    "Lenage Management Systems",
+  tagline: "Enterprise School Administration",
+  mission: "At Lenage Technologies, we build enterprise-grade software to streamline, optimize, and secure your education systems.",
   phones:  ["08065598994", "07052677702"],
-  emails:  ["hopehillsacademy@gmail.com", "admission@hopehillsacademy.ng"],
+  emails:  ["info@lenagetechnologies.com", "support@lenagetechnologies.com"],
 };
 
 const features = [
@@ -54,7 +54,7 @@ export default function Home() {
         fontFamily: "system-ui,-apple-system,sans-serif",
         fontWeight: 800,
       }}>
-        Loading Hope Hills Academy...
+        Loading Lenage Management Systems...
       </div>
     );
   }
@@ -248,7 +248,9 @@ export default function Home() {
         <div style={{ maxWidth:1180, margin:"0 auto", padding:"13px 32px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/hope-hills-logo.png" alt={SCHOOL.name} style={{ width:38, height:38, objectFit:"contain", borderRadius:10, background:"#fff", padding:3, boxShadow:"0 2px 8px rgba(0,0,0,0.1)" }} />
+            <div style={{ background: "#0f172a", borderRadius: 8, padding: "5px 12px", display: "inline-flex", alignItems: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>
+              <img src="/lenage-logo.png" alt={SCHOOL.name} style={{ height: 22, width: "auto", objectFit: "contain" }} />
+            </div>
             <div>
               <div style={{ fontWeight:800, fontSize:14.5, color:"#1e293b", letterSpacing:"-0.3px", lineHeight:1.2 }}>{SCHOOL.name}</div>
               <div style={{ fontSize:9.5, color:"#94a3b8", lineHeight:1 }}>{SCHOOL.tagline}</div>
@@ -276,9 +278,9 @@ export default function Home() {
 
           {/* Logo */}
           <div className={`logo-float ${visible ? "fade-up" : ""}`} style={{ display:"inline-block", marginBottom:28, position:"relative" }}>
-            <div style={{ background:"#fff", borderRadius:22, padding:14, boxShadow:"0 8px 40px rgba(37,99,235,0.2), 0 2px 0 rgba(255,255,255,1)", display:"inline-flex" }}>
+            <div style={{ background:"#0f172a", borderRadius:16, padding:"10px 24px", boxShadow:"0 8px 40px rgba(37,99,235,0.2), 0 2px 0 rgba(255,255,255,0.05)", display:"inline-flex", alignItems: "center" }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/hope-hills-logo.png" alt={SCHOOL.name} style={{ width:80, height:80, objectFit:"contain", display:"block" }} />
+              <img src="/lenage-logo.png" alt={SCHOOL.name} style={{ height: 48, width: "auto", objectFit:"contain", display:"block" }} />
             </div>
           </div>
 
@@ -292,7 +294,7 @@ export default function Home() {
           </h1>
 
           <p className={visible ? "fade-up d1" : ""} style={{ fontSize:14.5, color:"#64748b", fontStyle:"italic", marginBottom:8 }}>
-            Excellence in Early Childhood Education
+            Enterprise School Administration & Management
           </p>
 
           <p className={visible ? "fade-up d2" : ""} style={{ fontSize:17, color:"#475569", marginBottom:10, fontWeight:600, letterSpacing:0.3 }}>
@@ -440,7 +442,9 @@ export default function Home() {
 
             <div style={{ position:"relative" }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/hope-hills-logo.png" alt={SCHOOL.name} style={{ width:64, height:64, objectFit:"contain", background:"#fff", borderRadius:18, padding:7, marginBottom:20, boxShadow:"0 8px 32px rgba(37,99,235,0.2)" }} />
+              <div style={{ background: "#0f172a", borderRadius: 16, padding: "10px 24px", display: "inline-flex", alignItems: "center", marginBottom: 20, boxShadow: "0 8px 32px rgba(37,99,235,0.2)" }}>
+                <img src="/lenage-logo.png" alt={SCHOOL.name} style={{ height: 44, width: "auto", objectFit: "contain" }} />
+              </div>
               <h2 style={{ fontSize:"clamp(22px,3.8vw,36px)", fontWeight:800, marginBottom:12, letterSpacing:"-0.5px", color:"#1e293b" }}>
                 Ready to get started?
               </h2>
@@ -461,11 +465,13 @@ export default function Home() {
           <div>
             <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/hope-hills-logo.png" alt={SCHOOL.name} style={{ width:32, height:32, objectFit:"contain", background:"#fff", borderRadius:8, padding:2, boxShadow:"0 2px 6px rgba(0,0,0,0.08)" }} />
+              <div style={{ background: "#0f172a", borderRadius: 6, padding: "4px 10px", display: "inline-flex", alignItems: "center", boxShadow: "0 2px 6px rgba(0,0,0,0.08)" }}>
+                <img src="/lenage-logo.png" alt={SCHOOL.name} style={{ height: 18, width: "auto", objectFit: "contain" }} />
+              </div>
               <span style={{ fontWeight:700, fontSize:13.5, color:"#1e293b" }}>{SCHOOL.name}</span>
             </div>
             <p style={{ color:"#64748b", fontSize:12.5, lineHeight:1.85, maxWidth:260 }}>
-              {SCHOOL.tagline}<br />Excellence in Early Childhood Education
+              {SCHOOL.tagline}<br />Enterprise School Administration & Management
             </p>
           </div>
           <div>

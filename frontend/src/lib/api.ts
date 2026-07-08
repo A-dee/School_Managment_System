@@ -18,7 +18,7 @@ api.interceptors.request.use((config) => {
     // Defensive production guard: old env/build values must not create mixed-content XHRs.
     config.url = `https://${config.url.slice("http://".length)}`;
   }
-  const token = Cookies.get("access_token");
+  const token = Cookies.get("sms_access_token");
   if (token) config.headers.Authorization = `Bearer ${token}`;
   // Attach request timestamp for response timing.
   (config as any)._t = Date.now();
@@ -41,7 +41,7 @@ api.interceptors.response.use(
     const isRefreshCall = requestUrl.includes("/auth/refresh");
 
     if (status === 401 && !cfg._retry && !isRefreshCall) {
-      const refresh = Cookies.get("refresh_token");
+      const refresh = Cookies.get("sms_refresh_token");
       if (refresh) {
         try {
           cfg._retry = true;
@@ -104,8 +104,8 @@ export const getDebtors = (session_id: number, term_id: number) =>
   api.get("/api/v1/finance/invoices/debtors", { params: { session_id, term_id } });
 export const getProfitLoss = (params?: object) =>
   api.get("/api/v1/finance/reports/profit-loss", { params });
-export const initializePaystackPayment = (invoice_id: number, payment_option: 50 | 100 = 100) =>
-  api.post("/api/v1/finance/paystack/initialize", { invoice_id, payment_option });
+export const initializePaystackPayment = (invoice_id: number, payment_option: number = 100, milestone_id?: number) =>
+  api.post("/api/v1/finance/paystack/initialize", { invoice_id, payment_option, milestone_id });
 export const verifyPaystackPayment = (reference: string) =>
   api.get(`/api/v1/finance/paystack/verify/${reference}`);
 export const getPaystackTransactions = (params?: object) =>
@@ -153,3 +153,35 @@ export const getCalendarEvents = (params?: { year?: number; month?: number }) =>
 export const createCalendarEvent = (data: object) => api.post("/api/v1/calendar/", data);
 export const updateCalendarEvent = (id: number, data: object) => api.put(`/api/v1/calendar/${id}`, data);
 export const deleteCalendarEvent = (id: number) => api.delete(`/api/v1/calendar/${id}`);
+
+// Attendance Gatekeeper Check-in
+export const checkinAttendance = (admission_number: string, action: "CHECK_IN" | "CHECK_OUT") =>
+  api.post("/api/v1/attendance/checkin", { admission_number, action });
+
+// Installments
+export const getInstallments = (invoice_id: number) =>
+  api.get(`/api/v1/finance/invoices/${invoice_id}/installments`);
+
+export const saveInstallments = (invoice_id: number, milestones: Array<{ name: string; amount: number; due_date: string }>) =>
+  api.post(`/api/v1/finance/invoices/${invoice_id}/installments`, { milestones });
+
+export const deleteInstallments = (invoice_id: number) =>
+  api.delete(`/api/v1/finance/invoices/${invoice_id}/installments`);
+
+// Timetable
+export const getTimetablePeriods = () =>
+  api.get("/api/v1/timetable/periods");
+
+export const getClassTimetable = (class_id: number) =>
+  api.get(`/api/v1/timetable/class/${class_id}`);
+
+export const getTeacherTimetable = (teacher_id: number) =>
+  api.get(`/api/v1/timetable/teacher/${teacher_id}`);
+
+export const saveTimetableSlot = (data: { day_of_week: string; period_id: number; class_id: number; subject_id: number | null; teacher_id: number | null; classroom_name: string | null; force?: boolean }) =>
+  api.post("/api/v1/timetable/slots", data);
+
+export const deleteTimetableSlot = (slot_id: number) =>
+  api.delete(`/api/v1/timetable/slots/${slot_id}`);
+
+export const getSubjects = (params?: object) => api.get("/api/v1/subjects/", { params });

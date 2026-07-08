@@ -1,5 +1,8 @@
 import logging
+import os
 import smtplib
+import subprocess
+from pathlib import Path
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Optional
@@ -11,27 +14,59 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
-def _send_via_resend(to_email: str, subject: str, html_body: str, raise_on_error: bool = False) -> bool:
-    """Send via Resend API. Returns True on success, False (or raises) on failure."""
-    try:
-        import resend
 
-        resend.api_key = settings.RESEND_API_KEY
-        result = resend.Emails.send(
-            {
-                "from": settings.EMAIL_FROM,
-                "to": [to_email],
-                "subject": subject,
-                "html": html_body,
-            }
+def _send_via_php_mailer(to_email: str, subject: str, plain_body: str, html_body: str) -> bool:
+    script_path = Path(__file__).with_name("mail.php")
+    body = html_body or f"<pre style='font-family:sans-serif'>{plain_body}</pre>"
+    env = os.environ.copy()
+    env["SMTP_HOST"] = settings.SMTP_HOST
+    env["SMTP_PORT"] = str(settings.SMTP_PORT)
+    env["SMTP_USER"] = settings.SMTP_USER
+    env["SMTP_PASSWORD"] = settings.SMTP_PASSWORD
+    env["SMTP_SECURE"] = settings.SMTP_SECURE
+    env["EMAIL_FROM"] = settings.EMAIL_FROM
+
+    try:
+        result = subprocess.run(
+            [
+                "php",
+                str(script_path),
+                "--to",
+                to_email,
+                "--subject",
+                subject,
+                "--body",
+                body,
+                "--text",
+                plain_body,
+            ],
+            shell=False,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env=env,
         )
-        logger.info("Resend: sent to=%s subject=%s id=%s", to_email, subject, getattr(result, "id", result))
-        return True
-    except Exception as exc:
-        logger.error("Resend send failed to=%s: %s", to_email, exc)
-        if raise_on_error:
-            raise
+    except FileNotFoundError:
+        logger.error("PHP executable not found; unable to send email to %s", to_email)
         return False
+    except subprocess.TimeoutExpired:
+        logger.error("PHP mailer timed out while sending email to %s", to_email)
+        return False
+
+    if result.returncode != 0:
+        logger.error(
+            "PHP mailer failed to=%s subject=%s returncode=%s stderr=%s stdout=%s",
+            to_email,
+            subject,
+            result.returncode,
+            result.stderr.strip(),
+            result.stdout.strip(),
+        )
+        return False
+
+    logger.info("PHP mailer sent to=%s subject=%s", to_email, subject)
+    return True
 
 
 def _dispatch(
@@ -42,13 +77,11 @@ def _dispatch(
     html_body: str,
 ) -> bool:
     """
-    Dispatch email using the best available channel:
-    1. Resend API (if RESEND_API_KEY is configured)
-    2. SMTP config stored in the database
-    3. Dev fallback - log to stdout
+    Dispatch email using the PHP SMTP mailer first. If that is unavailable,
+    fall back to DB-backed SMTP for flows that still pass a database session.
     """
-    if settings.RESEND_API_KEY and settings.RESEND_API_KEY != "re_placeholder":
-        return _send_via_resend(to_email, subject, html_body)
+    if _send_via_php_mailer(to_email, subject, plain_body, html_body):
+        return True
     if db is not None:
         return send_email(db, to_email, subject, plain_body, html_body)
     logger.info("[DEV EMAIL] to=%s | %s\n%s", to_email, subject, plain_body)
@@ -96,8 +129,6 @@ def send_email(
     body: str,
     html_body: Optional[str] = None,
 ) -> bool:
-    if settings.RESEND_API_KEY and settings.RESEND_API_KEY != "re_placeholder":
-        return _send_via_resend(to_email, subject, html_body or f"<pre style='font-family:sans-serif'>{body}</pre>")
 
     config = get_email_config(db)
     if not config:
@@ -180,7 +211,7 @@ def send_password_reset_email(
     # Build a stable reset URL even if the configured frontend origin includes a trailing slash.
     reset_url = f"{settings.frontend_url_normalized}/reset-password?token={reset_token}"
     greeting = f"Hi {user_name}," if user_name else "Hello,"
-    subject = "Reset Your Password - Hope Hills Academy"
+    subject = "Reset Your Password - Lenage Management Systems"
     plain = (
         f"{greeting}\n\n"
         "Use this one-time reset token to create a new password:\n"

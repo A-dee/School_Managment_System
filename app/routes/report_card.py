@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -175,7 +175,7 @@ def approve_report_card(
         raise HTTPException(status_code=404, detail="No report card meta found. Save the card first.")
     record.approved = True
     record.approved_by_id = current_user.id
-    record.approved_at = datetime.utcnow()
+    record.approved_at = datetime.now(timezone.utc).replace(tzinfo=None)
     send_bulk_notifications(
         db,
         _get_report_card_recipient_ids(db, student_id),
@@ -206,7 +206,7 @@ def approve_all_class_report_cards(
     class_id: int, term_id: int, session_id: int,
     db: Session = Depends(get_db), current_user=Depends(is_super_admin),
 ):
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     records = db.query(ReportCardMeta).filter(
         ReportCardMeta.term_id == term_id,
         ReportCardMeta.session_id == session_id,

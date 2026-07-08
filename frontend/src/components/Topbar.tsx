@@ -11,6 +11,7 @@ import {
   markNotificationRead,
 } from "@/lib/api";
 import { getRole } from "@/lib/auth";
+import { useNotificationsUnread } from "@/lib/swr-hooks";
 
 const routeLabels: Record<string, string> = {
   "/principal/dashboard": "Dashboard",
@@ -87,6 +88,7 @@ type NotificationItem = {
 export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
   const pathname = usePathname();
   const [role, setRole] = useState("");
+  const { unread: swrUnread, refreshUnread } = useNotificationsUnread();
   const [unread, setUnread] = useState(0);
   const [time, setTime] = useState("");
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -101,17 +103,18 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
   }, []);
 
   useEffect(() => {
+    setUnread(swrUnread);
+  }, [swrUnread]);
+
+  useEffect(() => {
     const fmt = () => new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
     setTime(fmt());
     const id = setInterval(() => setTime(fmt()), 15000);
     return () => clearInterval(id);
   }, []);
 
-  const loadUnread = async () => {
-    try {
-      const r = await getNotificationUnreadCount();
-      setUnread(r.data.data?.unread || 0);
-    } catch {}
+  const loadUnread = () => {
+    refreshUnread();
   };
 
   const loadNotifications = async () => {

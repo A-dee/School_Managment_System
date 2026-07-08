@@ -16,27 +16,35 @@ function cookieOptions(days?: number) {
 }
 
 export function setTokens(accessToken: string, refreshToken: string) {
-  Cookies.set("access_token", accessToken, cookieOptions(1));
-  Cookies.set("refresh_token", refreshToken, cookieOptions(7));
+  Cookies.set("sms_access_token", accessToken, cookieOptions(1));
+  Cookies.set("sms_refresh_token", refreshToken, cookieOptions(7));
 }
 
 export function clearTokens() {
   const opts = cookieOptions();
-  Cookies.remove("access_token", opts);
-  Cookies.remove("refresh_token", opts);
-  Cookies.remove("user_role", opts);
+  Cookies.remove("sms_access_token", opts);
+  Cookies.remove("sms_refresh_token", opts);
+  Cookies.remove("sms_user_role", opts);
 }
 
 export function getRole(): string | undefined {
-  return Cookies.get("user_role");
+  return Cookies.get("sms_user_role");
+}
+
+export function getSubscriptionTier(): string {
+  return Cookies.get("sms_subscription_tier") || "Free";
+}
+
+export function setSubscriptionTier(tier: string) {
+  Cookies.set("sms_subscription_tier", tier, cookieOptions(7));
 }
 
 export function getAccessToken(): string | undefined {
-  return Cookies.get("access_token");
+  return Cookies.get("sms_access_token");
 }
 
 export function getRefreshToken(): string | undefined {
-  return Cookies.get("refresh_token");
+  return Cookies.get("sms_refresh_token");
 }
 
 export function hasSession(): boolean {
@@ -44,11 +52,11 @@ export function hasSession(): boolean {
 }
 
 export function setRole(role: string) {
-  Cookies.set("user_role", role, cookieOptions(7));
+  Cookies.set("sms_user_role", role, cookieOptions(7));
 }
 
 export function storeAccessToken(accessToken: string) {
-  Cookies.set("access_token", accessToken, cookieOptions(1));
+  Cookies.set("sms_access_token", accessToken, cookieOptions(1));
 }
 
 export function storeSession(accessToken: string, refreshToken: string, role: string) {

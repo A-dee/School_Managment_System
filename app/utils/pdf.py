@@ -160,7 +160,7 @@ def _build_header(report: dict, styles) -> list:
     logo = _image_flowable(report.get("school_logo_url"), width=0.82 * inch, height=0.82 * inch)
     logo_cell = logo if logo else Paragraph("LOGO", styles["mini_label"])
     header_title = [
-        Paragraph("HOPE HILLS ACADEMY", styles["school_name"]),
+        Paragraph("LENAGE MANAGEMENT SYSTEMS", styles["school_name"]),
         Paragraph("Student Academic Report", styles["report_title"]),
         Paragraph(
             f"{_fmt_text(report.get('session_name'))}  |  {_fmt_text(report.get('term_name'))}",
@@ -417,7 +417,7 @@ def _build_footer(styles) -> list:
         HRFlowable(width="100%", thickness=0.5, color=BORDER_GREY),
         Spacer(1, 0.05 * inch),
         Paragraph(
-            "This result was generated from Hope Hills Academy School Management System.",
+            "This result was generated from Lenage Management Systems.",
             styles["footer_note"],
         ),
     ]
@@ -566,7 +566,7 @@ def generate_report_card_pdf(report: dict) -> bytes:
     footer_grid = Table(
         [[
             Paragraph(
-                "This result was generated from Hope Hills Academy School Management System.",
+                "This result was generated from Lenage Management Systems.",
                 styles["comment_meta"],
             ),
             _build_stamp_cell(report, styles, show_stamp=show_signatures),
@@ -597,7 +597,7 @@ def generate_receipt_pdf(payment: dict, student: dict, invoice: dict) -> bytes:
     styles = getSampleStyleSheet()
     elements = []
 
-    elements.append(Paragraph("HOPE HILLS ACADEMY", styles["Title"]))
+    elements.append(Paragraph("LENAGE MANAGEMENT SYSTEMS", styles["Title"]))
     elements.append(Paragraph("PAYMENT RECEIPT", styles["Heading2"]))
     elements.append(Spacer(1, 0.2 * inch))
 
@@ -625,7 +625,7 @@ def generate_payslip_pdf(payroll: dict, staff: dict) -> bytes:
     styles = getSampleStyleSheet()
     elements = []
 
-    elements.append(Paragraph("HOPE HILLS ACADEMY", styles["Title"]))
+    elements.append(Paragraph("LENAGE MANAGEMENT SYSTEMS", styles["Title"]))
     elements.append(Paragraph("PAYSLIP", styles["Heading2"]))
     elements.append(Spacer(1, 0.2 * inch))
 

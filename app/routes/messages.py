@@ -184,6 +184,16 @@ def send_message(request: Request, data: MessageCreate, db: Session = Depends(ge
     if not recipient:
         raise HTTPException(status_code=404, detail="Recipient not found")
 
+    if data.parent_message_id is not None:
+        parent_message = _get_thread_root(db, data.parent_message_id)
+        if not parent_message:
+            raise HTTPException(status_code=404, detail="Parent message not found")
+        thread_user_ids = {parent_message.sender_user_id, parent_message.recipient_user_id}
+        if current_user.id not in thread_user_ids:
+            raise HTTPException(status_code=403, detail="You cannot reply to this thread")
+        if data.recipient_user_id not in thread_user_ids:
+            raise HTTPException(status_code=400, detail="Recipient is not part of this thread")
+
     msg = Message(
         sender_user_id=current_user.id,
         recipient_user_id=data.recipient_user_id,

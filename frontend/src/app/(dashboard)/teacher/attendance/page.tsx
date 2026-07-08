@@ -1,97 +1,41 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import api from "@/lib/api";
 import toast from "react-hot-toast";
 import { BookOpen, CheckCircle2, Users } from "lucide-react";
+import { useTeacherProfile, useCurrentSession, useTeacherClasses, useClassStudents, useClassAttendance } from "@/lib/swr-hooks";
 
 export default function TeacherAttendancePage() {
   const initialDate = new Date().toISOString().split("T")[0];
-  const [assignedClass, setAssignedClass] = useState<any | null>(null);
-  const [currentSession, setCurrentSession] = useState<any | null>(null);
-  const [students, setStudents] = useState<any[]>([]);
-  const [statuses, setStatuses] = useState<Record<number, string>>({});
   const [attendanceDate, setAttendanceDate] = useState(initialDate);
-  const [existingRecords, setExistingRecords] = useState<any[]>([]);
-  const [loadingExisting, setLoadingExisting] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [statuses, setStatuses] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState(false);
 
+  /* --- SWR Data Hooks --- */
+  const { staff, loading: profileLoading } = useTeacherProfile();
+  const { currentSession, loading: sessionLoading } = useCurrentSession();
+  const { teacherClasses, loading: classesLoading } = useTeacherClasses(staff?.id);
+
+  const assignedClass = useMemo(() => teacherClasses[0] || null, [teacherClasses]);
+
+  const { students, loading: studentsLoading } = useClassStudents(assignedClass?.id);
+  const { records: existingRecords, loading: attendanceLoading, refreshAttendance } = useClassAttendance(assignedClass?.id, attendanceDate);
+
+  const loading = profileLoading || sessionLoading || classesLoading || studentsLoading;
+  const loadingExisting = attendanceLoading;
+
+  /* Reactively update statuses whenever students list or existing attendance records change */
   useEffect(() => {
-    const loadPage = async () => {
-      setLoading(true);
-      try {
-        const [staffRes, sessionRes] = await Promise.all([
-          api.get("/api/v1/staff/me"),
-          api.get("/api/v1/academic/sessions/current").catch(() => ({ data: { data: null } })),
-        ]);
-        const staff = staffRes.data.data;
-        const currentSessionData = sessionRes.data.data || null;
-        setCurrentSession(currentSessionData);
-
-        const classRes = await api.get("/api/v1/classes/", {
-          params: { class_teacher_id: staff.id, limit: 10 },
-        });
-        const teacherClasses = classRes.data.data || [];
-        const cls = teacherClasses[0] || null;
-        setAssignedClass(cls);
-
-        if (!cls) {
-          setStudents([]);
-          setStatuses({});
-          return;
-        }
-
-        const studentRes = await api.get("/api/v1/students/", {
-          params: { class_id: cls.id, limit: 200 },
-        });
-        const studentList = studentRes.data.data || [];
-        setStudents(studentList);
-        const init: Record<number, string> = {};
-        studentList.forEach((student: any) => {
-          init[student.id] = "PRESENT";
-        });
-        setStatuses(init);
-      } catch (e: any) {
-        toast.error(e?.response?.data?.detail || "Could not load your attendance list");
-      }
-      setLoading(false);
-    };
-
-    loadPage();
-  }, []);
-
-  useEffect(() => {
-    if (!assignedClass || students.length === 0 || !attendanceDate) {
-      setExistingRecords([]);
-      return;
-    }
-
-    let active = true;
-    setLoadingExisting(true);
-    api.get(`/api/v1/attendance/class/${assignedClass.id}`, { params: { date: attendanceDate } })
-      .then((res) => {
-        if (!active) return;
-        const records = res.data.data || [];
-        setExistingRecords(records);
-        const next: Record<number, string> = {};
-        students.forEach((student: any) => {
-          next[student.id] = "PRESENT";
-        });
-        records.forEach((record: any) => {
-          next[record.student_id] = record.status;
-        });
-        setStatuses(next);
-      })
-      .catch(() => {
-        if (active) setExistingRecords([]);
-      })
-      .finally(() => {
-        if (active) setLoadingExisting(false);
-      });
-
-    return () => { active = false; };
-  }, [assignedClass, students, attendanceDate]);
+    const next: Record<number, string> = {};
+    students.forEach((student: any) => {
+      next[student.id] = "PRESENT";
+    });
+    existingRecords.forEach((record: any) => {
+      next[record.student_id] = record.status;
+    });
+    setStatuses(next);
+  }, [students, existingRecords]);
 
   const save = async () => {
     if (!assignedClass || students.length === 0) {
@@ -112,8 +56,7 @@ export default function TeacherAttendancePage() {
         })),
       });
       toast.success("Attendance saved");
-      const r = await api.get(`/api/v1/attendance/class/${assignedClass.id}`, { params: { date: attendanceDate } });
-      setExistingRecords(r.data.data || []);
+      await refreshAttendance();
     } catch (e: any) {
       toast.error(e?.response?.data?.detail || "Failed to save attendance");
     }

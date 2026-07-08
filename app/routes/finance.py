@@ -38,6 +38,14 @@ from app.utils.paystack import (
     verify_paystack_transaction, paystack_is_configured,
 )
 from app.utils.student_portal import student_requires_parent_portal
+from app.utils.cache import TTLMemoryCache
+from app.utils.subscription import require_feature
+
+analytics_cache = TTLMemoryCache(settings.API_CACHE_TTL_SECONDS)
+
+
+def _clear_finance_analytics_cache() -> None:
+    analytics_cache.clear_prefix("finance")
 
 router = APIRouter(prefix="/finance", tags=["Finance"])
 
@@ -371,6 +379,7 @@ def add_payment(data: PaymentCreate, db: Session = Depends(get_db), current_user
     log_action(db, "RECORD_PAYMENT", "Payment", current_user.id, entity_id=payment.id,
                new_value={"amount": float(data.amount_paid), "invoice_id": data.invoice_id})
     db.commit()
+    _clear_finance_analytics_cache()
     return success_response(PaymentOut.model_validate(payment).model_dump(), "Payment recorded")
 
 
@@ -382,16 +391,33 @@ async def upload_proof(
     payment = db.query(Payment).filter(Payment.id == payment_id).first()
     if not payment:
         raise HTTPException(status_code=404, detail="Payment not found")
-    ext = file.filename.split(".")[-1]
+
+    ext = file.filename.rsplit(".", 1)[-1].lower() if file.filename and "." in file.filename else ""
+    if ext not in {"jpg", "jpeg", "png", "pdf"}:
+        raise HTTPException(status_code=400, detail="Unsupported file type")
+
+    max_size = 5 * 1024 * 1024
     filename = f"{uuid.uuid4()}.{ext}"
     filepath = os.path.join(settings.UPLOAD_DIR, "receipts", filename)
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
-    with open(filepath, "wb") as f:
-        f.write(await file.read())
+
+    size = 0
+    try:
+        with open(filepath, "wb") as f:
+            while chunk := await file.read(1024 * 1024):
+                size += len(chunk)
+                if size > max_size:
+                    f.close()
+                    if os.path.exists(filepath):
+                        os.remove(filepath)
+                    raise HTTPException(status_code=413, detail="File too large")
+                f.write(chunk)
+    finally:
+        await file.close()
+
     payment.proof_file_url = filepath
     db.commit()
     return success_response({"file_url": filepath}, "Proof uploaded")
-
 
 @router.get("/payments")
 def list_payments(invoice_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(is_admin_or_above)):
@@ -407,6 +433,7 @@ def list_payments(invoice_id: Optional[int] = None, db: Session = Depends(get_db
 def add_expenditure(data: ExpenditureCreate, db: Session = Depends(get_db), current_user=Depends(is_admin_or_above)):
     expense = create_expenditure(db, data, current_user.id)
     db.commit()
+    _clear_finance_analytics_cache()
     return success_response(ExpenditureOut.model_validate(expense).model_dump(), "Expenditure recorded")
 
 
@@ -424,6 +451,7 @@ def approve_expense(expense_id: int, db: Session = Depends(get_db), current_user
     approve_expenditure(db, expense, current_user.id)
     log_action(db, "APPROVE_EXPENSE", "Expenditure", current_user.id, entity_id=expense_id)
     db.commit()
+    _clear_finance_analytics_cache()
     return success_response(None, "Expenditure approved")
 
 
@@ -435,28 +463,31 @@ def reject_expense(expense_id: int, db: Session = Depends(get_db), current_user=
     reject_expenditure(db, expense, current_user.id)
     log_action(db, "REJECT_EXPENSE", "Expenditure", current_user.id, entity_id=expense_id)
     db.commit()
+    _clear_finance_analytics_cache()
     return success_response(None, "Expenditure rejected")
 
 
 # --- Payroll ---
-@router.post("/payroll")
+@router.post("/payroll", dependencies=[Depends(require_feature("payroll"))])
 def process_payroll(data: PayrollCreate, db: Session = Depends(get_db), current_user=Depends(is_admin_or_above)):
     payroll = create_payroll(db, data, current_user.id)
     db.commit()
+    _clear_finance_analytics_cache()
     return success_response(PayrollOut.model_validate(payroll).model_dump(), "Payroll created")
 
 
-@router.post("/payroll/{payroll_id}/mark-paid")
+@router.post("/payroll/{payroll_id}/mark-paid", dependencies=[Depends(require_feature("payroll"))])
 def mark_paid(payroll_id: int, payment_date: date, db: Session = Depends(get_db), current_user=Depends(is_admin_or_above)):
     payroll = db.query(Payroll).filter(Payroll.id == payroll_id).first()
     if not payroll:
         raise HTTPException(status_code=404, detail="Payroll not found")
     mark_payroll_paid(db, payroll, payment_date)
     db.commit()
+    _clear_finance_analytics_cache()
     return success_response(None, "Payroll marked as paid")
 
 
-@router.get("/payroll")
+@router.get("/payroll", dependencies=[Depends(require_feature("payroll"))])
 def list_payroll(
     staff_id: Optional[int] = None, month: Optional[int] = None, year: Optional[int] = None,
     db: Session = Depends(get_db), current_user=Depends(is_admin_or_above)
@@ -477,21 +508,19 @@ def list_payroll(
 @router.post("/payment-declarations")
 def declare_payment(data: PaymentDeclarationIn, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     from app.models.user import UserRole
-    from app.models.parent import Parent, ParentStudent
+
     invoice = db.query(Invoice).filter(Invoice.id == data.invoice_id).first()
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
+
+    _assert_user_can_access_invoice(db, current_user, invoice)
+    allowed_roles = {UserRole.PARENT, UserRole.ADMIN, UserRole.SUPER_ADMIN}
+    if current_user.role not in allowed_roles:
+        raise HTTPException(status_code=403, detail="Only parents or admins can declare payments")
+
     if current_user.role == UserRole.PARENT:
-        parent = db.query(Parent).filter(Parent.user_id == current_user.id).first()
-        if not parent:
-            raise HTTPException(status_code=403, detail="Parent profile not found")
-        link = db.query(ParentStudent).filter(
-            ParentStudent.parent_id == parent.id,
-            ParentStudent.student_id == invoice.student_id
-        ).first()
-        if not link:
-            raise HTTPException(status_code=403, detail="Not your child's invoice")
         _assert_parent_declared_amount_matches_schedule(invoice, data.declared_amount, data.payment_option)
+
     decl = PaymentDeclaration(
         invoice_id=data.invoice_id,
         declared_amount=data.declared_amount,
@@ -574,6 +603,7 @@ def confirm_declaration(
     log_action(db, "CONFIRM_DECLARATION", "PaymentDeclaration", current_user.id,
                entity_id=decl_id, new_value={"confirmed_amount": float(data.confirmed_amount)})
     db.commit()
+    _clear_finance_analytics_cache()
     return success_response(PaymentDeclarationOut.model_validate(decl).model_dump(), "Payment confirmed")
 
 
@@ -658,6 +688,7 @@ def direct_payment(
     log_action(db, "DIRECT_PAYMENT", "Payment", current_user.id, entity_id=payment.id,
                new_value={"student_id": data.student_id, "amount": float(data.amount_paid)})
     db.commit()
+    _clear_finance_analytics_cache()
     return success_response({
         "invoice_id": invoice.id,
         "payment_id": payment.id,
@@ -778,6 +809,7 @@ def verify_paystack(
 
     _sync_paystack_transaction(db, transaction, response)
     db.commit()
+    _clear_finance_analytics_cache()
     db.refresh(transaction)
     return success_response(_serialize_paystack_transaction(transaction), "Paystack transaction verified")
 
@@ -878,6 +910,7 @@ async def paystack_webhook(
             verify_response = verify_paystack_transaction(reference)
             _sync_paystack_transaction(db, transaction, verify_response)
             db.commit()
+            _clear_finance_analytics_cache()
 
     return success_response({"received": True}, "Webhook processed")
 
@@ -888,39 +921,41 @@ def get_ledger(
     limit: int = 100,
     db: Session = Depends(get_db), current_user=Depends(is_admin_or_above)
 ):
-    from sqlalchemy import func
-    payments = db.query(Payment).order_by(Payment.payment_date.desc()).limit(limit).all()
-    expenses = db.query(Expenditure).filter(
-        Expenditure.approval_status == "APPROVED"
-    ).order_by(Expenditure.date.desc()).limit(limit).all()
-    payrolls = db.query(Payroll).filter(
-        Payroll.payment_status == "PAID"
-    ).order_by(Payroll.payment_date.desc()).limit(limit).all()
+    def build_ledger() -> list[dict]:
+        payments = db.query(Payment).order_by(Payment.payment_date.desc()).limit(limit).all()
+        expenses = db.query(Expenditure).filter(
+            Expenditure.approval_status == "APPROVED"
+        ).order_by(Expenditure.date.desc()).limit(limit).all()
+        payrolls = db.query(Payroll).filter(
+            Payroll.payment_status == "PAID"
+        ).order_by(Payroll.payment_date.desc()).limit(limit).all()
 
-    entries = []
-    for p in payments:
-        entries.append({
-            "type": "INCOME", "id": p.id, "label": f"Fee Payment #{p.id}",
-            "amount": float(p.amount_paid), "date": str(p.payment_date),
-            "method": p.payment_method, "ref": p.receipt_number,
-            "invoice_id": p.invoice_id,
-        })
-    for e in expenses:
-        entries.append({
-            "type": "EXPENSE", "id": e.id, "label": e.title,
-            "amount": float(e.amount), "date": str(e.date),
-            "method": "—", "ref": e.category,
-            "invoice_id": None,
-        })
-    for pr in payrolls:
-        entries.append({
-            "type": "SALARY", "id": pr.id, "label": f"Salary — Staff #{pr.staff_id}",
-            "amount": float(pr.net_salary), "date": str(pr.payment_date),
-            "method": "PAYROLL", "ref": f"{pr.month}/{pr.year}",
-            "invoice_id": None,
-        })
-    entries.sort(key=lambda x: x["date"] or "", reverse=True)
-    return success_response(entries[:limit])
+        entries = []
+        for p in payments:
+            entries.append({
+                "type": "INCOME", "id": p.id, "label": f"Fee Payment #{p.id}",
+                "amount": float(p.amount_paid), "date": str(p.payment_date),
+                "method": p.payment_method, "ref": p.receipt_number,
+                "invoice_id": p.invoice_id,
+            })
+        for e in expenses:
+            entries.append({
+                "type": "EXPENSE", "id": e.id, "label": e.title,
+                "amount": float(e.amount), "date": str(e.date),
+                "method": "—", "ref": e.category,
+                "invoice_id": None,
+            })
+        for pr in payrolls:
+            entries.append({
+                "type": "SALARY", "id": pr.id, "label": f"Salary — Staff #{pr.staff_id}",
+                "amount": float(pr.net_salary), "date": str(pr.payment_date),
+                "method": "PAYROLL", "ref": f"{pr.month}/{pr.year}",
+                "invoice_id": None,
+            })
+        entries.sort(key=lambda x: x["date"] or "", reverse=True)
+        return entries[:limit]
+
+    return success_response(analytics_cache.get_or_set(("finance", "ledger", limit), build_ledger))
 
 
 # --- Profit/Loss ---
@@ -929,11 +964,13 @@ def profit_loss_report(
     session_id: Optional[int] = None, term_id: Optional[int] = None, month: Optional[int] = None, year: Optional[int] = None,
     db: Session = Depends(get_db), current_user=Depends(is_vp_or_above)
 ):
-    report = get_profit_loss(db, session_id=session_id, term_id=term_id, month=month, year=year)
+    cache_key = ("finance", "profit_loss", session_id, term_id, month, year)
+    report = analytics_cache.get_or_set(
+        cache_key,
+        lambda: get_profit_loss(db, session_id=session_id, term_id=term_id, month=month, year=year),
+    )
     return success_response(report)
 
-
-# ── Optional Fees ──────────────────────────────────────────────────────────────
 
 @router.get("/optional-fees", response_model=None)
 def get_optional_fees(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
@@ -966,3 +1003,5 @@ def remove_optional_fee(fee_id: int, db: Session = Depends(get_db), current_user
         raise HTTPException(status_code=404, detail="Optional fee not found")
     db.commit()
     return success_response({"message": "Deleted"})
+
+

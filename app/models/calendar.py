@@ -22,6 +22,6 @@ class SchoolEvent(Base):
     end_date    = Column(Date, nullable=True)
     event_type  = Column(Enum(EventType), default=EventType.OTHER, nullable=False)
     is_public   = Column(Boolean, default=True, nullable=False)
-    created_by  = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_by  = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     created_at  = Column(DateTime(timezone=True), server_default=func.now())
     updated_at  = Column(DateTime(timezone=True), onupdate=func.now())

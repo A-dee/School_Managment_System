@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -67,7 +67,7 @@ def forgot_password(request: Request, data: ForgotPassword, db: Session = Depend
 def reset_user_password(request: Request, data: PasswordReset, db: Session = Depends(get_db)):
     from app.models.user import User
     user = db.query(User).filter(User.password_reset_token == data.token).first()
-    if not user or not user.password_reset_expires or user.password_reset_expires < datetime.utcnow():
+    if not user or not user.password_reset_expires or user.password_reset_expires < datetime.now(timezone.utc).replace(tzinfo=None):
         raise HTTPException(status_code=400, detail="Invalid or expired reset token")
     reset_password(db, user, data.new_password)
     db.commit()

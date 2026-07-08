@@ -3,10 +3,17 @@ import { useEffect, useMemo, useState } from "react";
 import AnnouncementPanel from "@/components/AnnouncementPanel";
 import DashboardLayout from "@/components/DashboardLayout";
 import StatCard from "@/components/StatCard";
-import { getStudents, getStaff, getClasses, getProfitLoss, getPaystackTransactions, getAnnouncements } from "@/lib/api";
+import {
+  useStudentsCount,
+  useStaffCount,
+  useClassesCount,
+  useProfitLoss,
+  useAttendanceSummary,
+  useRecentTransactions,
+  useAnnouncements
+} from "@/lib/swr-hooks";
 import { Announcement } from "@/lib/announcements";
 import { getRole } from "@/lib/auth";
-import api from "@/lib/api";
 import Link from "next/link";
 import { GraduationCap, Users, School, TrendingUp, CreditCard } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
@@ -40,40 +47,28 @@ function SkeletonChart({ height = 260 }: { height?: number }) {
 }
 
 export default function PrincipalDashboard() {
-  const [stats,      setStats]      = useState({ students: 0, staff: 0, classes: 0 });
-  const [profit,     setProfit]     = useState<any>(null);
-  const [attendance, setAttendance] = useState<any>(null);
-  const [onlinePayments, setOnlinePayments] = useState<any[]>([]);
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [loading,    setLoading]    = useState(true);
   const [role, setRole] = useState("STUDENT");
-
   useEffect(() => {
-    let mounted = true;
-    const currentRole = getRole() || "STUDENT";
-    setRole(currentRole);
-    Promise.all([
-      getStudents({ limit: 1 }),
-      getStaff({ limit: 1 }),
-      getClasses({ limit: 1 }),
-      getProfitLoss(),
-      getAnnouncements({ include_all: currentRole === "SUPER_ADMIN" || currentRole === "ADMIN" }).catch(() => ({ data: { data: [] } })),
-      getPaystackTransactions({ status: "SUCCESS", limit: 6 }).catch(() => ({ data: { data: [] } })),
-      api.get("/api/v1/attendance/summary").catch(() => ({ data: { data: null } })),
-    ]).then(([studRes, staffRes, classRes, profitRes, annRes, paystackRes, attRes]) => {
-      if (!mounted) return;
-      setStats({
-        students: studRes.data.pagination?.total || 0,
-        staff:    staffRes.data.pagination?.total || 0,
-        classes:  classRes.data.pagination?.total || 0,
-      });
-      setProfit(profitRes.data.data);
-      setAnnouncements((annRes.data.data || []).slice(0, 4));
-      setOnlinePayments(paystackRes.data.data || []);
-      setAttendance(attRes.data.data);
-    }).catch(() => {}).finally(() => { if (mounted) setLoading(false); });
-    return () => { mounted = false; };
+    setRole(getRole() || "STUDENT");
   }, []);
+
+  const { count: studentsCount, countLoading: studentsCountLoading } = useStudentsCount();
+  const { count: staffCount, countLoading: staffCountLoading } = useStaffCount();
+  const { count: classesCount, countLoading: classesCountLoading } = useClassesCount();
+  const { profit, profitLoading } = useProfitLoss();
+  const { attendance, attendanceLoading } = useAttendanceSummary();
+  const { transactions: onlinePayments, transactionsLoading } = useRecentTransactions(6);
+  const { announcements: rawAnnouncements, announcementsLoading } = useAnnouncements(role === "SUPER_ADMIN" || role === "ADMIN");
+
+  const announcements = useMemo(() => rawAnnouncements.slice(0, 4), [rawAnnouncements]);
+
+  const stats = useMemo(() => ({
+    students: studentsCount,
+    staff: staffCount,
+    classes: classesCount,
+  }), [studentsCount, staffCount, classesCount]);
+
+  const loading = studentsCountLoading || staffCountLoading || classesCountLoading || profitLoading || attendanceLoading || transactionsLoading || announcementsLoading;
 
   const financeBar = useMemo(() => profit ? [
     { name: "Income",   value: profit.total_income,           fill: "#22c55e" },
@@ -103,7 +98,7 @@ export default function PrincipalDashboard() {
 
   const onlineSummary = useMemo(() => ({
     count: onlinePayments.length,
-    totalAmount: onlinePayments.reduce((sum, tx) => sum + Number(tx.amount_minor || 0), 0) / 100,
+    totalAmount: onlinePayments.reduce((sum: number, tx: any) => sum + Number(tx.amount_minor || 0), 0) / 100,
   }), [onlinePayments]);
   const canManageAnnouncements = role === "SUPER_ADMIN" || role === "ADMIN";
 
@@ -179,7 +174,7 @@ export default function PrincipalDashboard() {
           </div>
           {onlinePayments.length > 0 ? (
             <div className="space-y-3">
-              {onlinePayments.map((tx) => (
+              {onlinePayments.map((tx: any) => (
                 <div key={tx.reference} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "10px 12px", border: "1px solid var(--border)", borderRadius: 10, alignItems: "center" }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: "0.86rem" }}>{tx.student_name || "Student payment"}</div>

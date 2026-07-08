@@ -44,7 +44,7 @@ function forwardedHeaders(request: NextRequest) {
     if (!HOP_BY_HOP_HEADERS.has(key.toLowerCase())) headers.set(key, value);
   });
   const authorization = request.headers.get("authorization");
-  const accessToken = request.cookies.get("access_token")?.value;
+  const accessToken = request.cookies.get("sms_access_token")?.value;
 
   if (authorization) {
     headers.set("authorization", authorization);

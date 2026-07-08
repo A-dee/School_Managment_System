@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from sqlalchemy.orm import Session
 from app.models.user import User, UserRole
@@ -37,7 +37,7 @@ def get_all_users(db: Session, skip: int = 0, limit: int = 50, role: Optional[Us
 def update_user(db: Session, user: User, data: UserUpdate) -> User:
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(user, field, value)
-    user.updated_at = datetime.utcnow()
+    user.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
     db.flush()
     return user
 
@@ -57,7 +57,7 @@ def activate_user(db: Session, user: User) -> User:
 def set_reset_token(db: Session, user: User) -> str:
     token = generate_reset_token()
     user.password_reset_token = token
-    user.password_reset_expires = datetime.utcnow() + timedelta(hours=1)
+    user.password_reset_expires = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=1)
     db.flush()
     return token
 

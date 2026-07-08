@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -11,10 +11,10 @@ class AuditLog(Base):
     action = Column(String, nullable=False)
     entity_type = Column(String, nullable=False)
     entity_id = Column(Integer, nullable=True)
-    performed_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    performed_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     old_value = Column(JSON, nullable=True)
     new_value = Column(JSON, nullable=True)
     ip_address = Column(String, nullable=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     performed_by = relationship("User", back_populates="audit_logs", foreign_keys=[performed_by_user_id])

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
 from sqlalchemy.orm import Session
@@ -191,7 +191,7 @@ def create_expenditure(db: Session, data, admin_user_id: int) -> Expenditure:
 def approve_expenditure(db: Session, expense: Expenditure, principal_user_id: int) -> Expenditure:
     expense.approval_status = ExpenseApprovalStatus.APPROVED
     expense.approved_by_principal_id = principal_user_id
-    expense.approved_at = datetime.utcnow()
+    expense.approved_at = datetime.now(timezone.utc).replace(tzinfo=None)
     db.flush()
     return expense
 

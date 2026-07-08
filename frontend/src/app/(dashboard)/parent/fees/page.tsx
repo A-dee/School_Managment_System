@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import api from "@/lib/api";
-import { getMyPaystackTransactions, initializePaystackPayment, verifyPaystackPayment } from "@/lib/api";
+import { getMyPaystackTransactions, initializePaystackPayment, verifyPaystackPayment, getInstallments } from "@/lib/api";
 import toast from "react-hot-toast";
 import { X, Send, Clock, CheckCircle, XCircle, CreditCard } from "lucide-react";
 
@@ -36,6 +36,7 @@ export default function ParentFeesPage() {
   const [invoices,  setInvoices]  = useState<any[]>([]);
   const [decls,     setDecls]     = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [installmentPlans, setInstallmentPlans] = useState<Record<number, any>>({});
   const [loading,   setLoading]   = useState(false);
 
   // Declaration modal
@@ -49,10 +50,27 @@ export default function ParentFeesPage() {
       api.get(`/api/v1/finance/invoices/student/${studentId}`),
       api.get("/api/v1/finance/payment-declarations/my"),
       getMyPaystackTransactions({ student_id: studentId, limit: 100 }),
-    ]).then(([invR, declR, txR]) => {
-      setInvoices(invR.data.data || []);
+    ]).then(async ([invR, declR, txR]) => {
+      const invs = invR.data.data || [];
+      setInvoices(invs);
       setDecls(declR.data.data || []);
       setTransactions(txR.data.data || []);
+
+      // Load installment plans for each invoice
+      const plansMap: Record<number, any> = {};
+      await Promise.all(
+        invs.map(async (inv: any) => {
+          try {
+            const res = await getInstallments(inv.id);
+            if (res.data.data) {
+              plansMap[inv.id] = res.data.data;
+            }
+          } catch {
+            // ignore if no plan
+          }
+        })
+      );
+      setInstallmentPlans(plansMap);
     });
 
   useEffect(() => {
@@ -141,6 +159,20 @@ export default function ParentFeesPage() {
     }
   };
 
+  const payMilestone = async (inv: any, milestone: any) => {
+    try {
+      const r = await initializePaystackPayment(inv.id, 100, milestone.id);
+      const url = r.data.data?.authorization_url;
+      if (!url) {
+        toast.error("Paystack checkout URL is missing");
+        return;
+      }
+      window.location.href = url;
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || "Failed to start Paystack checkout");
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="t-page-header">
@@ -204,6 +236,8 @@ export default function ParentFeesPage() {
           ) : invoices.map((inv: any) => {
             const myDecls = invoiceDecls(inv.id);
             const hasPending = myDecls.some(d => d.status === "PENDING");
+            const plan = installmentPlans[inv.id];
+            const hasPlan = plan && plan.milestones && plan.milestones.length > 0;
             return (
               <div key={inv.id} className="t-card animate-fade-in" style={{ marginBottom: 14 }}>
                 {/* Invoice header */}
@@ -222,19 +256,33 @@ export default function ParentFeesPage() {
                     <span className={statusBadge[inv.status] || "badge-red"}>{inv.status}</span>
                     {Number(inv.balance) > 0 && !hasPending && (
                       <>
-                        {Number(inv.paid_amount || 0) <= 0 ? (
-                          <>
-                            <button
-                              onClick={() => payWithPaystack(inv, 50)}
-                              style={{
-                                display: "flex", alignItems: "center", gap: 6,
-                                padding: "6px 14px", borderRadius: 8, border: "1px solid var(--border)",
-                                background: "var(--accent-light)", color: "var(--accent)",
-                                fontWeight: 600, fontSize: "0.78rem", cursor: "pointer",
-                              }}
-                            >
-                              <CreditCard size={13} /> Pay 50%
-                            </button>
+                        {!hasPlan && (
+                          Number(inv.paid_amount || 0) <= 0 ? (
+                            <>
+                              <button
+                                onClick={() => payWithPaystack(inv, 50)}
+                                style={{
+                                  display: "flex", alignItems: "center", gap: 6,
+                                  padding: "6px 14px", borderRadius: 8, border: "1px solid var(--border)",
+                                  background: "var(--accent-light)", color: "var(--accent)",
+                                  fontWeight: 600, fontSize: "0.78rem", cursor: "pointer",
+                                }}
+                              >
+                                <CreditCard size={13} /> Pay 50%
+                              </button>
+                              <button
+                                onClick={() => payWithPaystack(inv, 100)}
+                                style={{
+                                  display: "flex", alignItems: "center", gap: 6,
+                                  padding: "6px 14px", borderRadius: 8, border: "1px solid var(--border)",
+                                  background: "var(--accent-light)", color: "var(--accent)",
+                                  fontWeight: 600, fontSize: "0.78rem", cursor: "pointer",
+                                }}
+                              >
+                                <CreditCard size={13} /> Pay 100%
+                              </button>
+                            </>
+                          ) : (
                             <button
                               onClick={() => payWithPaystack(inv, 100)}
                               style={{
@@ -244,21 +292,9 @@ export default function ParentFeesPage() {
                                 fontWeight: 600, fontSize: "0.78rem", cursor: "pointer",
                               }}
                             >
-                              <CreditCard size={13} /> Pay 100%
+                              <CreditCard size={13} /> Pay Balance
                             </button>
-                          </>
-                        ) : (
-                          <button
-                            onClick={() => payWithPaystack(inv, 100)}
-                            style={{
-                              display: "flex", alignItems: "center", gap: 6,
-                              padding: "6px 14px", borderRadius: 8, border: "1px solid var(--border)",
-                              background: "var(--accent-light)", color: "var(--accent)",
-                              fontWeight: 600, fontSize: "0.78rem", cursor: "pointer",
-                            }}
-                          >
-                            <CreditCard size={13} /> Pay Balance
-                          </button>
+                          )
                         )}
                         <button
                           onClick={() => openDeclare(inv)}
@@ -294,6 +330,100 @@ export default function ParentFeesPage() {
                     </div>
                   ))}
                 </div>
+
+                {/* Stepper progress if installment plan exists */}
+                {hasPlan && (
+                  <div style={{ marginTop: 6, marginBottom: 18, borderTop: "1px solid var(--border)", paddingTop: 16 }}>
+                    <p style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 14 }}>
+                      Tuition Installments Progress
+                    </p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 16, position: "relative", paddingLeft: 10 }}>
+                      {[...plan.milestones]
+                        .sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())
+                        .map((m: any, index: number, arr: any[]) => {
+                          const isPaid = m.status === "PAID";
+                          const isOverdue = m.status === "OVERDUE";
+                          const isActive = !isPaid && arr.findIndex((x: any) => x.status !== "PAID") === index;
+                          
+                          return (
+                            <div key={m.id} style={{ display: "flex", gap: 14, position: "relative" }}>
+                              {index < arr.length - 1 && (
+                                <div style={{
+                                  position: "absolute",
+                                  left: 9,
+                                  top: 24,
+                                  bottom: -16,
+                                  width: 2,
+                                  background: isPaid ? "#10b981" : "var(--border)",
+                                  zIndex: 0,
+                                }} />
+                              )}
+                              
+                              <div style={{
+                                width: 20,
+                                height: 20,
+                                borderRadius: "50%",
+                                background: isPaid ? "#10b981" : (isOverdue ? "#ef4444" : "var(--bg-page)"),
+                                border: `2px solid ${isPaid ? "#10b981" : (isOverdue ? "#ef4444" : (isActive ? "var(--accent)" : "var(--border)"))}`,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                zIndex: 1,
+                                flexShrink: 0,
+                                color: isPaid || isOverdue ? "#fff" : "transparent",
+                                fontSize: "0.65rem",
+                                fontWeight: 700,
+                              }}>
+                                {isPaid ? "✓" : (isOverdue ? "!" : "")}
+                              </div>
+                              
+                              <div style={{ flex: 1, display: "flex", justifyContent: "space-between", alignItems: "center", minWidth: 0 }}>
+                                <div style={{ minWidth: 0 }}>
+                                  <p style={{ fontSize: "0.85rem", fontWeight: isActive ? 700 : 600, color: isActive ? "var(--accent)" : "var(--text-primary)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    {m.name}
+                                  </p>
+                                  <p style={{ fontSize: "0.72rem", color: "var(--text-secondary)", marginTop: 2, margin: 0 }}>
+                                    Due: {new Date(m.due_date).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })} &middot; {fmt(m.amount)}
+                                  </p>
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                                  {isPaid ? (
+                                    <span className="badge-green">Paid</span>
+                                  ) : isOverdue ? (
+                                    <>
+                                      <span className="badge-red">Overdue</span>
+                                      {isActive && (
+                                        <button
+                                          onClick={() => payMilestone(inv, m)}
+                                          className="t-btn-primary"
+                                          style={{ padding: "6px 12px", fontSize: "0.72rem", borderRadius: 8, display: "flex", alignItems: "center", gap: 4 }}
+                                        >
+                                          <CreditCard size={12} /> Pay Milestone
+                                        </button>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span className="badge-gray" style={{ background: "var(--border)", color: "var(--text-secondary)", padding: "2px 8px", borderRadius: 12, fontSize: "0.68rem", fontWeight: 600 }}>Pending</span>
+                                      {isActive && (
+                                        <button
+                                          onClick={() => payMilestone(inv, m)}
+                                          className="t-btn-primary"
+                                          style={{ padding: "6px 12px", fontSize: "0.72rem", borderRadius: 8, display: "flex", alignItems: "center", gap: 4 }}
+                                        >
+                                          <CreditCard size={12} /> Pay Milestone
+                                        </button>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Declaration history for this invoice */}
                 {myDecls.length > 0 && (

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import toast from "react-hot-toast";
@@ -22,7 +22,7 @@ export default function LoginPage() {
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotSending, setForgotSending] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
-  const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>();
+  const { register, handleSubmit, setValue, formState: { errors } } = useForm<LoginForm>();
 
   const sendForgot = async () => {
     if (!forgotEmail) { toast.error("Enter your email"); return; }
@@ -51,6 +51,22 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const emailParam = params.get("email");
+      const passwordParam = params.get("password");
+      if (emailParam) setValue("email", emailParam);
+      if (passwordParam) setValue("password", passwordParam);
+      if (emailParam && passwordParam) {
+        const timer = setTimeout(() => {
+          onSubmit({ email: emailParam, password: passwordParam });
+        }, 150);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [setValue]);
 
   return (
     <div style={{ minHeight: "100vh", position: "relative", overflowX: "hidden", fontFamily: "system-ui,-apple-system,sans-serif" }}>
@@ -194,18 +210,18 @@ export default function LoginPage() {
 
           {/* Logo */}
           <div className="logo-float fade-up" style={{ display: "flex", justifyContent: "center", marginBottom: 22, position: "relative" }}>
-            <div style={{ background: "#fff", borderRadius: 18, padding: 12, boxShadow: "0 8px 32px rgba(37,99,235,0.18), 0 2px 0 rgba(255,255,255,1)", display: "inline-flex" }}>
+            <div style={{ background: "#0f172a", borderRadius: 12, padding: "8px 20px", boxShadow: "0 8px 32px rgba(37,99,235,0.18), 0 2px 0 rgba(255,255,255,0.05)", display: "inline-flex" }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/hope-hills-logo.png" alt="Hope Hills Academy" style={{ width: 64, height: 64, objectFit: "contain", display: "block" }} />
+              <img src="/lenage-logo.png" alt="Lenage Management Systems" style={{ height: 42, width: "auto", objectFit: "contain", display: "block" }} />
             </div>
           </div>
 
           {/* Heading */}
           <div className="fade-up d1" style={{ textAlign: "center", marginBottom: 28, position: "relative" }}>
             <h1 className="grad-text" style={{ fontSize: "1.6rem", fontWeight: 900, letterSpacing: "-0.5px", lineHeight: 1.15, marginBottom: 4 }}>
-              Hope Hills Academy
+              Lenage Management Systems
             </h1>
-            <p style={{ color: "#64748b", fontSize: "0.82rem", fontStyle: "italic", marginBottom: 6 }}>Excellence in Early Childhood Education</p>
+            <p style={{ color: "#64748b", fontSize: "0.82rem", fontStyle: "italic", marginBottom: 6 }}>Enterprise School Administration & Management</p>
             <p style={{ color: "#94a3b8", fontSize: "0.8rem" }}>Sign in to access your portal</p>
           </div>
 

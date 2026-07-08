@@ -2,9 +2,9 @@
 import Link from "next/link";
 
 const EFFECTIVE_DATE = "7 May 2026";
-const CONTROLLER = "Hope Hills Academy";
+const CONTROLLER = "Lenage Management Systems";
 const ADDRESS = "Plot A/MF/5, Mpape 2 Layout, Opposite Zenith Bank, Mpape, 901101, FCT, Nigeria";
-const EMAIL_DPO = "hopehillsacademy@gmail.com";
+const EMAIL_DPO = "info@lenagetechnologies.com";
 const PHONE = "08065598994";
 
 const Section = ({ id, title, children }: { id: string; title: string; children: React.ReactNode }) => (
@@ -29,7 +29,9 @@ export default function PrivacyPolicy() {
           </Link>
           <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/hope-hills-logo.png" alt={CONTROLLER} style={{ width: 48, height: 48, objectFit: "contain", background: "#fff", borderRadius: 12, padding: 4 }} />
+            <div style={{ background: "#0f172a", borderRadius: 8, padding: "6px 14px", display: "inline-flex", alignItems: "center" }}>
+              <img src="/lenage-logo.png" alt={CONTROLLER} style={{ height: 28, width: "auto", objectFit: "contain" }} />
+            </div>
             <div>
               <h1 style={{ fontSize: "1.5rem", fontWeight: 900, marginBottom: 2 }}>Privacy Policy</h1>
               <p style={{ fontSize: "0.82rem", color: "rgba(255,255,255,0.7)" }}>{CONTROLLER} — School Management Portal</p>

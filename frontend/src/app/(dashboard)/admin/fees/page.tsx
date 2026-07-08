@@ -4,6 +4,8 @@ import DashboardLayout from "@/components/DashboardLayout";
 import api from "@/lib/api";
 import toast from "react-hot-toast";
 import { Search, CheckCircle, CreditCard, Users, DollarSign, AlertTriangle, Plus, Trash2, RefreshCw, CalendarCheck, Pencil, X } from "lucide-react";
+import { useClasses, useSessions, useFeeStructures, useOptionalFees, useActiveStudents, useInvoicesList } from "@/lib/swr-hooks";
+import { useMemo } from "react";
 
 const fmt = (n: number | string) => `₦${Number(n).toLocaleString("en-NG", { minimumFractionDigits: 0 })}`;
 
@@ -34,17 +36,24 @@ export default function FeesPage() {
   const [outerTab, setOuterTab] = useState<"fees" | "schedule">("fees");
 
   /* --- filter state --- */
-  const [sessions, setSessions] = useState<any[]>([]);
   const [terms,    setTerms]    = useState<any[]>([]);
-  const [classes,  setClasses]  = useState<any[]>([]);
   const [sessionId, setSessionId] = useState("");
   const [termId,    setTermId]    = useState("");
   const [search,    setSearch]    = useState("");
 
-  /* --- data state --- */
-  const [students,   setStudents]   = useState<Student[]>([]);
-  const [invoiceMap, setInvoiceMap] = useState<Record<number, Invoice>>({});
-  const [loading,    setLoading]    = useState(false);
+  /* --- SWR Data Hooks --- */
+  const { classes } = useClasses();
+  const { sessions } = useSessions();
+  const { feeStructures, fsLoading, refreshFeeStructures } = useFeeStructures();
+  const { optFees, optLoading, refreshOptFees } = useOptionalFees();
+  const { students, loading: studentsLoading } = useActiveStudents();
+  const { invoices, loading: invoicesLoading, refreshInvoices } = useInvoicesList(sessionId, termId);
+
+  const invoiceMap = useMemo(() => {
+    return Object.fromEntries(invoices.map(i => [i.student_id, i]));
+  }, [invoices]);
+
+  const loading = studentsLoading || invoicesLoading;
 
   /* --- selected student --- */
   const [selected,   setSelected]   = useState<Student | null>(null);
@@ -62,8 +71,6 @@ export default function FeesPage() {
   const [savingDirect, setSavingDirect] = useState(false);
 
   /* --- fee schedule state --- */
-  const [feeStructures, setFeeStructures] = useState<FeeStructure[]>([]);
-  const [fsLoading,     setFsLoading]     = useState(false);
   const [showCreate,    setShowCreate]    = useState(false);
   const [fsForm, setFsForm] = useState({ class_id: "", session_id: "", term_id: "", target_group: "ALL" });
   const [fsTerms, setFsTerms] = useState<any[]>([]);
@@ -85,8 +92,6 @@ export default function FeesPage() {
 
   /* --- optional fees state --- */
   type OptFee = { id: number; name: string; category: string; amount: number; billing_period: string; description: string | null; is_active: boolean };
-  const [optFees,      setOptFees]      = useState<OptFee[]>([]);
-  const [optLoading,   setOptLoading]   = useState(false);
   const [showOptForm,  setShowOptForm]  = useState(false);
   const [optForm,      setOptForm]      = useState({ name: "", category: "Clubs", billing_period: "termly", amount: "", description: "" });
   const [savingOpt,    setSavingOpt]    = useState(false);
@@ -107,28 +112,16 @@ export default function FeesPage() {
     } catch { return []; }
   }, []);
 
-  /* --- bootstrap: load sessions, classes, terms cache + fee structures --- */
+  /* --- bootstrap: load terms cache for session dropdowns --- */
   useEffect(() => {
-    Promise.all([
-      api.get("/api/v1/academic/sessions"),
-      api.get("/api/v1/classes/?limit=200"),
-      api.get("/api/v1/finance/fee-structures").catch(() => ({ data: { data: [] } })),
-      api.get("/api/v1/finance/optional-fees").catch(() => ({ data: { data: [] } })),
-    ]).then(async ([s, c, fsRes, optRes]) => {
-      const sessionList: any[] = s.data.data || [];
-      setSessions(sessionList);
-      setClasses(c.data.data || []);
-      setFeeStructures(fsRes.data.data || []);
-      setOptFees(optRes.data.data || []);
-      if (sessionList.length > 0) {
-        const termResults = await Promise.all(
-          sessionList.map((sess: any) =>
-            api.get(`/api/v1/academic/terms?session_id=${sess.id}`).catch(() => ({ data: { data: [] } }))
-          )
-        );
+    if (sessions.length > 0) {
+      Promise.all(
+        sessions.map((sess: any) =>
+          api.get(`/api/v1/academic/terms?session_id=${sess.id}`).catch(() => ({ data: { data: [] } }))
+        )
+      ).then(termResults => {
         const allT: any[] = termResults.flatMap(r => r.data.data || []);
         setAllTerms(allT);
-        /* pre-populate cache so every subsequent dropdown change is instant */
         const grouped = new Map<string, any[]>();
         allT.forEach(t => {
           const key = String(t.session_id);
@@ -136,22 +129,16 @@ export default function FeesPage() {
           grouped.get(key)!.push(t);
         });
         termsCache.current = grouped;
-      }
-    }).catch(() => {});
-  }, []);
+        if (sessionId) {
+          setTerms(grouped.get(String(sessionId)) || []);
+        }
+      });
+    }
+  }, [sessions]);
 
   useEffect(() => {
-    // Refresh on each visit to the schedule tab (bootstrap already pre-loads on first mount)
-    if (outerTab === "schedule") { loadFeeStructures(); loadOptFees(); }
+    if (outerTab === "schedule") { refreshFeeStructures(); refreshOptFees(); }
   }, [outerTab]);
-
-  /* --- load optional fees --- */
-  const loadOptFees = async () => {
-    setOptLoading(true);
-    try { const r = await api.get("/api/v1/finance/optional-fees"); setOptFees(r.data.data || []); }
-    catch { toast.error("Failed to load optional fees"); }
-    setOptLoading(false);
-  };
 
   const createOptFee = async () => {
     if (!optForm.name.trim() || !optForm.amount || Number(optForm.amount) <= 0) { toast.error("Enter name and amount"); return; }
@@ -161,7 +148,7 @@ export default function FeesPage() {
       toast.success("Optional fee added");
       setShowOptForm(false);
       setOptForm({ name: "", category: "Clubs", billing_period: "termly", amount: "", description: "" });
-      loadOptFees();
+      refreshOptFees();
     } catch (e: any) { toast.error(e?.response?.data?.detail || "Failed"); }
     setSavingOpt(false);
   };
@@ -173,26 +160,18 @@ export default function FeesPage() {
       await api.put(`/api/v1/finance/optional-fees/${editingOpt!.id}`, { name: editOptForm.name.trim(), category: editOptForm.category, amount: Number(editOptForm.amount), billing_period: editOptForm.billing_period, description: editOptForm.description || null });
       toast.success("Optional fee updated");
       setEditingOpt(null);
-      loadOptFees();
+      refreshOptFees();
     } catch (e: any) { toast.error(e?.response?.data?.detail || "Failed"); }
     setSavingOpt(false);
   };
 
   const deleteOptFee = async (id: number) => {
     if (!confirm("Delete this optional fee?")) return;
-    try { await api.delete(`/api/v1/finance/optional-fees/${id}`); toast.success("Deleted"); setOptFees(p => p.filter(f => f.id !== id)); }
+    try { await api.delete(`/api/v1/finance/optional-fees/${id}`); toast.success("Deleted"); refreshOptFees(); }
     catch (e: any) { toast.error(e?.response?.data?.detail || "Failed"); }
   };
 
-  /* --- load fee structures --- */
-  const loadFeeStructures = async () => {
-    setFsLoading(true);
-    try {
-      const r = await api.get("/api/v1/finance/fee-structures");
-      setFeeStructures(r.data.data || []);
-    } catch { toast.error("Failed to load fee schedules"); }
-    setFsLoading(false);
-  };
+
 
   /* --- create fee structure --- */
   const createFeeStructure = async () => {
@@ -218,7 +197,7 @@ export default function FeesPage() {
       setShowCreate(false);
       setFsForm({ class_id: "", session_id: "", term_id: "", target_group: "ALL" });
       setItems([blankItem()]);
-      loadFeeStructures();
+      refreshFeeStructures();
     } catch (e: any) { toast.error(e?.response?.data?.detail || "Failed to create fee schedule"); }
     setSavingFs(false);
   };
@@ -229,7 +208,7 @@ export default function FeesPage() {
     try {
       await api.delete(`/api/v1/finance/fee-structures/${id}`);
       toast.success("Fee schedule deleted");
-      setFeeStructures(p => p.filter(f => f.id !== id));
+      refreshFeeStructures();
     } catch (e: any) { toast.error(e?.response?.data?.detail || "Failed to delete"); }
   };
 
@@ -263,7 +242,7 @@ export default function FeesPage() {
       });
       toast.success("Fee schedule updated");
       setEditingFs(null);
-      loadFeeStructures();
+      refreshFeeStructures();
     } catch (e: any) { toast.error(e?.response?.data?.detail || "Failed to update fee schedule"); }
     setSavingEdit(false);
   };
@@ -281,28 +260,16 @@ export default function FeesPage() {
     setGenerating(false);
   };
 
-  /* --- load students + invoices for term --- */
   const load = async () => {
-    setLoading(true);
     setSelected(null);
-    setInvoiceMap({});
     try {
-      const [studR, invR] = await Promise.all([
-        api.get("/api/v1/students/?limit=500&status=ACTIVE"),
-        sessionId && termId
-          ? api.get(`/api/v1/finance/invoices?session_id=${sessionId}&term_id=${termId}&limit=500`)
-          : Promise.resolve(null),
-      ]);
-      setStudents(studR.data.data || []);
-      if (invR) {
-        const invs: Invoice[] = invR.data.data || [];
-        setInvoiceMap(Object.fromEntries(invs.map(i => [i.student_id, i])));
-      }
+      await refreshInvoices();
     } catch { toast.error("Failed to load data"); }
-    setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, [sessionId, termId]);
 
   /* --- select student → load payment history --- */
   const selectStudent = async (s: Student) => {
@@ -347,12 +314,7 @@ export default function FeesPage() {
   };
 
   const reloadInvoices = async () => {
-    if (!sessionId || !termId) return;
-    try {
-      const r = await api.get(`/api/v1/finance/invoices?session_id=${sessionId}&term_id=${termId}&limit=500`);
-      const invs: Invoice[] = r.data.data || [];
-      setInvoiceMap(Object.fromEntries(invs.map(i => [i.student_id, i])));
-    } catch {}
+    await refreshInvoices();
   };
 
   const recordDirectPayment = async () => {
@@ -397,17 +359,17 @@ export default function FeesPage() {
     return !q || s.first_name.toLowerCase().includes(q) || s.last_name.toLowerCase().includes(q) || s.admission_number.toLowerCase().includes(q);
   });
 
-  const classMap   = Object.fromEntries(classes.map(c => [c.id, c.name]));
-  const sessionMap = Object.fromEntries(sessions.map(s => [s.id, s.name]));
-  const termMap    = Object.fromEntries(
-    [...allTerms, ...terms, ...fsTerms, ...genTerms].map(t => [t.id, t.name])
+  const classMap: any   = Object.fromEntries((classes || []).map((c: any) => [c.id, c.name]));
+  const sessionMap: any = Object.fromEntries((sessions || []).map((s: any) => [s.id, s.name]));
+  const termMap: any    = Object.fromEntries(
+    ([...allTerms, ...terms, ...fsTerms, ...genTerms] as any[]).map((t: any) => [t.id, t.name])
   );
   const inv       = selected ? invoiceMap[selected.id] : null;
   const balance   = inv ? Number(inv.balance) : 0;
 
-  const invList     = Object.values(invoiceMap);
-  const totalFees   = invList.reduce((s, i) => s + Number(i.total_fee), 0);
-  const totalPaid   = invList.reduce((s, i) => s + Number(i.paid_amount), 0);
+  const invList     = Object.values(invoiceMap) as Invoice[];
+  const totalFees   = invList.reduce((s: number, i: Invoice) => s + Number(i.total_fee), 0);
+  const totalPaid   = invList.reduce((s: number, i: Invoice) => s + Number(i.paid_amount), 0);
   const paidCount   = invList.filter(i => i.status === "PAID").length;
   const unpaidCount = invList.filter(i => i.status !== "PAID").length;
 
@@ -816,7 +778,7 @@ export default function FeesPage() {
               </p>
             </div>
             <div className="flex gap-2">
-              <button onClick={loadFeeStructures} className="t-btn-secondary py-2 px-3 text-xs flex items-center gap-1.5">
+              <button onClick={() => refreshFeeStructures()} className="t-btn-secondary py-2 px-3 text-xs flex items-center gap-1.5">
                 <RefreshCw size={13} /> Refresh
               </button>
               <button onClick={() => setShowCreate(v => !v)} className="t-btn-primary py-2 px-4 text-xs flex items-center gap-1.5">
@@ -1056,7 +1018,7 @@ export default function FeesPage() {
                           <div className="flex gap-1 overflow-x-auto whitespace-nowrap">
                             {Object.entries(fs.fee_breakdown).map(([name, amt]) => (
                               <span key={name} className="shrink-0 px-2 py-0.5 rounded-full text-[9px] font-semibold bg-[var(--accent-light)] t-accent">
-                                {name}: {fmt(amt)}
+                                {name}: {fmt(amt as any)}
                               </span>
                             ))}
                           </div>

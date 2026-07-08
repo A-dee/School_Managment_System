@@ -43,12 +43,12 @@ function buildLetterheadHTML(logoUrl: string) {
     <div style="margin-bottom:12px;">
       <div style="height:6px;background:linear-gradient(90deg,#e8314e,#f5a623,#27ae60,#2980b9);border-radius:3px 3px 0 0;"></div>
       <div style="display:flex;align-items:center;gap:16px;padding:10px 14px 8px;border:2px solid #e0e0e0;border-top:none;border-bottom:none;">
-        <img src="${logoUrl}" alt="Hope Hills Academy Logo" style="width:80px;height:80px;object-fit:contain;flex-shrink:0;" />
+        <img src="${logoUrl}" alt="Lenage Management Systems Logo" style="width:80px;height:80px;object-fit:contain;flex-shrink:0;" />
         <div style="flex:1;text-align:center;">
-          <div style="font-size:22px;font-weight:900;color:#1a1a2e;letter-spacing:0.5px;line-height:1.1;">HOPE HILLS ACADEMY</div>
-          <div style="font-size:10px;color:#555;margin-top:3px;letter-spacing:0.5px;">Crèche &bull; Nursery &bull; Primary</div>
-          <div style="font-size:9.5px;color:#777;margin-top:4px;">Excellence in Early Childhood Education</div>
-          <div style="font-size:8.5px;color:#888;margin-top:3px;">📍 Plot A/MF/5, Mpape 2 Layout, opposite Zenith Bank, Mpape, FCT &nbsp;&bull;&nbsp; 📞 08065598994 / 07052677702 &nbsp;&bull;&nbsp; ✉ hopehillsacademy@gmail.com</div>
+          <div style="font-size:22px;font-weight:900;color:#1a1a2e;letter-spacing:0.5px;line-height:1.1;">LENAGE MANAGEMENT SYSTEMS</div>
+          <div style="font-size:10px;color:#555;margin-top:3px;letter-spacing:0.5px;">Enterprise School Administration</div>
+          <div style="font-size:9.5px;color:#777;margin-top:4px;">Enterprise School Administration & Management</div>
+          <div style="font-size:8.5px;color:#888;margin-top:3px;">📍 Plot A/MF/5, Mpape 2 Layout, opposite Zenith Bank, Mpape, FCT &nbsp;&bull;&nbsp; 📞 08065598994 / 07052677702 &nbsp;&bull;&nbsp; ✉ info@lenagetechnologies.com</div>
         </div>
         <div style="width:80px;text-align:center;flex-shrink:0;">
           <div style="width:74px;height:74px;border:2px dashed #ccc;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto;">
@@ -75,12 +75,14 @@ function PrintCard({ student, className, sessionName, termName, results, subject
         <div style={{ height: 6, background: "linear-gradient(90deg,#e8314e,#f5a623,#27ae60,#2980b9)", borderRadius: "3px 3px 0 0" }} />
         <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "10px 14px 8px", border: "2px solid #e0e0e0", borderTop: "none", borderBottom: "none" }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/hope-hills-logo.png" alt="Hope Hills Academy Logo" style={{ width: 80, height: 80, objectFit: "contain", flexShrink: 0 }} />
+          <div style={{ background: "#0f172a", borderRadius: "10px", padding: "6px 16px", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <img src="/lenage-logo.png" alt="Lenage Management Systems Logo" style={{ height: 44, width: "auto", objectFit: "contain" }} />
+          </div>
           <div style={{ flex: 1, textAlign: "center" }}>
-            <div style={{ fontSize: 22, fontWeight: 900, color: "#1a1a2e", letterSpacing: 0.5, lineHeight: 1.1 }}>HOPE HILLS ACADEMY</div>
-            <div style={{ fontSize: 10, color: "#555", marginTop: 3, letterSpacing: 0.5 }}>Crèche &bull; Nursery &bull; Primary</div>
-            <div style={{ fontSize: 9.5, color: "#777", marginTop: 4 }}>Excellence in Early Childhood Education</div>
-            <div style={{ fontSize: 8.5, color: "#888", marginTop: 3 }}>📍 Plot A/MF/5, Mpape 2 Layout, opposite Zenith Bank, Mpape, FCT &nbsp;&bull;&nbsp; 📞 08065598994 / 07052677702 &nbsp;&bull;&nbsp; ✉ hopehillsacademy@gmail.com</div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: "#1a1a2e", letterSpacing: 0.5, lineHeight: 1.1 }}>LENAGE MANAGEMENT SYSTEMS</div>
+            <div style={{ fontSize: 10, color: "#555", marginTop: 3, letterSpacing: 0.5 }}>Enterprise School Administration</div>
+            <div style={{ fontSize: 9.5, color: "#777", marginTop: 4 }}>Enterprise School Administration & Management</div>
+            <div style={{ fontSize: 8.5, color: "#888", marginTop: 3 }}>📍 Plot A/MF/5, Mpape 2 Layout, opposite Zenith Bank, Mpape, FCT &nbsp;&bull;&nbsp; 📞 08065598994 / 07052677702 &nbsp;&bull;&nbsp; ✉ info@lenagetechnologies.com</div>
           </div>
           <div style={{ width: 80, textAlign: "center", flexShrink: 0 }}>
             <div style={{ width: 74, height: 74, border: "2px dashed #ccc", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto" }}>
@@ -409,7 +411,7 @@ export default function ReportCardsPage() {
   const handlePrint = () => {
     if (!selected || !printRef.current) return;
     const content    = printRef.current.innerHTML;
-    const logoUrl    = `${window.location.origin}/hope-hills-logo.png`;
+    const logoUrl    = `${window.location.origin}/lenage-logo.png`;
     const letterhead = buildLetterheadHTML(logoUrl);
     const win = window.open("", "_blank", "width=860,height=1100");
     if (!win) return;

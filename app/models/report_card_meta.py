@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Boolean, Column, Integer, String, Text, DateTime, ForeignKey, UniqueConstraint
 from app.database import Base
 
@@ -7,9 +7,9 @@ class ReportCardMeta(Base):
     __tablename__ = "report_card_meta"
 
     id = Column(Integer, primary_key=True, index=True)
-    student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
-    term_id = Column(Integer, ForeignKey("terms.id"), nullable=False)
-    session_id = Column(Integer, ForeignKey("academic_sessions.id"), nullable=False)
+    student_id = Column(Integer, ForeignKey("students.id"), nullable=False, index=True)
+    term_id = Column(Integer, ForeignKey("terms.id"), nullable=False, index=True)
+    session_id = Column(Integer, ForeignKey("academic_sessions.id"), nullable=False, index=True)
 
     times_school_opened = Column(Integer, nullable=True)
     times_present = Column(Integer, nullable=True)
@@ -29,11 +29,11 @@ class ReportCardMeta(Base):
     next_term_begins = Column(String(50), nullable=True)
 
     approved = Column(Boolean, nullable=False, default=False, server_default="false")
-    approved_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    approved_by_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     approved_at = Column(DateTime, nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     __table_args__ = (
         UniqueConstraint("student_id", "term_id", "session_id", name="uq_report_card_meta"),

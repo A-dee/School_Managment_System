@@ -19,3 +19,6 @@ from app.models.student_document import StudentDocument
 from app.models.announcement import Announcement
 from app.models.finance import PaymentDeclaration, OptionalFee, PaystackTransaction
 from app.models.calendar import SchoolEvent
+from app.models.installment import FeeInstallmentPlan, FeeInstallmentMilestone
+from app.models.timetable import TimetablePeriod, TimetableSlot
+from app.models.school import SchoolConfig, SubscriptionTier

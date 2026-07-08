@@ -1,18 +1,16 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useMemo } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { getStudents } from "@/lib/api";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
-import { useClasses, useSessions } from "@/lib/swr-hooks";
+import { useClasses, useSessions, useStudentsList } from "@/lib/swr-hooks";
 import { Search, GraduationCap, Trash2, FileText } from "lucide-react";
 import StudentRegistrationModal from "@/components/StudentRegistrationModal";
 import { getRole } from "@/lib/auth";
 
+const fetcher = (url: string) => api.get(url).then(r => r.data);
+
 export default function StudentsPage() {
-  const [students, setStudents] = useState<any[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -29,29 +27,13 @@ export default function StudentsPage() {
   const role = getRole();
   const isTeacher = role === "TEACHER";
 
-  // Debounce: update search (triggers fetch) 300ms after user stops typing
+  // Debounce: update search 300ms after user stops typing
   useEffect(() => {
     const t = setTimeout(() => { setSearch(searchInput); setPage(1); }, 300);
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params: any = { skip: (page - 1) * limit, limit };
-      if (search) params.search = search;
-      if (statusFilter) params.status = statusFilter;
-      const res = await getStudents(params);
-      setStudents(res.data.data || []);
-      setTotal(res.data.pagination?.total || 0);
-    } catch (err: any) {
-      toast.error(err?.response?.data?.detail || "Failed to load students");
-    }
-    setLoading(false);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, search, statusFilter]);
-
-  useEffect(() => { load(); }, [load]);
+  const { students, total, loading, refreshStudents } = useStudentsList(page, limit, search, statusFilter);
 
   /* For teachers: resolve which class they own — run once classes are loaded */
   useEffect(() => {
@@ -83,7 +65,7 @@ export default function StudentsPage() {
       await api.patch(`/api/v1/students/${scholarshipModal.id}/scholarship?percentage=${scholarshipPct}`);
       toast.success("Scholarship updated");
       setScholarshipModal(null);
-      load();
+      refreshStudents();
     } catch (e: any) { toast.error(e?.response?.data?.detail || "Failed"); }
     setSavingScholarship(false);
   };
@@ -94,7 +76,7 @@ export default function StudentsPage() {
     try {
       await api.delete(`/api/v1/students/${s.id}`);
       toast.success("Student deleted");
-      load();
+      refreshStudents();
     } catch (e: any) { toast.error(e?.response?.data?.detail || "Failed to delete"); }
     setDeleting(null);
   };
@@ -277,7 +259,7 @@ export default function StudentsPage() {
           sessions={sessions}
           teacherMode={isTeacher}
           onClose={() => setModal({ open: false, studentId: null })}
-          onSuccess={load}
+          onSuccess={refreshStudents}
         />
       )}
     </DashboardLayout>

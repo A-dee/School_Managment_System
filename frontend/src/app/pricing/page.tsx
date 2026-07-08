@@ -6,9 +6,9 @@ import PricingToggle from '@/components/pricing/PricingToggle';
 import PricingCard, { PricingPlan } from '@/components/pricing/PricingCard';
 
 const SCHOOL = {
-  name: 'Hope Hills Academy',
-  tagline: 'Creche · Nursery · Primary',
-  email: 'hopehillsacademy@gmail.com',
+  name: 'Lenage Management Systems',
+  tagline: 'Enterprise School Administration',
+  email: 'info@lenagetechnologies.com',
   phone: '08065598994',
 };
 
@@ -130,7 +130,9 @@ export default function PricingPage() {
       <nav className="mx-auto mb-10 flex max-w-[1180px] items-center justify-between rounded-lg border border-white/80 bg-white/72 px-4 py-3 shadow-sm backdrop-blur md:px-5">
         <Link href="/" className="flex min-w-0 items-center gap-3 no-underline">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/hope-hills-logo.png" alt={SCHOOL.name} className="h-10 w-10 rounded-md bg-white object-contain p-1 shadow-sm" />
+          <div className="bg-[#0f172a] rounded-md px-3 py-1.5 inline-flex items-center shadow-sm">
+            <img src="/lenage-logo.png" alt={SCHOOL.name} className="h-7 w-auto object-contain" />
+          </div>
           <div className="min-w-0">
             <div className="truncate text-sm font-extrabold text-[#1e293b] md:text-base">{SCHOOL.name}</div>
             <div className="text-[11px] font-semibold text-[#64748b]">{SCHOOL.tagline}</div>

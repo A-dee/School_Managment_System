@@ -2,6 +2,7 @@ import time
 import logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -15,7 +16,7 @@ from app.routes import (
     subjects, parents, results, attendance, discipline,
     finance, audit, notifications, exports, pdfs,
 )
-from app.routes import messages, email_config, report_card, seed, announcements, calendar
+from app.routes import messages, email_config, report_card, seed, announcements, calendar, attendance_checkin, finance_installments, timetable
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 logger = get_logger(__name__)
@@ -56,6 +57,7 @@ app.add_middleware(
     expose_headers=["Content-Disposition"],
     max_age=600,
 )
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 API_PREFIX = "/api/v1"
 
@@ -81,6 +83,9 @@ app.include_router(report_card.router,  prefix=API_PREFIX)
 app.include_router(seed.router,         prefix=API_PREFIX)
 app.include_router(announcements.router, prefix=API_PREFIX)
 app.include_router(calendar.router,     prefix=API_PREFIX)
+app.include_router(attendance_checkin.router, prefix=API_PREFIX)
+app.include_router(finance_installments.router, prefix=API_PREFIX)
+app.include_router(timetable.router,    prefix=API_PREFIX)
 
 
 @app.exception_handler(Exception)

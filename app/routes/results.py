@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import UserRole
 from app.models.subject import TeacherSubjectClass
+from app.models.result import ResultStatus
 from app.schemas.result import ResultCreate, ResultOut, ResultUpdate
 from app.crud.result import (
     create_result, get_result, get_results_by_class_term,
@@ -115,6 +116,11 @@ def update_result(
     result = get_result(db, result_id)
     if not result:
         raise HTTPException(status_code=404, detail="Result not found")
+    if result.status in {ResultStatus.APPROVED, ResultStatus.PUBLISHED}:
+        raise HTTPException(status_code=400, detail="Approved or published results are locked")
+    if current_user.role == UserRole.TEACHER and result.status == ResultStatus.SUBMITTED:
+        raise HTTPException(status_code=403, detail="Submitted results can only be edited by admins")
+
     staff = get_staff_by_user_id(db, current_user.id)
     if current_user.role == UserRole.TEACHER:
         if not staff:

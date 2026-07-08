@@ -21,22 +21,21 @@ export default function StatCard({ title, value, icon, color = "blue", subtitle,
 
   return (
     <div
-      className="t-card animate-fade-in"
+      className="t-card animate-fade-in neumorphic-embossed"
       style={{
         cursor: "default",
         transition: "transform 0.2s, box-shadow 0.25s, border-color 0.2s",
+        border: "none",
       }}
       onMouseEnter={e => {
         const el = e.currentTarget as HTMLElement;
         el.style.transform = "translateY(-3px)";
-        el.style.boxShadow = `var(--shadow-md), 0 0 0 1px ${c.border}, 0 8px 24px ${c.glow}`;
-        el.style.borderColor = c.border;
+        el.style.boxShadow = `8px 8px 16px var(--shadow-dark), -8px -8px 16px var(--shadow-light), 0 0 0 1px ${c.border}, 0 8px 24px ${c.glow}`;
       }}
       onMouseLeave={e => {
         const el = e.currentTarget as HTMLElement;
         el.style.transform = "translateY(0)";
-        el.style.boxShadow = "var(--shadow-sm)";
-        el.style.borderColor = "var(--border)";
+        el.style.boxShadow = "6px 6px 12px var(--shadow-dark), -6px -6px 12px var(--shadow-light)";
       }}
     >
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>

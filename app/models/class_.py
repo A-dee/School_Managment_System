@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -11,10 +11,10 @@ class Class(Base):
     name = Column(String, nullable=False)          # e.g., "JSS1A"
     level = Column(String, nullable=False)          # e.g., "JSS1"
     capacity = Column(Integer, nullable=True)
-    class_teacher_id = Column(Integer, ForeignKey("staff.id"), nullable=True)
-    session_id = Column(Integer, ForeignKey("academic_sessions.id"), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    class_teacher_id = Column(Integer, ForeignKey("staff.id"), nullable=True, index=True)
+    session_id = Column(Integer, ForeignKey("academic_sessions.id"), nullable=False, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     class_teacher = relationship("Staff", back_populates="classes_taught", foreign_keys=[class_teacher_id])
     session = relationship("AcademicSession", back_populates="classes")
@@ -24,3 +24,4 @@ class Class(Base):
     invoices = relationship("Invoice", back_populates="class_")
     results = relationship("Result", back_populates="class_")
     attendance_records = relationship("Attendance", back_populates="class_")
+    timetable_slots = relationship("TimetableSlot", back_populates="class_")
