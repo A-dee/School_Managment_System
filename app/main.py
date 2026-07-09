@@ -40,9 +40,11 @@ async def log_requests(request: Request, call_next):
     response = await call_next(request)
     ms = round((time.perf_counter() - start) * 1000)
     status = response.status_code
-    # Colour-code by status bucket
-    marker = "✓" if status < 300 else ("⚠" if status < 500 else "✗")
-    logger.info("%s %s %s → %d (%dms)", marker, request.method, request.url.path, status, ms)
+    try:
+        marker = "OK" if status < 300 else ("WARN" if status < 500 else "ERR")
+        logger.info("[%s] %s %s -> %d (%dms)", marker, request.method, request.url.path, status, ms)
+    except Exception:
+        pass
     return response
 
 _allowed_origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()]

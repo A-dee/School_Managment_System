@@ -169,7 +169,7 @@ export default function PrincipalDashboard() {
             </div>
             <div style={{ padding: "14px 16px", borderRadius: 10, background: "var(--accent-light)" }}>
               <div style={{ fontSize: "0.72rem", color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Visible Amount</div>
-              <div style={{ fontSize: "1.45rem", fontWeight: 800, color: "#10b981" }}>â‚¦{onlineSummary.totalAmount.toLocaleString()}</div>
+              <div style={{ fontSize: "1.45rem", fontWeight: 800, color: "#10b981" }}>₦{onlineSummary.totalAmount.toLocaleString()}</div>
             </div>
           </div>
           {onlinePayments.length > 0 ? (
@@ -181,7 +181,7 @@ export default function PrincipalDashboard() {
                     <div style={{ fontSize: "0.72rem", color: "var(--text-secondary)", marginTop: 2 }}>Ref: {tx.reference}</div>
                   </div>
                   <div style={{ textAlign: "right", flexShrink: 0 }}>
-                    <div style={{ fontWeight: 700, color: "#10b981", fontSize: "0.86rem" }}>â‚¦{(Number(tx.amount_minor || 0) / 100).toLocaleString()}</div>
+                    <div style={{ fontWeight: 700, color: "#10b981", fontSize: "0.86rem" }}>₦{(Number(tx.amount_minor || 0) / 100).toLocaleString()}</div>
                     <div style={{ fontSize: "0.72rem", color: "var(--text-secondary)", marginTop: 2 }}>
                       {tx.paid_at ? new Date(tx.paid_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "Awaiting timestamp"}
                     </div>

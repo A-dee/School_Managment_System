@@ -259,6 +259,7 @@ class OptionalFeeOut(BaseModel):
 class PaystackInitializeIn(BaseModel):
     invoice_id: int = Field(gt=0)
     payment_option: int = Field(default=100)
+    milestone_id: Optional[int] = None
 
 
 class PaystackInitializeOut(BaseModel):

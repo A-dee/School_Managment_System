@@ -31,6 +31,7 @@ from app.utils.response import success_response, paginated_response
 from app.utils.audit import log_action
 from app.config import settings
 from app.models.user import UserRole
+from app.models.installment import FeeInstallmentMilestone, InstallmentMilestoneStatus
 from app.crud.staff import get_staff_by_user_id
 from app.routes.notifications import send_bulk_notifications
 from app.utils.paystack import (
@@ -209,6 +210,21 @@ def _sync_paystack_transaction(db: Session, transaction: PaystackTransaction, ve
                 # already settled the invoice; keep the gateway audit row without
                 # forcing a duplicate internal payment.
                 payment = None
+            
+            metadata = data.get("metadata") or {}
+            milestone_id = metadata.get("milestone_id")
+            if milestone_id:
+                try:
+                    milestone_id_int = int(milestone_id)
+                except (ValueError, TypeError):
+                    milestone_id_int = None
+                if milestone_id_int is not None:
+                    milestone = db.query(FeeInstallmentMilestone).filter(FeeInstallmentMilestone.id == milestone_id_int).first()
+                    if milestone:
+                        milestone.paid_amount = Decimal(str(milestone.paid_amount or 0)) + amount_paid
+                        if milestone.paid_amount >= milestone.amount:
+                            milestone.status = InstallmentMilestoneStatus.PAID
+            
             send_bulk_notifications(
                 db,
                 _get_student_finance_recipient_ids(db, transaction.student_id),
@@ -720,7 +736,20 @@ def initialize_paystack(
     if invoice.status == InvoiceStatus.PAID or Decimal(str(invoice.balance)) <= 0:
         raise HTTPException(status_code=400, detail="This invoice has already been paid")
 
-    amount_to_charge = _resolve_parent_payment_amount(invoice, data.payment_option)
+    if data.milestone_id:
+        milestone = db.query(FeeInstallmentMilestone).filter(FeeInstallmentMilestone.id == data.milestone_id).first()
+        if not milestone:
+            raise HTTPException(status_code=400, detail="Milestone not found")
+        if not milestone.plan or milestone.plan.invoice_id != invoice.id:
+            raise HTTPException(status_code=400, detail="Milestone does not belong to this invoice")
+        
+        remaining_balance = _rounded_money(Decimal(str(milestone.amount)) - Decimal(str(milestone.paid_amount)))
+        if milestone.status == InstallmentMilestoneStatus.PAID or remaining_balance <= 0:
+            raise HTTPException(status_code=400, detail="Milestone is already paid or less than/equal to 0")
+        amount_to_charge = remaining_balance
+    else:
+        amount_to_charge = _resolve_parent_payment_amount(invoice, data.payment_option)
+
     amount_minor = _minor_units(amount_to_charge)
     reference = f"SMS-PSTK-{invoice.id}-{uuid.uuid4().hex[:10].upper()}"
     callback_url = (
@@ -740,6 +769,7 @@ def initialize_paystack(
             "initiated_by_user_id": current_user.id,
             "payment_option": data.payment_option,
             "scheduled_amount": str(amount_to_charge),
+            "milestone_id": data.milestone_id,
         },
         "currency": "NGN",
     }
