@@ -136,10 +136,12 @@ class PayrollOut(BaseModel):
     net_salary:     Decimal
     payment_status: PayrollStatus
     payment_date:   Optional[date]
+    note:           Optional[str] = None
     created_at:     datetime
 
     class Config:
         from_attributes = True
+
 
 
 class GenerateInvoicesRequest(BaseModel):

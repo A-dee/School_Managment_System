@@ -15,7 +15,7 @@ const typeLabel: Record<string, string> = {
   TEACHER: "Teacher", ADMIN: "Admin", NON_TEACHING: "Non-Teaching", PRINCIPAL: "Principal",
 };
 
-type Staff   = { id: number; full_name: string; email: string; staff_type: string; status: string; salary_amount: string };
+type Staff   = { id: number; full_name: string; email: string; staff_type: string; status: string; salary_amount: string; bank_code?: string; account_number?: string; bank_name?: string; account_name?: string };
 type Payroll = { id: number; staff_id: number; month: number; year: number; salary_amount: string; deductions: string; bonuses: string; net_salary: string; payment_status: "PENDING"|"PAID"; payment_date: string | null };
 type Row     = Staff & { payroll: Payroll | null };
 type Tab     = "salaries" | "advance" | "terminations";
@@ -37,6 +37,7 @@ export default function PayrollPage() {
   const [editDeduct, setEditDeduct] = useState("0");
   const [editBonus,  setEditBonus]  = useState("0");
   const [paying,  setPaying]  = useState<number | null>(null);
+  const [disbursing, setDisbursing] = useState<number | null>(null);
 
   /* ---- Advance tab state ---- */
   const [allStaff,     setAllStaff]     = useState<Staff[]>([]);
@@ -128,6 +129,24 @@ export default function PayrollPage() {
       toast.success(`${row.full_name} marked as paid`);
     } catch { toast.error("Failed to mark paid"); }
     finally { setPaying(null); }
+  };
+
+  const disbursePayroll = async (row: Row) => {
+    if (!row.payroll?.id) {
+      toast.error("Payroll entry must exist before disbursing. Please adjust or mark paid first.");
+      return;
+    }
+    setDisbursing(row.id);
+    try {
+      await api.post(`/api/v1/finance/payroll/${row.payroll.id}/disburse`);
+      toast.success(`Disbursement processed for ${row.full_name}`);
+      await loadSalaries();
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || "Failed to disburse payroll";
+      toast.error(msg);
+    } finally {
+      setDisbursing(null);
+    }
   };
 
   /* ================================================================ */
@@ -384,6 +403,21 @@ export default function PayrollPage() {
                               >
                                 {paying === row.id ? "…" : "Mark Paid"}
                               </button>
+                              {!(row.bank_code && row.account_number) ? (
+                                <button
+                                  disabled
+                                  style={{ padding: "4px 12px", borderRadius: 6, border: "none", background: "var(--border)", color: "var(--text-secondary)", fontSize: "0.75rem", fontWeight: 600, cursor: "not-allowed", opacity: 0.6 }}
+                                >
+                                  Disburse via Paystack (Bank details missing)
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => disbursePayroll(row)} disabled={disbursing === row.id || !row.payroll?.id}
+                                  style={{ padding: "4px 12px", borderRadius: 6, border: "none", background: "#3b82f6", color: "#fff", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", opacity: (disbursing === row.id || !row.payroll?.id) ? 0.6 : 1 }}
+                                >
+                                  {disbursing === row.id ? "…" : "Disburse via Paystack"}
+                                </button>
+                              )}
                               {isEdit && <button onClick={() => setEditId(null)} style={outlineBtn}>Cancel</button>}
                             </div>
                           )}

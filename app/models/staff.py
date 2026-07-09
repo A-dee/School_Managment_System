@@ -41,6 +41,12 @@ class Staff(Base):
     status = Column(Enum(StaffStatus), default=StaffStatus.ACTIVE)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    
+    bank_name = Column(String, nullable=True)
+    account_number = Column(String, nullable=True)
+    bank_code = Column(String, nullable=True)
+    account_name = Column(String, nullable=True)
+    paystack_recipient_code = Column(String, nullable=True)
 
     user = relationship("User", back_populates="staff")
     classes_taught = relationship("Class", back_populates="class_teacher", foreign_keys="Class.class_teacher_id")

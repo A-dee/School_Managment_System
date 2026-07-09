@@ -136,10 +136,12 @@ class Payroll(Base):
     payment_status = Column(Enum(PayrollStatus), default=PayrollStatus.PENDING)
     payment_date = Column(Date, nullable=True)
     processed_by_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    note = Column(String, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     staff = relationship("Staff", back_populates="payrolls")
     processed_by = relationship("User")
+
 
 
 class PaymentDeclaration(Base):

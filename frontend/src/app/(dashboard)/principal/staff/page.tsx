@@ -34,6 +34,10 @@ const blankForm = {
   salary_amount: "",
   employment_date: new Date().toISOString().split("T")[0],
   staff_type: "TEACHER",
+  bank_name: "",
+  account_number: "",
+  bank_code: "",
+  account_name: "",
 };
 
 const blankEdit = {
@@ -47,6 +51,10 @@ const blankEdit = {
   employment_date: "",
   staff_type: "TEACHER",
   status: "ACTIVE",
+  bank_name: "",
+  account_number: "",
+  bank_code: "",
+  account_name: "",
 };
 
 function getApiErrorMessage(error: any, fallback: string) {
@@ -89,9 +97,23 @@ export default function StaffPage() {
   const [editForm, setEditForm] = useState(blankEdit);
   const [editSaving, setEditSaving] = useState(false);
 
+  const [banks, setBanks] = useState<any[]>([]);
+  const [resolvingAccount, setResolvingAccount] = useState(false);
+
   const limit = 20;
 
-  useEffect(() => { setRole(getRole() || ""); }, []);
+  useEffect(() => {
+    setRole(getRole() || "");
+    const fetchBanks = async () => {
+      try {
+        const res = await api.get("/api/v1/finance/banks");
+        setBanks(res.data?.data || res.data || []);
+      } catch (err) {
+        console.error("Failed to load banks", err);
+      }
+    };
+    fetchBanks();
+  }, []);
 
   useEffect(() => {
     if (editingStaff) document.body.classList.add("modal-open");
@@ -145,6 +167,10 @@ export default function StaffPage() {
       employment_date: s.employment_date || "",
       staff_type: s.staff_type || "TEACHER",
       status: s.status || "ACTIVE",
+      bank_name: s.bank_name || "",
+      account_number: s.account_number || "",
+      bank_code: s.bank_code || "",
+      account_name: s.account_name || "",
     });
   };
 
@@ -166,6 +192,10 @@ export default function StaffPage() {
         employment_date: editForm.employment_date || null,
         staff_type: editForm.staff_type,
         status: editForm.status,
+        bank_name: editForm.bank_name || null,
+        account_number: editForm.account_number || null,
+        bank_code: editForm.bank_code || null,
+        account_name: editForm.account_name || null,
       });
       toast.success("Staff member updated");
       setEditingStaff(null);
@@ -206,6 +236,10 @@ export default function StaffPage() {
         full_name: `${form.first_name} ${form.last_name}`.trim(),
         salary_amount: form.salary_amount ? Number(form.salary_amount) : 0,
         employment_date: form.employment_date || null,
+        bank_name: form.bank_name || null,
+        account_number: form.account_number || null,
+        bank_code: form.bank_code || null,
+        account_name: form.account_name || null,
       });
       toast.success("Staff member created — login credentials sent by email");
       setShowForm(false);
@@ -285,6 +319,68 @@ export default function StaffPage() {
             <div>
               <label className="t-label">Address</label>
               <input className="t-input" placeholder="Home address" value={form.address} onChange={(e) => set("address", e.target.value)} />
+            </div>
+            <div>
+              <label className="t-label">Bank</label>
+              <select
+                className="t-input"
+                value={form.bank_code}
+                onChange={(e) => {
+                  const code = e.target.value;
+                  const selectedBank = banks.find((b: any) => b.code === code);
+                  setForm((p) => ({
+                    ...p,
+                    bank_code: code,
+                    bank_name: selectedBank ? selectedBank.name : "",
+                  }));
+                }}
+              >
+                <option value="">Select Bank</option>
+                {banks.map((b: any) => (
+                  <option key={b.code || b.id} value={b.code}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="t-label">Account Number</label>
+              <input
+                className="t-input"
+                maxLength={10}
+                placeholder="10-digit account number"
+                value={form.account_number}
+                onChange={async (e) => {
+                  const val = e.target.value;
+                  setForm((p) => ({ ...p, account_number: val }));
+                  if (val.length === 10 && form.bank_code) {
+                    setResolvingAccount(true);
+                    try {
+                      const res = await api.get(`/api/v1/finance/bank/resolve?account_number=${val}&bank_code=${form.bank_code}`);
+                      const resolvedName = res.data?.account_name || res.data?.data?.account_name || "";
+                      if (resolvedName) {
+                        setForm((p) => ({ ...p, account_name: resolvedName }));
+                        toast.success(`Account resolved: ${resolvedName}`);
+                      } else {
+                        toast.error("Could not resolve account name");
+                      }
+                    } catch (err: any) {
+                      toast.error(getApiErrorMessage(err, "Failed to resolve account"));
+                    } finally {
+                      setResolvingAccount(false);
+                    }
+                  }
+                }}
+              />
+            </div>
+            <div>
+              <label className="t-label">Account Name {resolvingAccount && <span className="t-spinner inline-block w-3 h-3 ml-1" />}</label>
+              <input
+                className="t-input bg-gray-50 dark:bg-gray-800 cursor-not-allowed"
+                readOnly
+                placeholder="Resolved account name"
+                value={form.account_name}
+              />
             </div>
           </div>
           <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
@@ -459,6 +555,68 @@ export default function StaffPage() {
                 <div style={{ gridColumn: "1 / -1" }}>
                   <label className="t-label">Address</label>
                   <input className="t-input" placeholder="Home address" value={editForm.address} onChange={(e) => setE("address", e.target.value)} />
+                </div>
+                <div>
+                  <label className="t-label">Bank</label>
+                  <select
+                    className="t-input"
+                    value={editForm.bank_code}
+                    onChange={(e) => {
+                      const code = e.target.value;
+                      const selectedBank = banks.find((b: any) => b.code === code);
+                      setEditForm((p) => ({
+                        ...p,
+                        bank_code: code,
+                        bank_name: selectedBank ? selectedBank.name : "",
+                      }));
+                    }}
+                  >
+                    <option value="">Select Bank</option>
+                    {banks.map((b: any) => (
+                      <option key={b.code || b.id} value={b.code}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="t-label">Account Number</label>
+                  <input
+                    className="t-input"
+                    maxLength={10}
+                    placeholder="10-digit account number"
+                    value={editForm.account_number}
+                    onChange={async (e) => {
+                      const val = e.target.value;
+                      setEditForm((p) => ({ ...p, account_number: val }));
+                      if (val.length === 10 && editForm.bank_code) {
+                        setResolvingAccount(true);
+                        try {
+                          const res = await api.get(`/api/v1/finance/bank/resolve?account_number=${val}&bank_code=${editForm.bank_code}`);
+                          const resolvedName = res.data?.account_name || res.data?.data?.account_name || "";
+                          if (resolvedName) {
+                            setEditForm((p) => ({ ...p, account_name: resolvedName }));
+                            toast.success(`Account resolved: ${resolvedName}`);
+                          } else {
+                            toast.error("Could not resolve account name");
+                          }
+                        } catch (err: any) {
+                          toast.error(getApiErrorMessage(err, "Failed to resolve account"));
+                        } finally {
+                          setResolvingAccount(false);
+                        }
+                      }
+                    }}
+                  />
+                </div>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <label className="t-label">Account Name {resolvingAccount && <span className="t-spinner inline-block w-3 h-3 ml-1" />}</label>
+                  <input
+                    className="t-input bg-gray-50 dark:bg-gray-800 cursor-not-allowed"
+                    readOnly
+                    placeholder="Resolved account name"
+                    value={editForm.account_name}
+                  />
                 </div>
               </div>
             </div>

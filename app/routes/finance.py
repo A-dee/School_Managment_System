@@ -6,7 +6,7 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Header, Request
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models.finance import FeeStructure, Invoice, Payment, Expenditure, Payroll, PaymentDeclaration, PaymentDeclarationStatus, InvoiceStatus, PaystackTransaction, PaystackTransactionStatus
+from app.models.finance import FeeStructure, Invoice, Payment, Expenditure, Payroll, PayrollStatus, PaymentDeclaration, PaymentDeclarationStatus, InvoiceStatus, PaystackTransaction, PaystackTransactionStatus
 from app.schemas.finance import (
     FeeStructureCreate, FeeStructureOut, InvoiceOut,
     PaymentCreate, PaymentOut, ExpenditureCreate, ExpenditureOut,
@@ -37,6 +37,8 @@ from app.routes.notifications import send_bulk_notifications
 from app.utils.paystack import (
     initialize_paystack_transaction, verify_paystack_signature,
     verify_paystack_transaction, paystack_is_configured,
+    fetch_bank_list, resolve_bank_account,
+    create_transfer_recipient, initiate_transfer,
 )
 from app.utils.student_portal import student_requires_parent_portal
 from app.utils.cache import TTLMemoryCache
@@ -1033,5 +1035,81 @@ def remove_optional_fee(fee_id: int, db: Session = Depends(get_db), current_user
         raise HTTPException(status_code=404, detail="Optional fee not found")
     db.commit()
     return success_response({"message": "Deleted"})
+
+
+# --- Paystack Bank and Payroll disbursement ---
+@router.get("/banks")
+def get_banks(db: Session = Depends(get_db), current_user=Depends(is_admin_or_above)):
+    try:
+        banks = fetch_bank_list()
+        return success_response(banks)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Failed to fetch bank list from Paystack: {exc}")
+
+
+@router.get("/bank/resolve")
+def resolve_bank(
+    account_number: str,
+    bank_code: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(is_admin_or_above),
+):
+    try:
+        result = resolve_bank_account(account_number, bank_code)
+        return success_response(result)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Failed to resolve bank account: {exc}")
+
+
+@router.post("/payroll/{payroll_id}/disburse", dependencies=[Depends(require_feature("payroll"))])
+def disburse_payroll(
+    payroll_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(is_admin_or_above),
+):
+    from app.models.staff import Staff
+
+    payroll = db.query(Payroll).filter(Payroll.id == payroll_id).first()
+    if not payroll or payroll.payment_status == PayrollStatus.PAID:
+        raise HTTPException(status_code=400, detail="Payroll not found or already paid")
+
+    staff = db.query(Staff).filter(Staff.id == payroll.staff_id).first()
+    if not staff or not staff.bank_code or not staff.account_number:
+        raise HTTPException(status_code=400, detail="Staff bank details (bank_code or account_number) are missing")
+
+    if not staff.paystack_recipient_code:
+        try:
+            recipient_code = create_transfer_recipient(
+                staff.full_name,
+                staff.account_number,
+                staff.bank_code
+            )
+            if not recipient_code:
+                raise ValueError("Failed to create transfer recipient on Paystack")
+            staff.paystack_recipient_code = recipient_code
+            db.flush()
+        except Exception as exc:
+            db.rollback()
+            raise HTTPException(status_code=400, detail=f"Failed to create transfer recipient: {exc}")
+
+    try:
+        ref = initiate_transfer(
+            payroll.net_salary,
+            staff.paystack_recipient_code,
+            f"Salary payout for {payroll.month}/{payroll.year}"
+        )
+        if not ref:
+            raise ValueError("Failed to initiate transfer on Paystack")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Failed to initiate transfer: {exc}")
+
+    payroll.payment_status = PayrollStatus.PAID
+    payroll.payment_date = date.today()
+    payroll.note = f"Paystack Ref: {ref}"
+    
+    db.commit()
+    _clear_finance_analytics_cache()
+    return success_response(None, "Payroll disbursed and marked as paid")
+
 
 

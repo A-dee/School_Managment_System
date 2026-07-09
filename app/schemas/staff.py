@@ -22,6 +22,11 @@ class StaffCreate(BaseModel):
     staff_type:      StaffType
     user_email:      EmailStr
     user_password:   str = Field(min_length=8, max_length=128)
+    bank_name:               Optional[str] = None
+    account_number:          Optional[str] = None
+    bank_code:               Optional[str] = None
+    account_name:            Optional[str] = None
+    paystack_recipient_code: Optional[str] = None
 
     @field_validator("first_name", "last_name")
     @classmethod
@@ -109,6 +114,11 @@ class StaffOut(BaseModel):
     staff_type:      StaffType
     status:          StaffStatus
     created_at:      datetime
+    bank_name:               Optional[str] = None
+    account_number:          Optional[str] = None
+    bank_code:               Optional[str] = None
+    account_name:            Optional[str] = None
+    paystack_recipient_code: Optional[str] = None
 
     class Config:
         from_attributes = True
