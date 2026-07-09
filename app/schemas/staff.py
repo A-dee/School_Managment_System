@@ -70,6 +70,11 @@ class StaffUpdate(BaseModel):
     salary_amount:   Optional[Decimal]     = None
     staff_type:      Optional[StaffType]   = None
     status:          Optional[StaffStatus] = None
+    bank_name:               Optional[str]         = None
+    account_number:          Optional[str]         = Field(None, max_length=25)
+    bank_code:               Optional[str]         = None
+    account_name:            Optional[str]         = None
+    paystack_recipient_code: Optional[str]         = None
 
     @field_validator("first_name", "last_name", "full_name")
     @classmethod
