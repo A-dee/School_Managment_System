@@ -22,3 +22,4 @@ from app.models.calendar import SchoolEvent
 from app.models.installment import FeeInstallmentPlan, FeeInstallmentMilestone
 from app.models.timetable import TimetablePeriod, TimetableSlot
 from app.models.school import SchoolConfig, SubscriptionTier
+from app.models.installment_template import TermInstallmentTemplate

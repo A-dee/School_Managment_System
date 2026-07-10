@@ -16,6 +16,8 @@ from app.models.user import UserRole
 from app.utils.auth import get_current_user
 from app.utils.rbac import is_admin_or_above
 from app.utils.response import success_response
+from app.models.installment_template import TermInstallmentTemplate
+from app.schemas.installment_template import TermInstallmentTemplateCreate, TermInstallmentTemplateOut
 
 router = APIRouter(prefix="/finance", tags=["Finance Installments"])
 
@@ -229,3 +231,35 @@ def pay_installment_milestone(
         },
         "Installment payment recorded",
     )
+
+
+@router.get("/terms/{term_id}/installment-template")
+def get_term_installment_template(
+    term_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(is_admin_or_above),
+):
+    template = db.query(TermInstallmentTemplate).filter(TermInstallmentTemplate.term_id == term_id).first()
+    if not template:
+        return success_response(data=None)
+    return success_response(TermInstallmentTemplateOut.model_validate(template).model_dump())
+
+
+@router.post("/terms/{term_id}/installment-template")
+def save_term_installment_template(
+    term_id: int,
+    data: TermInstallmentTemplateCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(is_admin_or_above),
+):
+    milestones_data = [item.model_dump() for item in data.milestones]
+    template = db.query(TermInstallmentTemplate).filter(TermInstallmentTemplate.term_id == term_id).first()
+    if template:
+        template.milestones = milestones_data
+    else:
+        template = TermInstallmentTemplate(term_id=term_id, milestones=milestones_data)
+        db.add(template)
+    
+    db.commit()
+    db.refresh(template)
+    return success_response(TermInstallmentTemplateOut.model_validate(template).model_dump(), "Installment template saved")

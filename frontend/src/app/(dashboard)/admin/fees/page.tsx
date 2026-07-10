@@ -41,6 +41,19 @@ export default function FeesPage() {
   const [sessionId, setSessionId] = useState("");
   const [termId,    setTermId]    = useState("");
   const [search,    setSearch]    = useState("");
+  const [pctFilter, setPctFilter] = useState<string>("all");
+
+  /* --- installment template state --- */
+  const [instSessionId, setInstSessionId] = useState("");
+  const [instTermId,    setInstTermId]    = useState("");
+  const [instTerms,     setInstTerms]     = useState<any[]>([]);
+  const [preset,        setPreset]        = useState<"50_50" | "50_25_25" | "custom">("50_50");
+  const [milestones,    setMilestones]    = useState<{ name: string; percentage: number; due_date: string }[]>([
+    { name: "First Installment", percentage: 50, due_date: "" },
+    { name: "Second Installment", percentage: 50, due_date: "" },
+  ]);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [loadingTemplate, setLoadingTemplate] = useState(false);
 
   /* --- SWR Data Hooks --- */
   const { classes } = useClasses();
@@ -359,7 +372,30 @@ export default function FeesPage() {
   /* --- derived --- */
   const filteredStudents = students.filter(s => {
     const q = search.toLowerCase();
-    return !q || s.first_name.toLowerCase().includes(q) || s.last_name.toLowerCase().includes(q) || s.admission_number.toLowerCase().includes(q);
+    const matchesSearch = !q || s.first_name.toLowerCase().includes(q) || s.last_name.toLowerCase().includes(q) || s.admission_number.toLowerCase().includes(q);
+    if (!matchesSearch) return false;
+
+    const stInv = invoiceMap[s.id];
+    const total = stInv ? Number(stInv.total_fee) || 0 : 0;
+    const paid = stInv ? Number(stInv.paid_amount) || 0 : 0;
+    const pct = total > 0 ? (paid / total) * 100 : 0;
+
+    if (pctFilter === "paid_100") {
+      return stInv && stInv.status === "PAID";
+    }
+    if (pctFilter === "paid_50_99") {
+      return pct >= 50 && pct < 100;
+    }
+    if (pctFilter === "paid_1_49") {
+      return pct > 0 && pct < 50;
+    }
+    if (pctFilter === "paid_0") {
+      return !stInv || pct === 0;
+    }
+    if (pctFilter === "owing") {
+      return !stInv || stInv.status !== "PAID";
+    }
+    return true;
   });
 
   const classMap: any   = Object.fromEntries((classes || []).map((c: any) => [c.id, c.name]));
@@ -377,6 +413,129 @@ export default function FeesPage() {
   const unpaidCount = invList.filter(i => i.status !== "PAID").length;
 
   const calcTotal = items.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+
+  const applyPreset = (p: "50_50" | "50_25_25" | "custom") => {
+    setPreset(p);
+    if (p === "50_50") {
+      setMilestones([
+        { name: "First Installment", percentage: 50, due_date: "" },
+        { name: "Second Installment", percentage: 50, due_date: "" },
+      ]);
+    } else if (p === "50_25_25") {
+      setMilestones([
+        { name: "First Installment", percentage: 50, due_date: "" },
+        { name: "Second Installment", percentage: 25, due_date: "" },
+        { name: "Third Installment", percentage: 25, due_date: "" },
+      ]);
+    }
+  };
+
+  const loadInstallmentTemplate = async (termIdStr: string) => {
+    if (!termIdStr) return;
+    setLoadingTemplate(true);
+    try {
+      const r = await api.get(`/api/v1/finance/terms/${termIdStr}/installment-template`);
+      if (r.data && r.data.milestones && r.data.milestones.length > 0) {
+        setMilestones(r.data.milestones.map((m: any) => ({
+          name: m.name || "",
+          percentage: Number(m.percentage) || 0,
+          due_date: m.due_date ? m.due_date.split("T")[0] : "",
+        })));
+        // Check if matching preset
+        const len = r.data.milestones.length;
+        const pcts = r.data.milestones.map((m: any) => Number(m.percentage) || 0);
+        if (len === 2 && pcts[0] === 50 && pcts[1] === 50) {
+          setPreset("50_50");
+        } else if (len === 3 && pcts[0] === 50 && pcts[1] === 25 && pcts[2] === 25) {
+          setPreset("50_25_25");
+        } else {
+          setPreset("custom");
+        }
+      } else {
+        applyPreset("50_50");
+      }
+    } catch {
+      applyPreset("50_50");
+    } finally {
+      setLoadingTemplate(false);
+    }
+  };
+
+  const handleInstSessionChange = async (sid: string) => {
+    setInstSessionId(sid);
+    setInstTermId("");
+    setMilestones([
+      { name: "First Installment", percentage: 50, due_date: "" },
+      { name: "Second Installment", percentage: 50, due_date: "" },
+    ]);
+    setPreset("50_50");
+    if (sid) {
+      const ts = await getTerms(sid);
+      setInstTerms(ts);
+    } else {
+      setInstTerms([]);
+    }
+  };
+
+  const handleInstTermChange = async (tid: string) => {
+    setInstTermId(tid);
+    if (tid) {
+      await loadInstallmentTemplate(tid);
+    } else {
+      setMilestones([
+        { name: "First Installment", percentage: 50, due_date: "" },
+        { name: "Second Installment", percentage: 50, due_date: "" },
+      ]);
+      setPreset("50_50");
+    }
+  };
+
+  const totalPercentage = milestones.reduce((sum, m) => sum + (Number(m.percentage) || 0), 0);
+
+  const saveInstallmentTemplate = async () => {
+    if (!instTermId) {
+      toast.error("Please select a Term");
+      return;
+    }
+    if (milestones.length === 0) {
+      toast.error("Please add at least one milestone");
+      return;
+    }
+    if (totalPercentage !== 100) {
+      toast.error(`Total percentage must equal 100%. Currently it is ${totalPercentage}%.`);
+      return;
+    }
+    for (const m of milestones) {
+      if (!m.name.trim()) {
+        toast.error("All milestones must have a name");
+        return;
+      }
+      if (Number(m.percentage) <= 0) {
+        toast.error("Percentages must be greater than 0");
+        return;
+      }
+      if (!m.due_date) {
+        toast.error(`Please select a due date for ${m.name}`);
+        return;
+      }
+    }
+
+    setSavingTemplate(true);
+    try {
+      await api.post(`/api/v1/finance/terms/${instTermId}/installment-template`, {
+        milestones: milestones.map(m => ({
+          name: m.name.trim(),
+          percentage: Number(m.percentage),
+          due_date: m.due_date,
+        })),
+      });
+      toast.success("Installment template saved successfully");
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || "Failed to save installment template");
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
 
   /* ================================================================ */
   return (
@@ -445,20 +604,29 @@ export default function FeesPage() {
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
                 {[
-                  { icon: <DollarSign size={16} />, label: "Total Fees Due",  value: fmt(totalFees),          color: "text-[var(--accent)]" },
-                  { icon: <CheckCircle size={16} />,label: "Total Collected", value: fmt(totalPaid),          color: "text-[var(--success)]" },
-                  { icon: <AlertTriangle size={16} />,label: "Outstanding",   value: fmt(totalFees - totalPaid), color: "text-[var(--danger)]" },
-                  { icon: <Users size={16} />,      label: "Fully Paid",      value: paidCount,               color: "text-emerald-500" },
-                  { icon: <CreditCard size={16} />, label: "Still Owing",     value: unpaidCount,             color: "text-[var(--warn)]" },
-                ].map(({ icon, label, value, color }) => (
-                  <div key={label} className="t-card p-4 flex flex-col justify-between">
-                    <div className={`${color} mb-2`}>{icon}</div>
-                    <div>
-                      <div className="text-lg font-bold t-text-primary">{value}</div>
-                      <div className="text-[10px] uppercase tracking-wider t-text-secondary mt-1">{label}</div>
+                  { icon: <DollarSign size={16} />, label: "Total Fees Due",  value: fmt(totalFees),          color: "text-[var(--accent)]", filterVal: "all" },
+                  { icon: <CheckCircle size={16} />,label: "Total Collected", value: fmt(totalPaid),          color: "text-[var(--success)]", filterVal: "all" },
+                  { icon: <AlertTriangle size={16} />,label: "Outstanding",   value: fmt(totalFees - totalPaid), color: "text-[var(--danger)]", filterVal: "all" },
+                  { icon: <Users size={16} />,      label: "Fully Paid",      value: paidCount,               color: "text-emerald-500", filterVal: "paid_100" },
+                  { icon: <CreditCard size={16} />, label: "Still Owing",     value: unpaidCount,             color: "text-[var(--warn)]", filterVal: "owing" },
+                ].map(({ icon, label, value, color, filterVal }) => {
+                  const isActive = pctFilter === filterVal || (filterVal === "all" && pctFilter !== "paid_100" && pctFilter !== "owing");
+                  return (
+                    <div
+                      key={label}
+                      onClick={() => setPctFilter(filterVal)}
+                      className={`t-card p-4 flex flex-col justify-between cursor-pointer transition-all duration-200 hover:scale-[1.02] hover:bg-black/5 dark:hover:bg-white/5 active:scale-[0.98] ${
+                        isActive ? "ring-1 ring-[var(--accent)] bg-[var(--accent-light)]" : ""
+                      }`}
+                    >
+                      <div className={`${color} mb-2`}>{icon}</div>
+                      <div>
+                        <div className="text-lg font-bold t-text-primary">{value}</div>
+                        <div className="text-[10px] uppercase tracking-wider t-text-secondary mt-1">{label}</div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="t-card p-4 mb-6">
@@ -513,7 +681,22 @@ export default function FeesPage() {
           <div className="flex flex-col lg:flex-row gap-4 min-h-[500px]">
             {/* Student list */}
             <div className="w-full lg:w-[280px] shrink-0 flex flex-col t-card p-0 overflow-hidden max-h-[350px] lg:max-h-none">
-              <div className="p-3 border-b t-border">
+              <div className="p-3 border-b t-border flex flex-col gap-2">
+                <div>
+                  <label className="text-[10px] font-semibold t-text-secondary block mb-1">Payment Status</label>
+                  <select
+                    value={pctFilter}
+                    onChange={e => setPctFilter(e.target.value)}
+                    className="t-input text-xs py-1.5 w-full"
+                  >
+                    <option value="all">All Payments</option>
+                    <option value="paid_100">Fully Paid (100%)</option>
+                    <option value="paid_50_99">Owing - Partially Paid (50% - 99%)</option>
+                    <option value="paid_1_49">Owing - Minimally Paid (1% - 49%)</option>
+                    <option value="paid_0">Owing - Unpaid (0%)</option>
+                    <option value="owing">Still Owing (&lt; 100%)</option>
+                  </select>
+                </div>
                 <div className="relative">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 t-text-secondary pointer-events-none" />
                   <input
@@ -952,6 +1135,141 @@ export default function FeesPage() {
                 <CalendarCheck size={14} /> {generating ? "Generating…" : "Generate Invoices"}
               </button>
             </div>
+          </div>
+
+          {/* Termly Installment Due Dates Section */}
+          <div className="t-card p-5">
+            <h3 className="font-bold text-sm t-text-primary mb-1">Termly Installment Due Dates</h3>
+            <p className="text-xs t-text-secondary mb-4">
+              Configure installment templates and payment milestone due dates for a specific term.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+              <div>
+                <label className="t-label">Session *</label>
+                <select
+                  value={instSessionId}
+                  onChange={e => handleInstSessionChange(e.target.value)}
+                  className="t-input"
+                >
+                  <option value="">Select session</option>
+                  {sessions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="t-label">Term *</label>
+                <select
+                  value={instTermId}
+                  onChange={e => handleInstTermChange(e.target.value)}
+                  className="t-input"
+                  disabled={!instSessionId}
+                >
+                  <option value="">Select term</option>
+                  {instTerms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {instTermId && (
+              <div className="border t-border rounded-lg p-4 bg-black/5 dark:bg-white/5">
+                <div className="flex gap-4 items-center mb-4 flex-wrap">
+                  <span className="text-xs font-semibold t-text-secondary">Installment Preset:</span>
+                  <div className="flex gap-2">
+                    {(["50_50", "50_25_25", "custom"] as const).map(p => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => applyPreset(p)}
+                        className={`px-3 py-1 rounded text-xs font-semibold border t-border transition-all ${
+                          preset === p
+                            ? "bg-[var(--accent)] text-white border-transparent"
+                            : "bg-transparent t-text-secondary hover:bg-black/5 dark:hover:bg-white/5"
+                        }`}
+                      >
+                        {p === "50_50" ? "50/50" : p === "50_25_25" ? "50/25/25" : "Custom"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {loadingTemplate ? (
+                  <p className="text-xs t-text-secondary py-4">Loading existing template...</p>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {milestones.map((m, idx) => (
+                      <div key={idx} className="flex flex-col sm:flex-row gap-3 items-end sm:items-center">
+                        <div className="flex-1 w-full">
+                          <label className="text-[10px] t-text-secondary block mb-1">Milestone Name</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Second Installment"
+                            value={m.name}
+                            onChange={e => setMilestones(prev => prev.map((x, j) => j === idx ? { ...x, name: e.target.value } : x))}
+                            disabled={preset !== "custom"}
+                            className="t-input text-xs py-1.5"
+                          />
+                        </div>
+                        <div className="w-full sm:w-[120px]">
+                          <label className="text-[10px] t-text-secondary block mb-1">Percentage (%)</label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={100}
+                            placeholder="e.g. 50"
+                            value={m.percentage}
+                            onChange={e => setMilestones(prev => prev.map((x, j) => j === idx ? { ...x, percentage: Number(e.target.value) || 0 } : x))}
+                            disabled={preset !== "custom"}
+                            className="t-input text-xs py-1.5"
+                          />
+                        </div>
+                        <div className="w-full sm:w-[180px]">
+                          <label className="text-[10px] t-text-secondary block mb-1">Due Date</label>
+                          <input
+                            type="date"
+                            value={m.due_date}
+                            onChange={e => setMilestones(prev => prev.map((x, j) => j === idx ? { ...x, due_date: e.target.value } : x))}
+                            className="t-input text-xs py-1.5"
+                          />
+                        </div>
+                        {preset === "custom" && milestones.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setMilestones(prev => prev.filter((_, j) => j !== idx))}
+                            className="p-2 rounded bg-red-500/10 text-[var(--danger)] hover:bg-red-500/20 cursor-pointer shrink-0 border-none mb-[2px]"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+
+                    {preset === "custom" && (
+                      <button
+                        type="button"
+                        onClick={() => setMilestones(prev => [...prev, { name: "", percentage: 0, due_date: "" }])}
+                        className="t-btn-secondary text-xs py-1.5 px-3 self-start mt-2 flex items-center gap-1"
+                      >
+                        <Plus size={12} /> Add Milestone
+                      </button>
+                    )}
+
+                    <div className="mt-4 border-t t-border pt-4 flex flex-wrap justify-between items-center gap-3">
+                      <span className={`text-xs font-bold ${totalPercentage === 100 ? "text-[var(--success)]" : "text-[var(--danger)]"}`}>
+                        Total: {totalPercentage}% {totalPercentage !== 100 && "(Must equal 100%)"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={saveInstallmentTemplate}
+                        disabled={savingTemplate}
+                        className="t-btn-primary py-2 px-4 text-xs font-semibold"
+                      >
+                        {savingTemplate ? "Saving..." : "Save Installment Template"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Optional Fees card */}

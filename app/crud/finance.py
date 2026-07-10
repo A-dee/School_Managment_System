@@ -1,6 +1,8 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from decimal import Decimal
 from typing import Optional
+from app.models.installment_template import TermInstallmentTemplate
+from app.models.installment import FeeInstallmentPlan, FeeInstallmentMilestone, InstallmentMilestoneStatus
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.models.finance import FeeStructure, Invoice, Payment, Expenditure, Payroll, InvoiceStatus, ExpenseApprovalStatus, PayrollStatus, OptionalFee, PaystackTransaction, PaystackTransactionStatus, FeeStructureTarget
@@ -82,6 +84,29 @@ def generate_invoices_for_term(db: Session, session_id: int, term_id: int, due_d
             due_date=due_date,
         )
         db.add(invoice)
+        db.flush()
+
+        template = db.query(TermInstallmentTemplate).filter(TermInstallmentTemplate.term_id == term_id).first()
+        if template:
+            plan = FeeInstallmentPlan(
+                invoice_id=invoice.id,
+                total_amount=payable,
+                is_active=True
+            )
+            db.add(plan)
+            db.flush()
+            for m in template.milestones:
+                milestone_amount = payable * Decimal(m["percentage"]) / Decimal("100")
+                milestone = FeeInstallmentMilestone(
+                    plan_id=plan.id,
+                    name=m["name"],
+                    amount=milestone_amount,
+                    due_date=date.fromisoformat(m["due_date"]),
+                    status=InstallmentMilestoneStatus.PENDING,
+                    paid_amount=Decimal("0")
+                )
+                db.add(milestone)
+
         count += 1
     db.flush()
     return count
