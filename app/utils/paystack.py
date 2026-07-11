@@ -131,3 +131,31 @@ def initiate_transfer(amount: Decimal, recipient_code: str, reason: str) -> str:
             return f"TRF_{uuid.uuid4().hex[:12].upper()}"
         raise
 
+
+
+def initiate_bulk_transfer(transfers: list[dict[str, Any]]) -> list[str]:
+    payload = {
+        "currency": "NGN",
+        "source": "balance",
+        "transfers": transfers,
+    }
+    try:
+        with httpx.Client(timeout=30.0) as client:
+            response = client.post(
+                f"{settings.paystack_base_url_normalized}/transfer/bulk",
+                json=payload,
+                headers=_headers(),
+            )
+            response.raise_for_status()
+            data = response.json().get("data", [])
+            if isinstance(data, dict):
+                data = data.get("transfers", []) or []
+            refs = []
+            for index, transfer in enumerate(transfers):
+                returned = data[index] if index < len(data) and isinstance(data[index], dict) else {}
+                refs.append(returned.get("reference") or transfer.get("reference") or f"TRF_{uuid.uuid4().hex[:12].upper()}")
+            return refs
+    except Exception:
+        if _using_paystack_test_key():
+            return [f"TRF_mock_{uuid.uuid4().hex[:12].upper()}" for _ in transfers]
+        raise

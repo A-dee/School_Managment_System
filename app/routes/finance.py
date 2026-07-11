@@ -13,7 +13,7 @@ from app.schemas.finance import (
     PayrollCreate, PayrollOut, GenerateInvoicesRequest,
     PaymentDeclarationIn, PaymentDeclarationOut,
     PaymentDeclarationConfirm, PaymentDeclarationReject,
-    DirectPaymentCreate,
+    DirectPaymentCreate, PayrollBatchDisburseCreate,
     OptionalFeeCreate, OptionalFeeUpdate, OptionalFeeOut,
     PaystackInitializeIn, PaystackInitializeOut, PaystackTransactionListItem, PaystackTransactionOut,
 )
@@ -21,7 +21,7 @@ from app.crud.finance import (
     create_fee_structure, generate_invoices_for_term, get_invoice,
     get_student_invoices, record_payment, get_debtors,
     create_expenditure, approve_expenditure, reject_expenditure,
-    create_payroll, mark_payroll_paid, get_profit_loss,
+    create_payroll, mark_payroll_paid, get_profit_loss, get_staff_salary_advances,
     list_optional_fees, create_optional_fee, update_optional_fee, delete_optional_fee,
     get_paystack_transaction_by_reference, list_paystack_transactions,
 )
@@ -38,7 +38,7 @@ from app.utils.paystack import (
     initialize_paystack_transaction, verify_paystack_signature,
     verify_paystack_transaction, paystack_is_configured,
     fetch_bank_list, resolve_bank_account,
-    create_transfer_recipient, initiate_transfer,
+    create_transfer_recipient, initiate_transfer, initiate_bulk_transfer,
 )
 from app.utils.student_portal import student_requires_parent_portal
 from app.utils.cache import TTLMemoryCache
@@ -449,6 +449,14 @@ def list_payments(invoice_id: Optional[int] = None, db: Session = Depends(get_db
 # --- Expenditures ---
 @router.post("/expenditures")
 def add_expenditure(data: ExpenditureCreate, db: Session = Depends(get_db), current_user=Depends(is_admin_or_above)):
+    if data.category == "Salary Advance":
+        if not data.staff_id:
+            raise HTTPException(status_code=400, detail="staff_id is required for salary advances")
+        from app.models.staff import Staff
+
+        staff = db.query(Staff).filter(Staff.id == data.staff_id).first()
+        if not staff:
+            raise HTTPException(status_code=404, detail="Staff not found")
     expense = create_expenditure(db, data, current_user.id)
     db.commit()
     _clear_finance_analytics_cache()
@@ -486,12 +494,177 @@ def reject_expense(expense_id: int, db: Session = Depends(get_db), current_user=
 
 
 # --- Payroll ---
+def _payroll_payload(payroll: Payroll | dict) -> dict:
+    if isinstance(payroll, dict):
+        return PayrollOut.model_validate(payroll).model_dump()
+    return PayrollOut.model_validate(payroll).model_dump()
+
+
+def _draft_payroll_for_staff(db: Session, staff, month: int, year: int) -> dict:
+    salary_amount = _rounded_money(Decimal(str(staff.salary_amount or 0)))
+    advances = get_staff_salary_advances(db, staff.id, month, year)
+    return {
+        "id": None,
+        "staff_id": staff.id,
+        "month": month,
+        "year": year,
+        "salary_amount": salary_amount,
+        "deductions": Decimal("0"),
+        "bonuses": Decimal("0"),
+        "advances": advances,
+        "net_salary": salary_amount - advances,
+        "payment_status": PayrollStatus.PENDING,
+        "payment_date": None,
+        "note": None,
+        "created_at": None,
+    }
+
+
+def _update_unpaid_payroll_amounts(db: Session, payroll: Payroll, item, staff) -> Payroll:
+    advances = get_staff_salary_advances(db, item.staff_id, payroll.month, payroll.year)
+    salary_amount = _rounded_money(Decimal(str(staff.salary_amount or 0)))
+    deductions = _rounded_money(Decimal(str(item.deductions or 0)))
+    bonuses = _rounded_money(Decimal(str(item.bonuses or 0)))
+    payroll.salary_amount = salary_amount
+    payroll.deductions = deductions
+    payroll.bonuses = bonuses
+    payroll.advances = advances
+    payroll.net_salary = salary_amount + bonuses - deductions - advances
+    db.flush()
+    return payroll
+
+
 @router.post("/payroll", dependencies=[Depends(require_feature("payroll"))])
 def process_payroll(data: PayrollCreate, db: Session = Depends(get_db), current_user=Depends(is_admin_or_above)):
-    payroll = create_payroll(db, data, current_user.id)
+    try:
+        payroll = create_payroll(db, data, current_user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     db.commit()
     _clear_finance_analytics_cache()
     return success_response(PayrollOut.model_validate(payroll).model_dump(), "Payroll created")
+
+
+@router.get("/payroll", dependencies=[Depends(require_feature("payroll"))])
+def list_payroll(
+    staff_id: Optional[int] = None, month: Optional[int] = None, year: Optional[int] = None,
+    db: Session = Depends(get_db), current_user=Depends(is_admin_or_above)
+):
+    if month and year:
+        from app.models.staff import Staff, StaffStatus
+
+        staff_query = db.query(Staff).filter(Staff.status == StaffStatus.ACTIVE)
+        if staff_id:
+            staff_query = staff_query.filter(Staff.id == staff_id)
+        active_staff = staff_query.order_by(Staff.full_name.asc()).all()
+        existing = db.query(Payroll).filter(Payroll.month == month, Payroll.year == year)
+        if staff_id:
+            existing = existing.filter(Payroll.staff_id == staff_id)
+        payroll_by_staff = {row.staff_id: row for row in existing.all()}
+        rows = [payroll_by_staff.get(staff.id) or _draft_payroll_for_staff(db, staff, month, year) for staff in active_staff]
+        return success_response([_payroll_payload(row) for row in rows])
+
+    q = db.query(Payroll)
+    if staff_id:
+        q = q.filter(Payroll.staff_id == staff_id)
+    if month:
+        q = q.filter(Payroll.month == month)
+    if year:
+        q = q.filter(Payroll.year == year)
+    payrolls = q.all()
+    return success_response([PayrollOut.model_validate(p).model_dump() for p in payrolls])
+
+
+@router.post("/payroll/batch-disburse", dependencies=[Depends(require_feature("payroll"))])
+def batch_disburse_payroll(
+    data: PayrollBatchDisburseCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(is_admin_or_above),
+):
+    from app.models.staff import Staff
+
+    staff_ids = [item.staff_id for item in data.items]
+    if len(staff_ids) != len(set(staff_ids)):
+        raise HTTPException(status_code=400, detail="Duplicate staff_id values are not allowed in one batch")
+
+    staff_by_id = {staff.id: staff for staff in db.query(Staff).filter(Staff.id.in_(staff_ids)).all()}
+    payrolls: list[Payroll] = []
+    transfers: list[dict] = []
+
+    for item in data.items:
+        staff = staff_by_id.get(item.staff_id)
+        if not staff:
+            raise HTTPException(status_code=404, detail=f"Staff #{item.staff_id} not found")
+        if not staff.bank_code or not staff.account_number:
+            raise HTTPException(status_code=400, detail=f"Bank details missing for {staff.full_name}")
+
+        paid = db.query(Payroll).filter(
+            Payroll.staff_id == item.staff_id,
+            Payroll.month == data.month,
+            Payroll.year == data.year,
+            Payroll.payment_status == PayrollStatus.PAID,
+        ).first()
+        if paid:
+            raise HTTPException(status_code=400, detail=f"Payroll already paid for {staff.full_name}")
+
+        payroll = db.query(Payroll).filter(
+            Payroll.staff_id == item.staff_id,
+            Payroll.month == data.month,
+            Payroll.year == data.year,
+            Payroll.payment_status == PayrollStatus.PENDING,
+        ).first()
+        if payroll:
+            payroll = _update_unpaid_payroll_amounts(db, payroll, item, staff)
+        else:
+            payroll = create_payroll(
+                db,
+                PayrollCreate(
+                    staff_id=item.staff_id,
+                    month=data.month,
+                    year=data.year,
+                    deductions=item.deductions,
+                    bonuses=item.bonuses,
+                ),
+                current_user.id,
+            )
+
+        if not staff.paystack_recipient_code:
+            try:
+                recipient_code = create_transfer_recipient(staff.full_name, staff.account_number, staff.bank_code)
+                if not recipient_code:
+                    raise ValueError("Paystack did not return a recipient code")
+                staff.paystack_recipient_code = recipient_code
+                db.flush()
+            except Exception as exc:
+                db.rollback()
+                raise HTTPException(status_code=400, detail=f"Failed to create transfer recipient for {staff.full_name}: {exc}") from exc
+
+        payrolls.append(payroll)
+        transfers.append({
+            "amount": _minor_units(_rounded_money(Decimal(str(payroll.net_salary or 0)))),
+            "recipient": staff.paystack_recipient_code,
+            "reason": f"Salary payout for {data.month}/{data.year}",
+        })
+
+    try:
+        refs = initiate_bulk_transfer(transfers)
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=f"Failed to initiate batch payroll disbursement: {exc}") from exc
+
+    today = date.today()
+    for payroll, ref in zip(payrolls, refs):
+        payroll.payment_status = PayrollStatus.PAID
+        payroll.payment_date = today
+        payroll.note = f"Paystack Ref: {ref}"
+
+    db.commit()
+    _clear_finance_analytics_cache()
+    return success_response({
+        "processed": len(payrolls),
+        "references": refs,
+        "payrolls": [PayrollOut.model_validate(payroll).model_dump() for payroll in payrolls],
+    }, "Batch payroll disbursement processed")
 
 
 @router.post("/payroll/{payroll_id}/mark-paid", dependencies=[Depends(require_feature("payroll"))])
@@ -503,22 +676,6 @@ def mark_paid(payroll_id: int, payment_date: date, db: Session = Depends(get_db)
     db.commit()
     _clear_finance_analytics_cache()
     return success_response(None, "Payroll marked as paid")
-
-
-@router.get("/payroll", dependencies=[Depends(require_feature("payroll"))])
-def list_payroll(
-    staff_id: Optional[int] = None, month: Optional[int] = None, year: Optional[int] = None,
-    db: Session = Depends(get_db), current_user=Depends(is_admin_or_above)
-):
-    q = db.query(Payroll)
-    if staff_id:
-        q = q.filter(Payroll.staff_id == staff_id)
-    if month:
-        q = q.filter(Payroll.month == month)
-    if year:
-        q = q.filter(Payroll.year == year)
-    payrolls = q.all()
-    return success_response([PayrollOut.model_validate(p).model_dump() for p in payrolls])
 
 
 # --- Payment Declarations (parent self-reporting) ---

@@ -112,6 +112,7 @@ class Expenditure(Base):
     amount = Column(Numeric(12, 2), nullable=False)
     category = Column(String, nullable=False)
     date = Column(Date, nullable=False)
+    staff_id = Column(Integer, ForeignKey("staff.id"), nullable=True, index=True)
     recorded_by_admin_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     approval_status = Column(Enum(ExpenseApprovalStatus), default=ExpenseApprovalStatus.PENDING)
     approved_by_principal_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
@@ -120,6 +121,7 @@ class Expenditure(Base):
 
     recorded_by = relationship("User", foreign_keys=[recorded_by_admin_id])
     approved_by = relationship("User", foreign_keys=[approved_by_principal_id])
+    staff = relationship("Staff")
 
 
 class Payroll(Base):
@@ -132,6 +134,7 @@ class Payroll(Base):
     salary_amount = Column(Numeric(12, 2), nullable=False)
     deductions = Column(Numeric(12, 2), default=0)
     bonuses = Column(Numeric(12, 2), default=0)
+    advances = Column(Numeric(12, 2), default=0)
     net_salary = Column(Numeric(12, 2), nullable=False)
     payment_status = Column(Enum(PayrollStatus), default=PayrollStatus.PENDING)
     payment_date = Column(Date, nullable=True)

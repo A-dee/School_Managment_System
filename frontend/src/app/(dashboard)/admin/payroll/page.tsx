@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import api from "@/lib/api";
 import toast from "react-hot-toast";
@@ -38,6 +38,8 @@ export default function PayrollPage() {
   const [editBonus,  setEditBonus]  = useState("0");
   const [paying,  setPaying]  = useState<number | null>(null);
   const [disbursing, setDisbursing] = useState<number | null>(null);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [bulkPaying, setBulkPaying] = useState(false);
 
   /* ---- Advance tab state ---- */
   const [allStaff,     setAllStaff]     = useState<Staff[]>([]);
@@ -62,9 +64,10 @@ export default function PayrollPage() {
   const loadSalaries = async () => {
     setLoading(true);
     try {
-      const [staffR, payR] = await Promise.allSettled([
+      const [staffR, payR, expR] = await Promise.allSettled([
         api.get("/api/v1/staff/?limit=200"),
         api.get(`/api/v1/finance/payroll?month=${month}&year=${year}`),
+        api.get("/api/v1/finance/expenditures"),
       ]);
 
       if (staffR.status === "rejected") {
@@ -75,10 +78,12 @@ export default function PayrollPage() {
 
       const staffList: Staff[]   = staffR.value.data.data || [];
       const payrolls:  Payroll[] = payR.status === "fulfilled" ? (payR.value.data.data || []) : [];
+      const expenditures: any[]   = expR.status === "fulfilled" ? (expR.value.data.data || []) : [];
       const payMap = Object.fromEntries(payrolls.map(p => [p.staff_id, p]));
       const active = staffList.filter(s => s.status === "ACTIVE");
       setRows(active.map(s => ({ ...s, payroll: payMap[s.id] ?? null })));
       setAllStaff(staffList);
+      setAdvances(expenditures.filter((e: any) => e.category === "Salary Advance"));
     } catch (e: any) {
       toast.error(e?.response?.data?.detail || "Failed to load payroll data");
     } finally { setLoading(false); }
@@ -163,6 +168,7 @@ export default function PayrollPage() {
         amount: parseFloat(advAmount),
         category: "Salary Advance",
         date: advDate,
+        staff_id: parseInt(advStaffId),
       });
       toast.success("Salary advance recorded");
       setAdvStaffId(""); setAdvAmount(""); setAdvNote("");
@@ -312,133 +318,292 @@ export default function PayrollPage() {
             ))}
           </div>
 
-          <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8125rem" }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                    {["Employee", "Role", "Base Salary", "Deductions", "Bonuses", "Net Pay", "Status", "Date Paid", "Action"].map(h => (
-                      <th key={h} style={{ padding: "11px 14px", textAlign: "left", fontSize: "0.72rem", fontWeight: 600, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr><td colSpan={9} style={{ padding: "40px 0", textAlign: "center", color: "var(--text-secondary)" }}>Loading…</td></tr>
-                  ) : filteredRows.length === 0 ? (
-                    <tr><td colSpan={9} style={{ padding: "40px 0", textAlign: "center", color: "var(--text-secondary)" }}>
-                      {staffTypeFilter ? `No active ${typeLabel[staffTypeFilter] ?? staffTypeFilter}s found` : "No active staff found"}
-                    </td></tr>
-                  ) : filteredRows.map(row => {
-                    const p        = row.payroll;
-                    const isPaid   = p?.payment_status === "PAID";
-                    const isEdit   = editId === row.id;
-                    const deductions = isEdit ? (parseFloat(editDeduct) || 0) : (p ? Number(p.deductions) : 0);
-                    const bonuses    = isEdit ? (parseFloat(editBonus)  || 0) : (p ? Number(p.bonuses)    : 0);
-                    const netPrev    = Number(row.salary_amount) + bonuses - deductions;
+          {(() => {
+            const getStaffAdvance = (row: Row) => {
+              return advances
+                .filter(a => {
+                  if (a.category !== "Salary Advance") return false;
+                  const matchesStaff = a.staff_id === row.id || 
+                                       a.title.includes(row.full_name) || 
+                                       a.title.includes(`Staff #${row.id}`);
+                  if (!matchesStaff) return false;
+                  
+                  if (a.date) {
+                    const parts = a.date.split("-");
+                    if (parts.length === 3) {
+                      const advYear = parseInt(parts[0]);
+                      const advMonth = parseInt(parts[1]);
+                      return advYear === year && advMonth === month;
+                    }
+                  }
+                  return false;
+                })
+                .reduce((sum, a) => sum + Number(a.amount), 0);
+            };
 
-                    return (
-                      <tr key={row.id} style={{ borderBottom: "1px solid var(--border)", background: isPaid ? "rgba(34,197,94,0.04)" : "transparent" }}>
-                        <td style={{ padding: "10px 14px" }}>
-                          <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>{row.full_name}</div>
-                          <div style={{ fontSize: "0.7rem", color: "var(--text-secondary)" }}>{row.email}</div>
-                        </td>
-                        <td style={{ padding: "10px 14px", color: "var(--text-secondary)" }}>{typeLabel[row.staff_type] ?? row.staff_type}</td>
-                        <td style={{ padding: "10px 14px", fontWeight: 500, color: "var(--text-primary)" }}>{fmt(row.salary_amount)}</td>
-                        <td style={{ padding: "10px 14px" }}>
-                          {isEdit && !isPaid
-                            ? <input type="number" min={0} value={editDeduct} onChange={e => setEditDeduct(e.target.value)} style={{ ...miniInp, width: 90 }} />
-                            : <span style={{ color: deductions > 0 ? "#ef4444" : "var(--text-secondary)" }}>{deductions > 0 ? `-${fmt(deductions)}` : "–"}</span>
-                          }
-                        </td>
-                        <td style={{ padding: "10px 14px" }}>
-                          {isEdit && !isPaid
-                            ? <input type="number" min={0} value={editBonus} onChange={e => setEditBonus(e.target.value)} style={{ ...miniInp, width: 90 }} />
-                            : <span style={{ color: bonuses > 0 ? "#22c55e" : "var(--text-secondary)" }}>{bonuses > 0 ? `+${fmt(bonuses)}` : "–"}</span>
-                          }
-                        </td>
-                        <td style={{ padding: "10px 14px", fontWeight: 700, color: "#10b981" }}>{fmt(p ? p.net_salary : netPrev)}</td>
-                        <td style={{ padding: "10px 14px" }}>
-                          <span style={{
-                            display: "inline-flex", alignItems: "center", gap: 4,
-                            padding: "2px 10px", borderRadius: 20, fontSize: "0.7rem", fontWeight: 600,
-                            background: isPaid ? "rgba(34,197,94,0.12)" : "rgba(245,158,11,0.12)",
-                            color: isPaid ? "#16a34a" : "#d97706",
-                          }}>
-                            {isPaid && <CheckCircle size={11} />}
-                            {isPaid ? "Paid" : "Pending"}
-                          </span>
-                        </td>
-                        <td style={{ padding: "10px 14px", color: "var(--text-secondary)", fontSize: "0.78rem" }}>
-                          {p?.payment_date ? new Date(p.payment_date).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" }) : "–"}
-                        </td>
-                        <td style={{ padding: "10px 14px" }}>
-                          {isPaid ? (
-                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                              <span style={{ fontSize: "0.75rem", color: "#22c55e", display: "flex", alignItems: "center", gap: 4 }}>
-                                <CheckCircle size={13} /> Done
-                              </span>
-                              {p?.id && (
-                                <a
-                                  href={`/api/v1/pdfs/payslip/${p.id}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="t-btn-secondary"
-                                  style={{ fontSize: "0.72rem", padding: "4px 9px" }}
-                                >
-                                  <FileText size={12} /> Payslip
-                                </a>
-                              )}
-                            </div>
-                          ) : (
-                            <div style={{ display: "flex", gap: 6, flexWrap: "nowrap" }}>
-                              {!isEdit && (
-                                <button onClick={() => { setEditId(row.id); setEditDeduct(p ? String(Number(p.deductions)) : "0"); setEditBonus(p ? String(Number(p.bonuses)) : "0"); }} style={outlineBtn}>
-                                  Adjust
-                                </button>
-                              )}
-                              <button
-                                onClick={() => markPaid(row)} disabled={paying === row.id}
-                                style={{ padding: "4px 12px", borderRadius: 6, border: "none", background: "var(--accent)", color: "var(--btn-primary-text)", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", opacity: paying === row.id ? 0.6 : 1 }}
-                              >
-                                {paying === row.id ? "…" : "Mark Paid"}
-                              </button>
-                              {!(row.bank_code && row.account_number) ? (
-                                <button
-                                  disabled
-                                  style={{ padding: "4px 12px", borderRadius: 6, border: "none", background: "var(--border)", color: "var(--text-secondary)", fontSize: "0.75rem", fontWeight: 600, cursor: "not-allowed", opacity: 0.6 }}
-                                >
-                                  Disburse via Paystack (Bank details missing)
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => disbursePayroll(row)} disabled={disbursing === row.id || !row.payroll?.id}
-                                  style={{ padding: "4px 12px", borderRadius: 6, border: "none", background: "#3b82f6", color: "#fff", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", opacity: (disbursing === row.id || !row.payroll?.id) ? 0.6 : 1 }}
-                                >
-                                  {disbursing === row.id ? "…" : "Disburse via Paystack"}
-                                </button>
-                              )}
-                              {isEdit && <button onClick={() => setEditId(null)} style={outlineBtn}>Cancel</button>}
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            const selectableRows = filteredRows.filter(r => r.payroll?.payment_status !== "PAID");
+            const allSelectableSelected = selectableRows.length > 0 && selectableRows.every(r => selectedIds.includes(r.id));
 
-            {filteredRows.length > 0 && (
-              <div style={{ display: "flex", gap: 24, padding: "11px 14px", borderTop: "2px solid var(--border)", background: "var(--accent-light)", flexWrap: "wrap" }}>
-                <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--text-primary)" }}>{MONTHS[month - 1]} {year}:</span>
-                <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Total payroll: <b style={{ color: "var(--text-primary)" }}>{fmt(totalSalary)}</b></span>
-                <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Paid out: <b style={{ color: "#16a34a" }}>{fmt(totalPaid)}</b></span>
-                <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Remaining: <b style={{ color: "#dc2626" }}>{fmt(totalSalary - totalPaid)}</b></span>
-                <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>{paidRows.length} of {filteredRows.length} {staffTypeFilter ? (typeLabel[staffTypeFilter] ?? staffTypeFilter) + "s" : "staff"} paid</span>
+            const handleSelectAll = () => {
+              if (allSelectableSelected) {
+                setSelectedIds(prev => prev.filter(id => !selectableRows.some(r => r.id === id)));
+              } else {
+                const selectableIds = selectableRows.map(r => r.id);
+                setSelectedIds(prev => {
+                  const otherIds = prev.filter(id => !selectableIds.includes(id));
+                  return [...otherIds, ...selectableIds];
+                });
+              }
+            };
+
+            const handleToggleSelect = (id: number) => {
+              setSelectedIds(prev =>
+                prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+              );
+            };
+
+            const selectedRows = filteredRows.filter(r => selectedIds.includes(r.id));
+            const bulkTotalAmount = selectedRows.reduce((sum, r) => {
+              const p = r.payroll;
+              const isEdit = editId === r.id;
+              const deductions = isEdit ? (parseFloat(editDeduct) || 0) : (p ? Number(p.deductions) : 0);
+              const bonuses = isEdit ? (parseFloat(editBonus) || 0) : (p ? Number(p.bonuses) : 0);
+              const advance = getStaffAdvance(r);
+              const net = Number(r.salary_amount) + bonuses - deductions - advance;
+              return sum + net;
+            }, 0);
+
+            const handleBulkDisburse = async () => {
+              if (selectedRows.length === 0) return;
+              setBulkPaying(true);
+              try {
+                const items = selectedRows.map(r => {
+                  const p = r.payroll;
+                  const isEdit = editId === r.id;
+                  const deductions = isEdit ? (parseFloat(editDeduct) || 0) : (p ? Number(p.deductions) : 0);
+                  const bonuses = isEdit ? (parseFloat(editBonus) || 0) : (p ? Number(p.bonuses) : 0);
+                  return {
+                    staff_id: r.id,
+                    deductions,
+                    bonuses,
+                  };
+                });
+
+                await api.post("/api/v1/finance/payroll/batch-disburse", {
+                  month,
+                  year,
+                  items,
+                });
+
+                toast.success("Batch disbursement processed successfully");
+                setSelectedIds([]);
+                await loadSalaries();
+              } catch (err: any) {
+                const msg = err?.response?.data?.detail || "Failed to process batch disbursement";
+                toast.error(msg);
+              } finally {
+                setBulkPaying(false);
+              }
+            };
+
+            return (
+              <>
+                <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8125rem" }}>
+                      <thead>
+                        <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                          <th style={{ padding: "11px 14px", textAlign: "left", width: 40 }}>
+                            <input
+                              type="checkbox"
+                              checked={allSelectableSelected}
+                              onChange={handleSelectAll}
+                              style={{ cursor: "pointer" }}
+                            />
+                          </th>
+                          {[
+                            "Employee", "Role", "Base Salary", "Deductions", "Bonuses", 
+                            "Salary Advance", "Net Pay", "Status", "Date Paid", "Action"
+                          ].map(h => (
+                            <th key={h} style={{ padding: "11px 14px", textAlign: "left", fontSize: "0.72rem", fontWeight: 600, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                  <tbody>
+                    {loading ? (
+                      <tr><td colSpan={11} style={{ padding: "40px 0", textAlign: "center", color: "var(--text-secondary)" }}>Loading…</td></tr>
+                    ) : filteredRows.length === 0 ? (
+                      <tr><td colSpan={11} style={{ padding: "40px 0", textAlign: "center", color: "var(--text-secondary)" }}>
+                        {staffTypeFilter ? `No active ${typeLabel[staffTypeFilter] ?? staffTypeFilter}s found` : "No active staff found"}
+                      </td></tr>
+                    ) : filteredRows.map(row => {
+                      const p        = row.payroll;
+                      const isPaid   = p?.payment_status === "PAID";
+                      const isEdit   = editId === row.id;
+                      const deductions = isEdit ? (parseFloat(editDeduct) || 0) : (p ? Number(p.deductions) : 0);
+                      const bonuses    = isEdit ? (parseFloat(editBonus)  || 0) : (p ? Number(p.bonuses)    : 0);
+                      const advance    = getStaffAdvance(row);
+                      const netPay     = Number(row.salary_amount) + bonuses - deductions - advance;
+
+                      return (
+                        <tr key={row.id} style={{ borderBottom: "1px solid var(--border)", background: isPaid ? "rgba(34,197,94,0.04)" : "transparent" }}>
+                          <td style={{ padding: "10px 14px" }}>
+                            <input
+                              type="checkbox"
+                              disabled={isPaid}
+                              checked={selectedIds.includes(row.id)}
+                              onChange={() => handleToggleSelect(row.id)}
+                              style={{ cursor: isPaid ? "not-allowed" : "pointer" }}
+                            />
+                          </td>
+                          <td style={{ padding: "10px 14px" }}>
+                            <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>{row.full_name}</div>
+                            <div style={{ fontSize: "0.7rem", color: "var(--text-secondary)" }}>{row.email}</div>
+                          </td>
+                          <td style={{ padding: "10px 14px", color: "var(--text-secondary)" }}>{typeLabel[row.staff_type] ?? row.staff_type}</td>
+                          <td style={{ padding: "10px 14px", fontWeight: 500, color: "var(--text-primary)" }}>{fmt(row.salary_amount)}</td>
+                          <td style={{ padding: "10px 14px" }}>
+                            {isEdit && !isPaid
+                              ? <input type="number" min={0} value={editDeduct} onChange={e => setEditDeduct(e.target.value)} style={{ ...miniInp, width: 90 }} />
+                              : <span style={{ color: deductions > 0 ? "#ef4444" : "var(--text-secondary)" }}>{deductions > 0 ? `-${fmt(deductions)}` : "–"}</span>
+                            }
+                          </td>
+                          <td style={{ padding: "10px 14px" }}>
+                            {isEdit && !isPaid
+                              ? <input type="number" min={0} value={editBonus} onChange={e => setEditBonus(e.target.value)} style={{ ...miniInp, width: 90 }} />
+                              : <span style={{ color: bonuses > 0 ? "#22c55e" : "var(--text-secondary)" }}>{bonuses > 0 ? `+${fmt(bonuses)}` : "–"}</span>
+                            }
+                          </td>
+                          <td style={{ padding: "10px 14px", color: advance > 0 ? "#f59e0b" : "var(--text-secondary)" }}>
+                            {advance > 0 ? `-${fmt(advance)}` : "–"}
+                          </td>
+                          <td style={{ padding: "10px 14px", fontWeight: 700, color: "#10b981" }}>{fmt(netPay)}</td>
+                          <td style={{ padding: "10px 14px" }}>
+                            <span style={{
+                              display: "inline-flex", alignItems: "center", gap: 4,
+                              padding: "2px 10px", borderRadius: 20, fontSize: "0.7rem", fontWeight: 600,
+                              background: isPaid ? "rgba(34,197,94,0.12)" : "rgba(245,158,11,0.12)",
+                              color: isPaid ? "#16a34a" : "#d97706",
+                            }}>
+                              {isPaid && <CheckCircle size={11} />}
+                              {isPaid ? "Paid" : "Pending"}
+                            </span>
+                          </td>
+                          <td style={{ padding: "10px 14px", color: "var(--text-secondary)", fontSize: "0.78rem" }}>
+                            {p?.payment_date ? new Date(p.payment_date).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" }) : "–"}
+                          </td>
+                          <td style={{ padding: "10px 14px" }}>
+                            {isPaid ? (
+                              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                <span style={{ fontSize: "0.75rem", color: "#22c55e", display: "flex", alignItems: "center", gap: 4 }}>
+                                  <CheckCircle size={13} /> Done
+                                </span>
+                                {p?.id && (
+                                  <a
+                                    href={`/api/v1/pdfs/payslip/${p.id}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="t-btn-secondary"
+                                    style={{ fontSize: "0.72rem", padding: "4px 9px" }}
+                                  >
+                                    <FileText size={12} /> Payslip
+                                  </a>
+                                )}
+                              </div>
+                            ) : (
+                              <div style={{ display: "flex", gap: 6, flexWrap: "nowrap" }}>
+                                {!isEdit && (
+                                  <button onClick={() => { setEditId(row.id); setEditDeduct(p ? String(Number(p.deductions)) : "0"); setEditBonus(p ? String(Number(p.bonuses)) : "0"); }} style={outlineBtn}>
+                                    Adjust
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => markPaid(row)} disabled={paying === row.id}
+                                  style={{ padding: "4px 12px", borderRadius: 6, border: "none", background: "var(--accent)", color: "var(--btn-primary-text)", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", opacity: paying === row.id ? 0.6 : 1 }}
+                                >
+                                  {paying === row.id ? "…" : "Mark Paid"}
+                                </button>
+                                {!(row.bank_code && row.account_number) ? (
+                                  <button
+                                    disabled
+                                    style={{ padding: "4px 12px", borderRadius: 6, border: "none", background: "var(--border)", color: "var(--text-secondary)", fontSize: "0.75rem", fontWeight: 600, cursor: "not-allowed", opacity: 0.6 }}
+                                  >
+                                    Disburse via Paystack (Bank details missing)
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => disbursePayroll(row)} disabled={disbursing === row.id || !row.payroll?.id}
+                                    style={{ padding: "4px 12px", borderRadius: 6, border: "none", background: "#3b82f6", color: "#fff", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", opacity: (disbursing === row.id || !row.payroll?.id) ? 0.6 : 1 }}
+                                  >
+                                    {disbursing === row.id ? "…" : "Disburse via Paystack"}
+                                  </button>
+                                )}
+                                {isEdit && <button onClick={() => setEditId(null)} style={outlineBtn}>Cancel</button>}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
-            )}
-          </div>
+
+                  {filteredRows.length > 0 && (
+                    <div style={{ display: "flex", gap: 24, padding: "11px 14px", borderTop: "2px solid var(--border)", background: "var(--accent-light)", flexWrap: "wrap" }}>
+                      <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--text-primary)" }}>{MONTHS[month - 1]} {year}:</span>
+                      <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Total payroll: <b style={{ color: "var(--text-primary)" }}>{fmt(totalSalary)}</b></span>
+                      <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Paid out: <b style={{ color: "#16a34a" }}>{fmt(totalPaid)}</b></span>
+                      <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Remaining: <b style={{ color: "#dc2626" }}>{fmt(totalSalary - totalPaid)}</b></span>
+                      <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>{paidRows.length} of {filteredRows.length} {staffTypeFilter ? (typeLabel[staffTypeFilter] ?? staffTypeFilter) + "s" : "staff"} paid</span>
+                    </div>
+                  )}
+                </div>
+
+                {selectedIds.length > 0 && (
+                  <div style={{
+                    position: "fixed",
+                    bottom: 24,
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    zIndex: 100,
+                    background: "var(--card-bg)",
+                    border: "1px solid var(--border)",
+                    padding: "12px 24px",
+                    borderRadius: 16,
+                    boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.15)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 20,
+                  }}>
+                    <span style={{ fontSize: "0.85rem", color: "var(--text-primary)", fontWeight: 500 }}>
+                      Selected <b>{selectedIds.length}</b> employee(s) · Total: <b>{fmt(bulkTotalAmount)}</b>
+                    </span>
+                    <button
+                      onClick={handleBulkDisburse}
+                      disabled={bulkPaying}
+                      style={{
+                        padding: "8px 16px",
+                        borderRadius: 8,
+                        border: "none",
+                        background: "var(--accent)",
+                        color: "var(--btn-primary-text)",
+                        fontSize: "0.8125rem",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        opacity: bulkPaying ? 0.6 : 1,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                    >
+                      {bulkPaying ? "Processing…" : "Disburse Selected via Paystack"}
+                    </button>
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </>
       )}
 

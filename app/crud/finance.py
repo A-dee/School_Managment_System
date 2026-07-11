@@ -4,7 +4,7 @@ from typing import Optional
 from app.models.installment_template import TermInstallmentTemplate
 from app.models.installment import FeeInstallmentPlan, FeeInstallmentMilestone, InstallmentMilestoneStatus
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, extract
 from app.models.finance import FeeStructure, Invoice, Payment, Expenditure, Payroll, InvoiceStatus, ExpenseApprovalStatus, PayrollStatus, OptionalFee, PaystackTransaction, PaystackTransactionStatus, FeeStructureTarget
 from app.models.student import Student, StudentStatus
 from app.models.academic import AcademicSession
@@ -228,19 +228,35 @@ def reject_expenditure(db: Session, expense: Expenditure, principal_user_id: int
     return expense
 
 
+def get_staff_salary_advances(db: Session, staff_id: int, month: int, year: int) -> Decimal:
+    total = db.query(func.sum(Expenditure.amount)).filter(
+        Expenditure.staff_id == staff_id,
+        Expenditure.category == "Salary Advance",
+        Expenditure.approval_status == ExpenseApprovalStatus.APPROVED,
+        extract("month", Expenditure.date) == month,
+        extract("year", Expenditure.date) == year,
+    ).scalar()
+    return Decimal(str(total or 0)).quantize(Decimal("0.01"))
+
+
 def create_payroll(db: Session, data, processed_by_id: int) -> Payroll:
     from app.models.staff import Staff
     staff = db.query(Staff).filter(Staff.id == data.staff_id).first()
     if not staff:
         raise ValueError("Staff not found")
-    net = staff.salary_amount + data.bonuses - data.deductions
+    advances = get_staff_salary_advances(db, data.staff_id, data.month, data.year)
+    salary_amount = Decimal(str(staff.salary_amount or 0)).quantize(Decimal("0.01"))
+    deductions = Decimal(str(data.deductions or 0)).quantize(Decimal("0.01"))
+    bonuses = Decimal(str(data.bonuses or 0)).quantize(Decimal("0.01"))
+    net = salary_amount + bonuses - deductions - advances
     payroll = Payroll(
         staff_id=data.staff_id,
         month=data.month,
         year=data.year,
-        salary_amount=staff.salary_amount,
-        deductions=data.deductions,
-        bonuses=data.bonuses,
+        salary_amount=salary_amount,
+        deductions=deductions,
+        bonuses=bonuses,
+        advances=advances,
         net_salary=net,
         payment_status=PayrollStatus.PENDING,
         processed_by_id=processed_by_id,

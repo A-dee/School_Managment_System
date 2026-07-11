@@ -99,6 +99,7 @@ class ExpenditureCreate(BaseModel):
     amount:      Decimal = Field(gt=0)
     category:    str = Field(min_length=1, max_length=100)
     date:        date
+    staff_id:    Optional[int] = None
 
 
 class ExpenditureOut(BaseModel):
@@ -108,6 +109,7 @@ class ExpenditureOut(BaseModel):
     amount:                   Decimal
     category:                 str
     date:                     date
+    staff_id:                 Optional[int] = None
     recorded_by_admin_id:     int
     approval_status:          ExpenseApprovalStatus
     approved_by_principal_id: Optional[int]
@@ -125,19 +127,32 @@ class PayrollCreate(BaseModel):
     bonuses:    Decimal = Field(default=Decimal("0"), ge=0)
 
 
+class PayrollBatchDisburseItem(BaseModel):
+    staff_id:   int = Field(gt=0)
+    deductions: Decimal = Field(default=Decimal("0"), ge=0)
+    bonuses:    Decimal = Field(default=Decimal("0"), ge=0)
+
+
+class PayrollBatchDisburseCreate(BaseModel):
+    month: int = Field(ge=1, le=12)
+    year:  int = Field(ge=2000, le=2100)
+    items: list[PayrollBatchDisburseItem] = Field(min_length=1)
+
+
 class PayrollOut(BaseModel):
-    id:             int
+    id:             Optional[int] = None
     staff_id:       int
     month:          int
     year:           int
     salary_amount:  Decimal
     deductions:     Decimal
     bonuses:        Decimal
+    advances:       Decimal = Decimal("0")
     net_salary:     Decimal
     payment_status: PayrollStatus
     payment_date:   Optional[date]
     note:           Optional[str] = None
-    created_at:     datetime
+    created_at:     Optional[datetime] = None
 
     class Config:
         from_attributes = True
