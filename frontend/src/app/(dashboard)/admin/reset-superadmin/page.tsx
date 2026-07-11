@@ -23,8 +23,8 @@ export default function ResetSuperAdminPage() {
       return;
     }
 
-    if (newPassword.length < 6) {
-      toast.error("Password must be at least 6 characters long");
+    if (newPassword.length < 8) {
+      toast.error("Password must be at least 8 characters long");
       return;
     }
 
@@ -45,7 +45,13 @@ export default function ResetSuperAdminPage() {
       clearTokens();
       router.replace("/login");
     } catch (err: any) {
-      const msg = err?.response?.data?.detail || "Failed to reset password. Please check your credentials or permissions.";
+      let msg = err?.response?.data?.detail;
+      if (Array.isArray(msg)) {
+        msg = msg.map((e: any) => e.msg).join(", ");
+      } else if (typeof msg === "object" && msg !== null) {
+        msg = JSON.stringify(msg);
+      }
+      msg = msg || "Failed to reset password. Please check your credentials or permissions.";
       toast.error(msg);
     } finally {
       setLoading(false);
