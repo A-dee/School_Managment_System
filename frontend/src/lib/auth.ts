@@ -73,6 +73,8 @@ export function getDashboardPath(role: string): string {
     PARENT: "/parent/dashboard",
     STUDENT: "/student/dashboard",
     NON_TEACHING_STAFF: "/teacher/dashboard",
+    SUPREME_ADMIN: "/admin/reset-superadmin",
+    FINANCE: "/principal/finance",
   };
   return paths[role] || "/login";
 }

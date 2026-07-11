@@ -35,3 +35,22 @@ def seed_superadmin(data: SeedAdmin, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
     return success_response({"id": user.id, "email": user.email, "role": user.role}, "Superadmin created successfully")
+
+
+@router.post("/supremeadmin")
+def seed_supremeadmin(data: SeedAdmin, db: Session = Depends(get_db)):
+    if data.secret != "schoolms-init-2024":
+        raise HTTPException(status_code=403, detail="Invalid secret")
+    existing = db.query(User).filter(User.role == UserRole.SUPREME_ADMIN).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Supreme admin already exists")
+    user = User(
+        email=data.email,
+        hashed_password=hash_password(data.password),
+        role=UserRole.SUPREME_ADMIN,
+        is_active=True,
+        is_verified=True,
+    )
+    db.add(user)
+    db.commit()
+    return success_response(None, "Supreme admin created successfully")

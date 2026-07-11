@@ -129,6 +129,19 @@ const roleNavItems: Record<string, { label: string; href: string; icon: any; sec
     { label: "Messages",        href: "/messages",                icon: MessageSquare,  section: "Communication" },
     { label: "Profile",         href: "/profile",                 icon: UserCircle },
   ],
+  FINANCE: [
+    { label: "Finance Dashboard",    href: "/principal/finance",      icon: DollarSign,     section: "Finance" },
+    { label: "School Fees",          href: "/admin/fees",             icon: BookOpen },
+    { label: "Invoices",             href: "/admin/invoices",         icon: CreditCard },
+    { label: "Payments",             href: "/admin/payments",         icon: DollarSign },
+    { label: "Salary & Payroll",     href: "/admin/payroll",          icon: Users },
+    { label: "Expenses",             href: "/admin/expenses",         icon: ClipboardList },
+    { label: "Profile",              href: "/profile",                icon: UserCircle },
+  ],
+  SUPREME_ADMIN: [
+    { label: "Reset SuperAdmin",     href: "/admin/reset-superadmin", icon: KeyRound },
+    { label: "Profile",              href: "/profile",                icon: UserCircle },
+  ],
 };
 
 const themes: { id: Theme; label: string; color: string; bg: string }[] = [
@@ -148,6 +161,8 @@ const roleLabel: Record<string, string> = {
   PARENT:             "Parent",
   STUDENT:            "Student",
   NON_TEACHING_STAFF: "Staff",
+  SUPREME_ADMIN:      "Supreme Admin",
+  FINANCE:            "Finance Officer",
 };
 
 const sectionIcons: Record<string, any> = {

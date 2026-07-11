@@ -27,8 +27,8 @@ def is_principal_or_above(current_user: User = Depends(get_current_user)) -> Use
 
 
 def is_admin_or_above(current_user: User = Depends(get_current_user)) -> User:
-    if current_user.role not in (UserRole.SUPER_ADMIN, UserRole.PRINCIPAL, UserRole.ADMIN):
-        raise HTTPException(status_code=403, detail="Admin or above access required")
+    if current_user.role not in (UserRole.SUPER_ADMIN, UserRole.PRINCIPAL, UserRole.ADMIN, UserRole.FINANCE):
+        raise HTTPException(status_code=403, detail="Admin or finance access required")
     return current_user
 
 
@@ -59,7 +59,12 @@ def is_parent(current_user: User = Depends(get_current_user)) -> User:
 
 
 ROLE_PERMISSIONS = {
+    UserRole.SUPREME_ADMIN: set(),
     UserRole.SUPER_ADMIN: {"*"},
+    UserRole.FINANCE: {
+        "view_financial_reports", "record_payments", "manage_invoices",
+        "process_payroll", "record_expenses", "manage_fee_structure",
+    },
     UserRole.PRINCIPAL: {
         "create_staff", "assign_classes", "approve_subjects", "approve_results",
         "approve_expenses", "graduate_students", "view_financial_reports",

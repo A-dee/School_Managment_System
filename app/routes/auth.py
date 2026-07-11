@@ -1,12 +1,14 @@
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
+from pydantic import BaseModel, Field
 from app.database import get_db
 from app.schemas.auth import LoginRequest, TokenResponse, RefreshRequest
 from app.schemas.user import ForgotPassword, PasswordReset, PasswordChange
+from app.models.user import User, UserRole
 from app.utils.auth import (
     verify_password, create_access_token, create_refresh_token,
-    decode_refresh_token, get_current_user
+    decode_refresh_token, get_current_user, hash_password
 )
 from app.utils.response import success_response
 from app.utils.limiter import limiter
@@ -14,6 +16,10 @@ from app.crud.user import get_user_by_email, set_reset_token, reset_password
 from app.utils.student_portal import student_requires_parent_portal_by_user_id
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+
+class SuperAdminPasswordReset(BaseModel):
+    new_password: str = Field(min_length=8, max_length=128)
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -91,3 +97,19 @@ def get_me(current_user=Depends(get_current_user)):
         "role": current_user.role.value,
         "is_active": current_user.is_active,
     })
+
+
+@router.post("/reset-superadmin-password")
+def reset_superadmin_password(
+    data: SuperAdminPasswordReset,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    if current_user.role != UserRole.SUPREME_ADMIN:
+        raise HTTPException(status_code=403, detail="Only the supreme admin can perform this action")
+    superadmin = db.query(User).filter(User.role == UserRole.SUPER_ADMIN).first()
+    if not superadmin:
+        raise HTTPException(status_code=404, detail="Super admin account not found")
+    superadmin.hashed_password = hash_password(data.new_password)
+    db.commit()
+    return success_response(None, "Super admin password reset successfully")
