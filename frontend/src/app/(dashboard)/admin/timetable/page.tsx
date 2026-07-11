@@ -11,7 +11,7 @@ import {
   deleteTimetableSlot
 } from "@/lib/api";
 import toast from "react-hot-toast";
-import { Calendar, Plus, Trash2, X, AlertTriangle, Info, User, BookOpen, MapPin } from "lucide-react";
+import { Calendar, Plus, Trash2, X, AlertTriangle, Info, User, BookOpen, MapPin, Download } from "lucide-react";
 
 interface Period {
   id: number;
@@ -251,6 +251,27 @@ export default function AdminTimetablePage() {
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
+            <button
+              onClick={() => selectedClassId && window.open(`/api/v1/timetable/class/${selectedClassId}/pdf`, "_blank")}
+              disabled={!selectedClassId}
+              className="t-button"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "8px 16px",
+                borderRadius: 8,
+                fontSize: "0.85rem",
+                background: "var(--accent)",
+                color: "var(--btn-primary-text)",
+                border: "none",
+                cursor: "pointer",
+                fontWeight: 600,
+                opacity: selectedClassId ? 1 : 0.6,
+              }}
+            >
+              <Download size={16} /> Download PDF
+            </button>
           </div>
         </div>
       </div>

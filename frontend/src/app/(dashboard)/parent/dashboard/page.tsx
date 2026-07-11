@@ -6,7 +6,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import api from "@/lib/api";
 import {
   GraduationCap, CreditCard, ClipboardList, UserCheck,
-  MessageSquare, Megaphone, Clock, MapPin
+  MessageSquare, Megaphone, Clock, MapPin, Download
 } from "lucide-react";
 import { getTimetablePeriods, getClassTimetable } from "@/lib/api";
 
@@ -195,6 +195,17 @@ export default function ParentDashboard() {
                     <span className="text-xs text-secondary font-normal">
                       (for {children.find(c => c.id === selectedChildId)?.first_name})
                     </span>
+                  )}
+                  {children.find(c => c.id === selectedChildId)?.current_class_id && (
+                    <a
+                      href={`/api/v1/timetable/class/${children.find(c => c.id === selectedChildId)?.current_class_id}/pdf`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Download PDF"
+                      style={{ marginLeft: 8, display: "flex", alignItems: "center", color: "var(--accent)" }}
+                    >
+                      <Download size={14} />
+                    </a>
                   )}
                 </h2>
                 

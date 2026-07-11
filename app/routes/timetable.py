@@ -215,3 +215,75 @@ def create_or_update_slot(
     db.refresh(slot)
 
     return {"status": "success", "warnings": warnings, "data": _serialize_slot(slot)}
+
+
+@router.get("/class/{class_id}/pdf")
+def download_class_timetable_pdf(
+    class_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    from fastapi import Response
+    from app.utils.pdf import generate_timetable_pdf
+
+    class_record = db.query(Class).filter(Class.id == class_id).first()
+    if not class_record:
+        raise HTTPException(status_code=404, detail="Class not found")
+
+    periods = db.query(TimetablePeriod).order_by(TimetablePeriod.start_time.asc()).all()
+    slots = db.query(TimetableSlot).join(TimetablePeriod).filter(
+        TimetableSlot.class_id == class_id,
+    ).order_by(TimetableSlot.day_of_week.asc(), TimetablePeriod.start_time.asc()).all()
+
+    periods_data = [_serialize_period(p) for p in periods]
+    slots_data = [_serialize_slot(s) for s in slots]
+
+    pdf_bytes = generate_timetable_pdf(
+        periods_data,
+        slots_data,
+        title=f"Class Timetable: {class_record.name.upper()}",
+        subtitle="Hope Hills Academy - Weekly Academic Schedule"
+    )
+
+    filename = f"timetable_{class_record.name.replace(' ', '_').lower()}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@router.get("/teacher/{teacher_id}/pdf")
+def download_teacher_timetable_pdf(
+    teacher_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    from fastapi import Response
+    from app.utils.pdf import generate_timetable_pdf
+
+    teacher_record = db.query(Staff).filter(Staff.id == teacher_id).first()
+    if not teacher_record:
+        raise HTTPException(status_code=404, detail="Teacher not found")
+
+    periods = db.query(TimetablePeriod).order_by(TimetablePeriod.start_time.asc()).all()
+    slots = db.query(TimetableSlot).join(TimetablePeriod).filter(
+        TimetableSlot.teacher_id == teacher_id,
+    ).order_by(TimetableSlot.day_of_week.asc(), TimetablePeriod.start_time.asc()).all()
+
+    periods_data = [_serialize_period(p) for p in periods]
+    slots_data = [_serialize_slot(s) for s in slots]
+
+    pdf_bytes = generate_timetable_pdf(
+        periods_data,
+        slots_data,
+        title=f"Teaching Schedule: {teacher_record.full_name}",
+        subtitle="Hope Hills Academy - Weekly Instructor Timetable"
+    )
+
+    filename = f"timetable_{teacher_record.full_name.replace(' ', '_').lower()}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )

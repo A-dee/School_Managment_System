@@ -5,7 +5,7 @@ import AnnouncementPanel from "@/components/AnnouncementPanel";
 import DashboardLayout from "@/components/DashboardLayout";
 import api from "@/lib/api";
 import { Announcement } from "@/lib/announcements";
-import { ClipboardList, UserCheck, FileText, School, BookOpen, Clock, MapPin } from "lucide-react";
+import { ClipboardList, UserCheck, FileText, School, BookOpen, Clock, MapPin, Download } from "lucide-react";
 import { getTimetablePeriods, getTeacherTimetable } from "@/lib/api";
 
 const quickActions = [
@@ -153,6 +153,17 @@ export default function TeacherDashboard() {
               <h2 className="font-semibold t-text-primary" style={{ fontSize: "0.875rem", display: "flex", alignItems: "center", gap: 6, margin: 0 }}>
                 <Clock size={16} className="text-accent" />
                 My Timetable
+                {staff?.id && (
+                  <a
+                    href={`/api/v1/timetable/teacher/${staff.id}/pdf`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Download PDF"
+                    style={{ marginLeft: 8, display: "flex", alignItems: "center", color: "var(--accent)" }}
+                  >
+                    <Download size={14} />
+                  </a>
+                )}
               </h2>
               
               <div style={{ display: "flex", gap: 4, background: "var(--bg-page)", padding: 3, borderRadius: 8, border: "1px solid var(--border)" }}>

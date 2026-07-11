@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
 import api, { getAnnouncements, getTimetablePeriods, getClassTimetable } from "@/lib/api";
-import { ClipboardList, CreditCard, MessageSquare, UserCheck, Bell, CalendarDays, Palmtree, Megaphone, Clock, MapPin } from "lucide-react";
+import { ClipboardList, CreditCard, MessageSquare, UserCheck, Bell, CalendarDays, Palmtree, Megaphone, Clock, MapPin, Download } from "lucide-react";
 
 const ANN_META: Record<string, { color: string; bg: string; Icon: any }> = {
   NOTICE:  { color: "#6366f1", bg: "rgba(99,102,241,0.1)",  Icon: Bell },
@@ -39,6 +39,7 @@ export default function StudentDashboard() {
   const [activeDay,     setActiveDay]     = useState(getTodayDayName());
   const [loading,       setLoading]       = useState(true);
   const [ttLoading,     setTtLoading]     = useState(true);
+  const [classId,       setClassId]       = useState<number | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -69,8 +70,9 @@ export default function StudentDashboard() {
         if (!mounted) return;
         const invoices = res.data.data || [];
         if (invoices.length > 0) {
-          const classId = invoices[0].class_id;
-          getClassTimetable(classId)
+          const cId = invoices[0].class_id;
+          setClassId(cId);
+          getClassTimetable(cId)
             .then(slotRes => {
               if (mounted) setSlots(slotRes.data.data || []);
             })
@@ -139,6 +141,17 @@ export default function StudentDashboard() {
               <h2 className="font-semibold t-text-primary" style={{ fontSize: "0.875rem", display: "flex", alignItems: "center", gap: 6, margin: 0 }}>
                 <Clock size={16} className="text-accent" />
                 Class Timetable
+                {classId && (
+                  <a
+                    href={`/api/v1/timetable/class/${classId}/pdf`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Download PDF"
+                    style={{ marginLeft: 8, display: "flex", alignItems: "center", color: "var(--accent)" }}
+                  >
+                    <Download size={14} />
+                  </a>
+                )}
               </h2>
               
               <div style={{ display: "flex", gap: 4, background: "var(--bg-page)", padding: 3, borderRadius: 8, border: "1px solid var(--border)" }}>

@@ -648,3 +648,169 @@ def generate_payslip_pdf(payroll: dict, staff: dict) -> bytes:
 
     doc.build(elements)
     return buffer.getvalue()
+
+
+def generate_timetable_pdf(periods: list[dict], slots: list[dict], title: str, subtitle: str = "") -> bytes:
+    from reportlab.lib.pagesizes import landscape
+    
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(A4),
+        rightMargin=36,
+        leftMargin=36,
+        topMargin=36,
+        bottomMargin=36,
+    )
+    
+    styles = getSampleStyleSheet()
+    
+    title_style = ParagraphStyle(
+        "TimetableTitle",
+        parent=styles["Heading1"],
+        fontName="Helvetica-Bold",
+        fontSize=18,
+        leading=22,
+        textColor=colors.HexColor("#1e3a8a"),
+        alignment=1,
+        spaceAfter=6,
+    )
+    
+    subtitle_style = ParagraphStyle(
+        "TimetableSubtitle",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
+        fontSize=12,
+        leading=15,
+        textColor=colors.HexColor("#4b5563"),
+        alignment=1,
+        spaceAfter=15,
+    )
+    
+    cell_header_style = ParagraphStyle(
+        "TimetableCellHeader",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
+        fontSize=9,
+        leading=11,
+        textColor=colors.white,
+        alignment=1,
+    )
+    
+    cell_time_style = ParagraphStyle(
+        "TimetableCellTime",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
+        fontSize=9,
+        leading=11,
+        textColor=colors.HexColor("#1f2937"),
+        alignment=1,
+    )
+    
+    cell_slot_style = ParagraphStyle(
+        "TimetableCellSlot",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=8,
+        leading=10,
+        textColor=colors.HexColor("#374151"),
+        alignment=1,
+    )
+    
+    break_style = ParagraphStyle(
+        "TimetableCellBreak",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
+        fontSize=10,
+        leading=12,
+        textColor=colors.HexColor("#4b5563"),
+        alignment=1,
+    )
+    
+    elements = []
+    
+    elements.append(Paragraph(title, title_style))
+    if subtitle:
+        elements.append(Paragraph(subtitle, subtitle_style))
+        
+    headers = [
+        Paragraph("Time / Period", cell_header_style),
+        Paragraph("Monday", cell_header_style),
+        Paragraph("Tuesday", cell_header_style),
+        Paragraph("Wednesday", cell_header_style),
+        Paragraph("Thursday", cell_header_style),
+        Paragraph("Friday", cell_header_style)
+    ]
+    
+    data = [headers]
+    
+    slots_lookup = {}
+    for s in slots:
+        day = str(s.get("day_of_week")).upper()
+        p_id = s.get("period_id")
+        slots_lookup[(day, p_id)] = s
+        
+    days = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"]
+    
+    t_styles = [
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1e3a8a")),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
+        ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]
+    
+    for row_idx, p in enumerate(periods, start=1):
+        row = []
+        p_name = p.get("name", "")
+        
+        # Format times
+        start_val = p.get("start_time")
+        end_val = p.get("end_time")
+        start_str = start_val.strftime("%H:%M") if hasattr(start_val, "strftime") else str(start_val)[:5]
+        end_str = end_val.strftime("%H:%M") if hasattr(end_val, "strftime") else str(end_val)[:5]
+        
+        row.append(Paragraph(f"<b>{p_name}</b><br/>{start_str} - {end_str}", cell_time_style))
+        
+        if not p.get("is_academic"):
+            row.extend([Paragraph(p_name.upper(), break_style)] * 5)
+            t_styles.append(('SPAN', (1, row_idx), (5, row_idx)))
+            t_styles.append(('BACKGROUND', (1, row_idx), (5, row_idx), colors.HexColor("#f1f5f9")))
+        else:
+            for day in days:
+                slot = slots_lookup.get((day, p.get("id")))
+                if slot:
+                    sub_name = slot.get("subject_name") or ""
+                    teach_name = slot.get("teacher_name") or ""
+                    cls_name = slot.get("class_name") or ""
+                    classroom = slot.get("classroom_name") or ""
+                    
+                    lines = []
+                    # We are in landscape, so we can display more info clearly
+                    if sub_name:
+                        lines.append(f"<b>{sub_name}</b>")
+                    if cls_name and not teach_name: # student view
+                        if classroom: lines.append(classroom)
+                    elif teach_name and not cls_name: # teacher view
+                        if classroom: lines.append(classroom)
+                    else: # general
+                        info_line = " / ".join(filter(None, [cls_name, teach_name]))
+                        if info_line:
+                            lines.append(info_line)
+                        if classroom:
+                            lines.append(f"Room: {classroom}")
+                        
+                    row.append(Paragraph("<br/>".join(lines), cell_slot_style))
+                else:
+                    row.append(Paragraph("–", cell_slot_style))
+        data.append(row)
+        
+    t = Table(data, colWidths=[120] + [130] * 5)
+    t.setStyle(TableStyle(t_styles))
+    elements.append(t)
+    
+    doc.build(elements)
+    return buffer.getvalue()
+
